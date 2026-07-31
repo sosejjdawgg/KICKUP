@@ -19,7 +19,7 @@
 </head>
 <body>
 <div id="wrap"><canvas id="cv"></canvas></div>
-<div id="hint">tap / click / space &nbsp;·&nbsp; one thumb, same spot, three times</div>
+<div id="hint">tap / click / space &nbsp;·&nbsp; aim it, power it, place it</div>
 
 <script>
 "use strict";
@@ -176,6 +176,11 @@ const SFX = {
     tone(f*2, t, 0.004, 0.08, 0.08, 'square');
   },
   miss(){ if(!AC) return; const t=AC.currentTime; noise(t,0.5,0.13,'lowpass',300,1); sweepTone(180,70,t,0.5,0.10,'sawtooth'); },
+  perfectCue(){ // both meters' gold cores hit together — a little fanfare
+    if(!AC) return; const t = AC.currentTime;
+    [660,880,1108,1320].forEach((f,i)=> tone(f, t+i*0.045, 0.004, 0.22, 0.18, 'square'));
+    tone(1760, t+0.19, 0.006, 0.4, 0.16, 'triangle');
+  },
   block(){ // deflating, and slightly funny
     if(!AC) return; const t=AC.currentTime;
     noise(t,0.11,0.26,'lowpass',300,1); sweepTone(150,52,t,0.30,0.20,'triangle');
@@ -380,8 +385,7 @@ function buildQuestionSet(cat, n){
    ═══════════════════════════════════════════════════════════ */
 const GOAL = { x0:38, x1:250, y0:98, y1:224 };   // inner mouth
 const GW = GOAL.x1 - GOAL.x0, GH = GOAL.y1 - GOAL.y0;
-const HG = { x:258, y0:98, y1:224, w:14 };        // height gauge (right edge)
-const PT = { x0:38, x1:250, y:234, h:7 };         // placement sweep track
+const PT = { x0:38, x1:250, y:234, h:7 };         // accuracy sweep track
 const PB = { x0:26, x1:262, y:352, h:15 };        // power bar
 const SPOT = { x:160, y:308 };                    // the ball
 // the shooter's run-up: diagonal, from bottom-left toward the ball
@@ -437,7 +441,7 @@ const ROUND_NAME = ['STATIC','MOVING','THE KEEPER'];
    STATE
    ═══════════════════════════════════════════════════════════ */
 const S = {
-  scene:'TITLE',            // TITLE ROUNDCARD QUESTION READY P_POWER P_HEIGHT P_PLACE FLIGHT RESOLVE MATCHEND
+  scene:'TITLE',            // TITLE ROUNDCARD QUESTION READY AIM P_POWER P_ACCURACY STRIKE FLIGHT RESOLVE MATCHEND
   t:0, sceneT:0,
   cat:'BRAZIL', questions:[],
   round:0, shot:0,          // 0-indexed
@@ -452,7 +456,9 @@ const S = {
   cond:CONDS[0], wind:0, windDir:1,
   clock:10,
   gauge:0, gaugeDir:1,      // generic 0..1 marker + direction
-  lockP:0, lockH:0, lockU:0, curlDir:1, pureFlags:[false,false,false],
+  lockP:0, lockA:0, curlDir:1, pureFlags:[false,false],
+  aimU:0.5, aimV:0.55, aimSet:false,
+  perfect:{active:false, t:0},
   target:{u:0.5, v:0.55, r:30, motion:null},
   keeperU:0.5, keeperOn:false,
   ball:null, impact:null, result:null,
@@ -495,8 +501,10 @@ function prepShot(){
   S.windDir = rnd() < 0.5 ? -1 : 1;
   S.clock = 10;
   S.gauge = 0; S.gaugeDir = 1;
-  S.pureFlags = [false,false,false];
-  S.lockP = S.lockH = S.lockU = 0;
+  S.pureFlags = [false,false];
+  S.lockP = S.lockA = 0;
+  S.aimU = 0.5; S.aimV = 0.55; S.aimSet = false;
+  S.perfect = { active:false, t:0 };
   S.ball = null; S.impact = null; S.result = null; S.trail = [];
   S.runT = 0; S.clockAtLock = 10;
   S.keeperOn = (S.round === 2);
@@ -559,28 +567,46 @@ function keeperAt(t){
    ═══════════════════════════════════════════════════════════ */
 function resolveShot(){
   const card = CARDS[S.round];
-  const p = S.lockP, h = S.lockH, u0 = S.lockU;
+  const p = S.lockP, a = S.lockA;
 
   // flight time: harder = faster = less wind, less lead needed
   const flight = (0.88 - 0.36*p) / card.power;
 
-  // power accuracy
+  // POWER: too soft drops it low and pulls it, too hard sends it up and wide
   const lo = 0.70 - card.band/2, hi = 0.70 + card.band/2;
   const coreLo = 0.70 - card.core/2, coreHi = 0.70 + card.core/2;
-  const pure = p >= coreLo && p <= coreHi;
-  const clean = p >= lo && p <= hi;
-  let vErr = 0, uErr = 0;
-  if (p < lo){ const e = lo - p; vErr -= e*1.35; uErr += (rnd()-0.5)*e*0.9; }
-  else if (p > hi){ const e = p - hi; vErr += e*1.25; uErr += (rnd()-0.5)*e*1.1; }
+  const powerPure = p >= coreLo && p <= coreHi;
+  const powerClean = p >= lo && p <= hi;
+  let vErr = 0, uErrP = 0;
+  if (p < lo){ const e = lo - p; vErr -= e*1.35; uErrP += (rnd()-0.5)*e*0.9; }
+  else if (p > hi){ const e = p - hi; vErr += e*1.25; uErrP += (rnd()-0.5)*e*1.1; }
 
-  // curl from the sweep direction at tap 3
+  // ACCURACY: how precisely you executed the spot you aimed at. Miss the
+  // band and the strike drifts off your intended point in a random
+  // direction; the sweep direction at the tap still sets curl.
+  const aLo = 0.5 - card.band/2, aHi = 0.5 + card.band/2;
+  const aCoreLo = 0.5 - card.core/2, aCoreHi = 0.5 + card.core/2;
+  const accPure = a >= aCoreLo && a <= aCoreHi;
+  const accClean = a >= aLo && a <= aHi;
+  let uErrA = 0, vErrA = 0;
+  if (a < aLo || a > aHi){
+    const e = a < aLo ? (aLo - a) : (a - aHi);
+    const ang = rnd()*6.2832;
+    uErrA = Math.cos(ang) * e * 1.15;
+    vErrA = Math.sin(ang) * e * 0.85;
+  }
+
+  // curl from the sweep direction on the accuracy tap
   const curl = S.curlDir * card.curl * (1 - p*0.45) * 0.13;
 
   // wind, acting after commitment
   const drift = S.windDir * (S.wind/24) * flight * 0.55;
 
-  const iu = u0 + curl + drift + uErr;
-  const iv = h + vErr;
+  const pure = powerPure && accPure;     // both gold cores — a PERFECT SHOT
+  const clean = powerClean && accClean;
+
+  const iu = S.aimU + curl + drift + uErrP + uErrA;
+  const iv = S.aimV + vErr + vErrA;
 
   // where things are when the ball arrives
   const arriveT = S.t + flight;
@@ -630,7 +656,11 @@ function resolveShot(){
   S.ball = { t:0, dur:flight, from:{x:SPOT.x, y:SPOT.y}, to:{x:ix, y:iy}, curl, done:false };
 
   SFX.boot(offTarget ? 0 : (pure ? 2 : 1));
-  if (pure){ S.hitstop = 0.075; S.aberr = 0.30; S.flash = 0.35; }
+  if (pure){
+    S.hitstop = 0.075; S.aberr = 0.30; S.flash = 0.35;
+    S.perfect = { active:true, t:0 };
+    SFX.perfectCue();
+  }
   S.shake = pure ? 4.5 : 2.2;
 }
 
@@ -694,20 +724,27 @@ function tapAt(px, py){
       if (i >= 0) pickAnswer(i);
       return;
     }
-    case 'READY': SFX.whistleShort(); gotoScene('P_POWER'); return;
+    case 'READY': SFX.whistleShort(); gotoScene('AIM'); return;
+    case 'AIM': {
+      const u = Math.max(0.04, Math.min(0.96, (px - GOAL.x0)/GW));
+      const v = Math.max(0.04, Math.min(0.96, (GOAL.y1 - py)/GH));
+      S.aimU = u; S.aimV = v; S.aimSet = true;
+      SFX.lock(0, true);
+      gotoScene('P_POWER'); return;
+    }
     case 'P_POWER':
       S.lockP = S.gauge;
       { const c = CARDS[S.round];
         S.pureFlags[0] = Math.abs(S.lockP-0.70) <= c.core/2;
-        SFX.lock(0, Math.abs(S.lockP-0.70) <= c.band/2); }
-      S.gauge = 0; S.gaugeDir = 1; gotoScene('P_HEIGHT'); return;
-    case 'P_HEIGHT':
-      S.lockH = S.gauge; SFX.lock(1, true); SFX.crowdBreath();
-      S.gauge = 0; S.gaugeDir = 1; gotoScene('P_PLACE'); return;
-    case 'P_PLACE':
-      S.lockU = S.gauge; S.curlDir = S.gaugeDir; S.clockAtLock = S.clock;
+        SFX.lock(1, Math.abs(S.lockP-0.70) <= c.band/2); SFX.crowdBreath(); }
+      S.gauge = 0; S.gaugeDir = 1; gotoScene('P_ACCURACY'); return;
+    case 'P_ACCURACY': {
+      S.lockA = S.gauge; S.curlDir = S.gaugeDir; S.clockAtLock = S.clock;
+      const c = CARDS[S.round];
+      S.pureFlags[1] = Math.abs(S.lockA-0.5) <= c.core/2;
       SFX.lock(2, true);
       gotoScene('STRIKE'); return;     // he swings; contact resolves at the end
+    }
     case 'RESOLVE': if (S.sceneT > 0.5) advance(); return;
     case 'MATCHEND': if (S.sceneT > 0.6){ SEED = (SEED*1664525+1013904223)>>>0; gotoScene('TITLE'); } return;
   }
@@ -775,6 +812,7 @@ function update(dt){
   S.streakBreak = Math.max(0, S.streakBreak - dt*2);
   S.crowdHype = Math.max(0, S.crowdHype - dt*0.42);
   S.gloom = Math.max(0, S.gloom - dt*0.45);
+  if (S.perfect.active){ S.perfect.t += dt; if (S.perfect.t > 1.5) S.perfect.active = false; }
 
   for (const w of S.windParts){
     w.x += S.windDir * (S.wind*0.9 + 6) * w.s * dt;
@@ -802,8 +840,8 @@ function update(dt){
   if (S.keeperOn && S.scene!=='QUESTION' && S.scene!=='ROUNDCARD' && S.scene!=='RESOLVE')
     S.keeperU = keeperAt(S.t);
 
-  // he runs up during the height phase, then settles over the ball
-  if (S.scene === 'P_HEIGHT') S.runT = Math.min(1, S.runT + dt/RUN.dur);
+  // he runs up during the power phase, then settles over the ball
+  if (S.scene === 'P_POWER') S.runT = Math.min(1, S.runT + dt/RUN.dur);
 
   // the swing — contact resolves at the end of it, so the keeper and a
   // moving target are read at the true moment of contact
@@ -812,27 +850,31 @@ function update(dt){
     return;
   }
 
-  const aiming = S.scene==='P_POWER'||S.scene==='P_HEIGHT'||S.scene==='P_PLACE';
-  if (aiming){
+  // the 10s clock spans all three taps — aim, power, accuracy
+  const timerRunning = S.scene==='AIM'||S.scene==='P_POWER'||S.scene==='P_ACCURACY';
+  if (timerRunning){
     S.clock -= dt;
     // clock ticks
     if (S.clock < 3 && S.t - lastTickSound > 0.25){ SFX.tick(true); lastTickSound = S.t; }
     else if (S.clock >= 3 && S.t - lastTickSound > 0.5){ SFX.tick(false); lastTickSound = S.t; }
     if (S.clock <= 0){
-      S.lockP = S.lockP||0.4; S.lockH = S.lockH||0.5; S.lockU = 1.6;   // sails wide
+      if (!S.aimSet){ const tp = targetAt(S.t); S.aimU = tp.u; S.aimV = tp.v; S.aimSet = true; }
+      S.lockP = S.lockP||0.4; S.lockA = S.lockA||1.6;   // sails wide
       S.clock = 0; S.clockAtLock = 0; gotoScene('STRIKE'); return;
     }
-    // marker motion
-    const card = CARDS[S.round];
-    let speed = 1.0 * card.tempo * (S.cond.fast || 1);
-    if (S.scene === 'P_POWER') speed *= 0.95;
-    if (S.scene === 'P_HEIGHT') speed *= 0.80;
-    if (S.scene === 'P_PLACE')  speed *= 0.72;
-    let j = 0;
-    if (S.cond.jitter) j = (rnd()-0.5) * S.cond.jitter * 0.02;
-    S.gauge += S.gaugeDir * speed * dt + j;
-    if (S.gauge >= 1){ S.gauge = 1; S.gaugeDir = -1; }
-    if (S.gauge <= 0){ S.gauge = 0; S.gaugeDir = 1; }
+    // marker motion — only the power and accuracy meters actually move
+    const gaugeMoving = S.scene==='P_POWER'||S.scene==='P_ACCURACY';
+    if (gaugeMoving){
+      const card = CARDS[S.round];
+      let speed = 1.0 * card.tempo * (S.cond.fast || 1);
+      if (S.scene === 'P_POWER')    speed *= 0.95;
+      if (S.scene === 'P_ACCURACY') speed *= 0.78;
+      let j = 0;
+      if (S.cond.jitter) j = (rnd()-0.5) * S.cond.jitter * 0.02;
+      S.gauge += S.gaugeDir * speed * dt + j;
+      if (S.gauge >= 1){ S.gauge = 1; S.gaugeDir = -1; }
+      if (S.gauge <= 0){ S.gauge = 0; S.gaugeDir = 1; }
+    }
   }
 
   if (S.scene === 'FLIGHT'){
@@ -906,7 +948,59 @@ function draw(){
   if (S.scene === 'ROUNDCARD') drawRoundCard();
   if (S.scene === 'QUESTION') drawQuestion();
   if (S.scene === 'RESOLVE') drawResolve();
+  if (S.perfect.active) drawPerfectBanner();
   post();
+}
+
+/* ── PERFECT SHOT — both gold cores hit together. Letters roll in one
+   by one with a little overshoot, then shimmer as a travelling wave
+   until the callout fades, same chunky gold/white palette as the HUD. ── */
+function drawPerfectBanner(){
+  const t = S.perfect.t;
+  const word = 'PERFECT SHOT';
+  const cw = 15, fontPx = 13;
+  const totalW = word.length * cw;
+  const baseX = W/2 - totalW/2 + cw/2;
+  const baseY = 148;
+  const inDur = 0.40, fadeStart = 1.05, fadeDur = 0.30;
+  const globalAlpha = t > fadeStart ? Math.max(0, 1 - (t-fadeStart)/fadeDur) : 1;
+  if (globalAlpha <= 0) return;
+
+  // a soft gold wash behind the callout
+  b.save(); b.globalAlpha = globalAlpha * 0.16 * Math.min(1, t/0.3);
+  rect(0, baseY-11, W, 24, C.GOLD);
+  b.restore();
+
+  b.save();
+  b.font = 'bold '+fontPx+'px ui-monospace, Menlo, Consolas, monospace';
+  b.textAlign = 'center'; b.textBaseline = 'middle';
+  for (let i=0;i<word.length;i++){
+    const ch = word[i];
+    if (ch === ' ') continue;
+    const delay = i * 0.032;
+    const lt = t - delay;
+    if (lt < 0) continue;
+    let scale, bob;
+    if (lt < inDur){
+      const k = lt / inDur, kk = k - 1, ov = 1.70158;
+      scale = 1 + (kk*kk*((ov+1)*kk + ov));
+      bob = 0;
+    } else {
+      scale = 1;
+      bob = Math.sin(t*7 - i*0.55) * 1.5;    // the rolling shimmer
+    }
+    const x = baseX + i*cw, y = baseY + bob;
+    b.save();
+    b.globalAlpha = globalAlpha;
+    b.translate(x, y);
+    b.scale(Math.max(0.01,scale), Math.max(0.01,scale));
+    b.fillStyle = '#000000a0';
+    b.fillText(ch, 1, 2);
+    b.fillStyle = Math.sin(t*6 - i*0.6) > 0 ? C.GOLD2 : C.GOLD;
+    b.fillText(ch, 0, 0);
+    b.restore();
+  }
+  b.restore();
 }
 
 /* ── stadium ───────────────────────────────────────────────── */
@@ -918,16 +1012,23 @@ function drawStadium(){
   const hype = S.crowdHype;
   for (let i=0;i<W;i+=2){
     const hh = 10 + ((i*7919)%11);
-    // they come out of their seats — staggered, so it ripples rather than pulses
-    const j = hype > 0 ? Math.max(0, Math.sin(S.t*17 + i*0.55) * hype * 4) : 0;
     const hash = ((i*2654435761)>>>0);
-    const lit = hype > 0.55 && hash%5===0 && Math.sin(S.t*13 + i) > 0;
+    // a living crowd, always shuffling — every column bobs on its own
+    // phase and speed, plus rare bigger hops, so it never looks static
+    const ph = (hash%628)/100, spd = 1.5 + (hash%9)*0.22;
+    const idle = Math.sin(S.t*spd + ph) * (1.0 + (hash%3)*0.5)
+               + (Math.sin(S.t*0.85 + ph*2.3) > 0.965 ? 3.2 : 0);
+    // they come out of their seats — staggered, so a goal ripples rather than pulses
+    const j = idle + (hype > 0 ? Math.max(0, Math.sin(S.t*17 + i*0.55) * hype * 4) : 0);
+    const flick = Math.sin(S.t*2.1 + ph*3) > 0.988;             // stray phone flash
+    const lit = flick || (hype > 0.55 && hash%5===0 && Math.sin(S.t*13 + i) > 0);
     rect(i, 76-hh-j, 2, hh+j, lit ? '#9ec4f2' : (hash%3===0 ? C.CROWD2 : C.CROWD1));
   }
-  if (hype > 0.25){    // scarves and arms above the heads
-    b.save(); b.globalAlpha = Math.min(0.5, hype*0.6);
+  {    // scarves and arms above the heads — a handful always waving, more with hype
+    b.save(); b.globalAlpha = Math.min(0.55, 0.14 + hype*0.55);
     for (let i=1;i<W;i+=7){
-      const y = 60 - Math.abs(Math.sin(S.t*11 + i*0.9))*5*hype;
+      const ph = ((i*137)%628)/100;
+      const y = 60 - Math.abs(Math.sin(S.t*(2.2+(i%5)*0.3) + ph)) * (2.0 + hype*4.4);
       rect(i, y, 1, 3, ((i*40503)>>>0)%2 ? C.GOLD : '#c8d5f0');
     }
     b.restore();
@@ -968,6 +1069,14 @@ function drawGoalAndTarget(){
   for (let x=GOAL.x0; x<=GOAL.x1; x+=24) line(x, GOAL.y0, x, GOAL.y1, C.NET2);
   b.restore();
 
+  // an inviting pulse round the mouth while you're picking your spot
+  if (S.scene === 'AIM'){
+    b.save(); b.strokeStyle = C.GOLD2; b.lineWidth = 1;
+    b.globalAlpha = 0.35 + 0.35*Math.sin(S.t*6);
+    b.strokeRect(GOAL.x0-2.5, GOAL.y0-2.5, GW+5, GH+5);
+    b.restore();
+  }
+
   // target
   const tp = targetAt(S.t);
   const tx = u2x(tp.u), ty = v2y(tp.v);
@@ -986,6 +1095,22 @@ function drawGoalAndTarget(){
   if (S.round === 1 && S.scene !== 'FLIGHT'){   // motion ghost (low-rank training wheel)
     const g = targetAt(S.t + 0.55);
     b.save(); b.globalAlpha = 0.22; ring(u2x(g.u), v2y(g.v), R, C.GOLD2, 1); b.restore();
+  }
+
+  // your aim — a small reticle that sticks where you tapped, so you can
+  // see exactly what the power and accuracy meters are about to execute
+  if (S.aimSet && S.scene !== 'FLIGHT' && S.scene !== 'RESOLVE'){
+    const ax = u2x(S.aimU), ay = v2y(S.aimV);
+    const rp = 5.5 + 0.8*Math.sin(S.t*9);
+    b.save(); b.strokeStyle = C.GOLD2; b.lineWidth = 1; b.globalAlpha = 0.9;
+    b.beginPath();
+    b.moveTo(ax-rp, ay); b.lineTo(ax-rp*0.35, ay);
+    b.moveTo(ax+rp*0.35, ay); b.lineTo(ax+rp, ay);
+    b.moveTo(ax, ay-rp); b.lineTo(ax, ay-rp*0.35);
+    b.moveTo(ax, ay+rp*0.35); b.lineTo(ax, ay+rp);
+    b.stroke();
+    b.restore();
+    circ(ax, ay, 1.2, C.GOLD2);
   }
 
   // keeper — paces, never dives
@@ -1059,22 +1184,22 @@ function drawGoalAndTarget(){
    running, planting, and striking. Left-footed, so the plant
    foot lands between him and the ball and the swing arcs in.
 
-     STANCE   waiting at the top of the run-up
-     RUNUP    tap 1 locked power — he comes in
+     STANCE   waiting — this is also where he stands while you aim
+     RUNUP    tap 2 locked power — he comes in
      SETTLE   arrived, shuffling over the ball
-     WINDUP   tap 2 locked height — plants, leg cocked, trembling
-     STRIKE   tap 3 locked placement — the swing through
+     WINDUP   tap 3 window open — plants, leg cocked, trembling
+     STRIKE   accuracy locked — the swing through
      FOLLOW   in flight, leg high, on his toe
      REACT    result known — arms up, or hands on head
    ═══════════════════════════════════════════════════════════ */
 function shooterPhase(){
   switch (S.scene){
-    case 'P_HEIGHT': return S.runT < 1 ? 'RUNUP' : 'SETTLE';
-    case 'P_PLACE':  return 'WINDUP';
-    case 'STRIKE':   return 'STRIKE';
-    case 'FLIGHT':   return 'FOLLOW';
-    case 'RESOLVE':  return 'REACT';
-    default:         return 'STANCE';
+    case 'P_POWER':    return S.runT < 1 ? 'RUNUP' : 'SETTLE';
+    case 'P_ACCURACY': return 'WINDUP';
+    case 'STRIKE':     return 'STRIKE';
+    case 'FLIGHT':     return 'FOLLOW';
+    case 'RESOLVE':    return 'REACT';
+    default:           return 'STANCE';        // TITLE, READY, AIM…
   }
 }
 const easeIO = t => t<0.5 ? 2*t*t : 1-Math.pow(-2*t+2,2)/2;
@@ -1220,14 +1345,13 @@ function drawShooter(){
 /* ── the three gauges ──────────────────────────────────────── */
 function drawGauges(){
   const active = S.scene;
-  const dimA = active==='P_POWER'  ? 1 : 0.28;
-  const dimB = active==='P_HEIGHT' ? 1 : 0.28;
-  const dimC = active==='P_PLACE'  ? 1 : 0.28;
+  const dimPower = active==='P_POWER'    ? 1 : 0.28;
+  const dimAcc   = active==='P_ACCURACY' ? 1 : 0.28;
   const card = CARDS[S.round];
   const hideBands = !!S.cond.dark;
 
   // ── POWER (bottom)
-  b.save(); b.globalAlpha = dimA;
+  b.save(); b.globalAlpha = dimPower;
   rect(PB.x0-2, PB.y-2, PB.x1-PB.x0+4, PB.h+4, C.INK);
   rect(PB.x0, PB.y, PB.x1-PB.x0, PB.h, C.PANEL);
   const bw = PB.x1-PB.x0;
@@ -1244,36 +1368,28 @@ function drawGauges(){
   txt('POWER', PB.x0, PB.y-11, active==='P_POWER'?C.WHITE:C.GREYDK, 8);
   b.restore();
 
-  // ── HEIGHT (right edge, vertical)
-  b.save(); b.globalAlpha = dimB;
-  rect(HG.x-2, HG.y0-2, HG.w+4, (HG.y1-HG.y0)+4, C.INK);
-  rect(HG.x, HG.y0, HG.w, HG.y1-HG.y0, C.PANEL);
-  const gh = HG.y1-HG.y0;
-  ['GRASS','WAIST','CHEST','BAR'].forEach((lbl,i)=>{
-    const y = HG.y1 - (i/3)*gh;
-    line(HG.x, y, HG.x+HG.w, y, C.PANELED);
-  });
-  const hv = (active==='P_HEIGHT' ? S.gauge : S.lockH);
-  const my = HG.y1 - hv*gh;
-  rect(HG.x, my-1, HG.w, 3, C.GOLD);
-  rect(HG.x, my+2, HG.w, 1, C.GOLDDK);
-  txt('H', HG.x+4, HG.y0-11, active==='P_HEIGHT'?C.WHITE:C.GREYDK, 8);
-  b.restore();
-
-  // ── PLACEMENT (under the goal, horizontal) — sweep direction sets curl
-  b.save(); b.globalAlpha = dimC;
+  // ── ACCURACY (under the goal, horizontal) — how tightly you land the
+  // spot you aimed at; sweep direction at the tap still sets curl
+  b.save(); b.globalAlpha = dimAcc;
   rect(PT.x0-2, PT.y-2, PT.x1-PT.x0+4, PT.h+4, C.INK);
   rect(PT.x0, PT.y, PT.x1-PT.x0, PT.h, C.PANEL);
   const pw = PT.x1-PT.x0;
-  rect(PT.x0+pw/2, PT.y, 1, PT.h, C.PANELED);
-  const uv = (active==='P_PLACE' ? S.gauge : S.lockU);
-  const mx = PT.x0 + uv*pw;
+  if (!hideBands){
+    const lo = (0.5-card.band/2), hi = (0.5+card.band/2);
+    rect(PT.x0+lo*pw, PT.y, (hi-lo)*pw, PT.h, C.GREENDK);
+    const clo=(0.5-card.core/2), chi=(0.5+card.core/2);
+    rect(PT.x0+clo*pw, PT.y, (chi-clo)*pw, PT.h, C.GOLDDK);
+  }
+  const uv = (active==='P_ACCURACY' ? S.gauge : S.lockA);
+  const mx = PT.x0 + Math.max(0,Math.min(1,uv))*pw;
   rect(mx-1, PT.y-2, 3, PT.h+4, C.WHITE);
-  if (active==='P_PLACE'){
+  if (active==='P_ACCURACY'){
     // curl arrow follows sweep direction
     const d = S.gaugeDir;
     for (let i=1;i<=3;i++) rect(mx + d*(3+i*3), PT.y+2, 2, 2, C.GOLD2);
     txt(d>0 ? 'SLICE >' : '< HOOK', d>0 ? PT.x1-40 : PT.x0+2, PT.y-11, C.GOLD2, 8);
+  } else {
+    txt('ACCURACY', PT.x0, PT.y-11, C.GREYDK, 8);
   }
   b.restore();
 }
@@ -1347,17 +1463,17 @@ function drawHUD(){
   txt('×'+S.cond.mult.toFixed(2), W/2, 76, C.GREYDK, 7, 'center');
 
   // clock + prompt
-  const aiming = S.scene==='P_POWER'||S.scene==='P_HEIGHT'||S.scene==='P_PLACE';
+  const aiming = S.scene==='AIM'||S.scene==='P_POWER'||S.scene==='P_ACCURACY';
   if (aiming || S.scene==='READY' || S.scene==='STRIKE'){
     // three pips — how many touches he's taken
-    const done = S.scene==='READY' ? 0 : S.scene==='P_POWER' ? 0 : S.scene==='P_HEIGHT' ? 1 : S.scene==='P_PLACE' ? 2 : 3;
+    const done = S.scene==='READY' ? 0 : S.scene==='AIM' ? 0 : S.scene==='P_POWER' ? 1 : S.scene==='P_ACCURACY' ? 2 : 3;
     for (let i=0;i<3;i++){
       const x = W-56+i*13, y = PB.y+PB.h+24;
       rect(x,y,10,4, i<done ? C.GOLD : C.PANELED);
       if (i===done && Math.sin(S.t*8)>0) rect(x,y,10,4, C.WHITE);
     }
     // name the pose, so the phase is unambiguous
-    const poseLabel = { STANCE:'WAITING', RUNUP:'RUN-UP', SETTLE:'OVER THE BALL',
+    const poseLabel = S.scene==='AIM' ? 'TAKING AIM' : { STANCE:'WAITING', RUNUP:'RUN-UP', SETTLE:'OVER THE BALL',
                         WINDUP:'PLANTED · LEG BACK', STRIKE:'STRIKING', FOLLOW:'FOLLOW THROUGH', REACT:'' }[shooterPhase()];
     if (poseLabel) txt(poseLabel, 4, PB.y+PB.h+34, C.GREYDK, 7);
   }
@@ -1368,9 +1484,9 @@ function drawHUD(){
     const tm = c>=6?'×1.5':c>=3.5?'×1.2':c>=1?'×1.0':'×0.85';
     txt('TEMPO '+tm, 4, PB.y+PB.h+21, C.GREYDK, 8);
     const prompt = S.scene==='READY' ? 'TAP TO START'
-      : S.scene==='P_POWER' ? 'TAP 1 · LOCK POWER'
-      : S.scene==='P_HEIGHT'? 'TAP 2 · LOCK HEIGHT'
-      : S.scene==='P_PLACE' ? 'TAP 3 · LOCK PLACEMENT' : '';
+      : S.scene==='AIM'        ? 'TAP THE GOAL · AIM'
+      : S.scene==='P_POWER'    ? 'TAP · LOCK POWER'
+      : S.scene==='P_ACCURACY' ? 'TAP · LOCK ACCURACY' : '';
     txt(prompt, W-4, PB.y+PB.h+8, C.WHITE, 9, 'right');
     txt(CARDS[S.round].name+' · '+CARDS[S.round].arch, W-4, PB.y+PB.h+21, C.GREYDK, 7, 'right');
   }
@@ -1501,10 +1617,10 @@ function drawTitle(){
 
   // how
   const hy = 190;
-  txt('1  POWER', 26, hy, C.WHITE, 9);      txt('gold core = PURE STRIKE · he runs up', 92, hy, C.GREYDK, 8);
-  txt('2  HEIGHT', 26, hy+14, C.WHITE, 9);  txt('grass to crossbar · he plants', 92, hy+14, C.GREYDK, 8);
-  txt('3  PLACEMENT', 26, hy+28, C.WHITE, 9);txt('sweep sets curl · he strikes', 92, hy+28, C.GREYDK, 8);
-  txt('answer right → target grows 10%', 30, hy+46, C.GOLD2, 8);
+  txt('1  AIM', 26, hy, C.WHITE, 9);        txt('tap the goal · pick your spot', 92, hy, C.GREYDK, 8);
+  txt('2  POWER', 26, hy+14, C.WHITE, 9);   txt('gold core = perfect · he runs up', 92, hy+14, C.GREYDK, 8);
+  txt('3  ACCURACY', 26, hy+28, C.WHITE, 9);txt('gold core = perfect · sweep sets curl', 92, hy+28, C.GREYDK, 8);
+  txt('both gold cores together → PERFECT SHOT', 30, hy+46, C.GOLD2, 8);
   txt('wind moves the ball after you commit', 30, hy+58, C.ORANGE, 8);
 
   // category grid
@@ -1567,8 +1683,11 @@ function drawFrameTop(){
   for (let i=0;i<FRAME_W;i+=3){
     const hh = 6 + ((i*7919)%9);
     const hash = ((i*2654435761)>>>0);
+    const ph = (hash%628)/100;
+    const bob = Math.sin(S.t*(1.3+(hash%5)*0.24) + ph) * 1.3
+              + (Math.sin(S.t*0.7 + ph*2) > 0.97 ? 2.2 : 0);
     ctx.fillStyle = hash%3===0 ? C.CROWD2 : C.CROWD1;
-    ctx.fillRect(i, PAD_TOP-hh, 3, hh);
+    ctx.fillRect(i, PAD_TOP-hh-bob, 3, hh+bob);
   }
   [26, FRAME_W-26].forEach(px=>{
     ctx.fillStyle = '#1b2438'; ctx.fillRect(px-1, 4, 2, PAD_TOP-6);
