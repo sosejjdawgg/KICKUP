@@ -32,6 +32,11 @@
    ═══════════════════════════════════════════════════════════ */
 
 const W = 288, H = 432;
+// the game buffer stays 288x432 untouched; the display frame adds vertical
+// padding above and below so the presentation fills a modern tall phone
+// screen instead of letterboxing top and bottom.
+const PAD_TOP = 96, PAD_BOTTOM = 48;
+const FRAME_W = W, FRAME_H = H + PAD_TOP + PAD_BOTTOM;
 const cv = document.getElementById('cv');
 const ctx = cv.getContext('2d', { alpha:false });
 const buf = document.createElement('canvas'); buf.width = W; buf.height = H;
@@ -61,7 +66,7 @@ const C = {
   WHITE:'#f4f1e4', GREY:'#6f7d99', GREYDK:'#3d4a63',
   GREEN:'#3fd06a', GREENDK:'#1d7a3d',
   INK:'#070b14', PANEL:'#0e1526', PANELED:'#1d2942',
-  KEEP1:'#f0efe6', KEEP2:'#2e6fd0', KEEP3:'#12305e', SKIN:'#c98b5e'
+  KEEP1:'#e8e0c8', KEEP2:'#4c7a4a', KEEP3:'#16203a', SKIN:'#c98b5e'
 };
 
 /* ── seeded PRNG (mulberry32) ──────────────────────────────── */
@@ -400,19 +405,19 @@ const HANDLE_A = ['nutmeg','volley','panenka','rabona','tikitaka','offside','cro
 const HANDLE_B = ['_88','_xg','FC','__','_09','ito','ov','ski','_gk','21','_7','_zz','x','_utd'];
 const OPP_COLS = ['#4ea8ff','#c95cf0','#3fd06a','#ff8a3d','#f04a7a','#4fd8d0'];
 
-/* ── kit colours per category ───────────────────────────────
-   PLAIN SOLID COLOURS ONLY. No crest, no maker's marks, no stripe
+/* ── kit colours ───────────────────────────────────────────
+   Every shooter wears the same retro '66-style kit regardless of
+   category — white shirt, navy trim and shorts, red socks. Plain
+   solid colours only. No crest, no maker's marks, no stripe
    pattern. A yellow shirt is not a kit design; a kit design is
    licensed IP. See doc §9.1.                                    */
+const RETRO_KIT = { shirt:'#f4f1e4', trim:'#1c3f8f', shorts:'#16203a', socks:'#c8322a', num:'#16203a' };
 const KITS = {
-  BRAZIL:   { shirt:'#f2c518', trim:'#1e7a3c', shorts:'#1c3f8f', socks:'#f4f1e4', num:'#1c3f8f' },
-  ENGLAND:  { shirt:'#f4f1e4', trim:'#c8322a', shorts:'#1c3f8f', socks:'#f4f1e4', num:'#1c3f8f' },
-  ARGENTINA:{ shirt:'#8ecae6', trim:'#f4f1e4', shorts:'#16203a', socks:'#f4f1e4', num:'#16203a' },
-  ITALY:    { shirt:'#1c4fa0', trim:'#f4f1e4', shorts:'#f4f1e4', socks:'#1c4fa0', num:'#f4f1e4' },
-  GERMANY:  { shirt:'#f4f1e4', trim:'#16203a', shorts:'#16203a', socks:'#f4f1e4', num:'#16203a' },
-  FRANCE:   { shirt:'#1c3f8f', trim:'#f4f1e4', shorts:'#f4f1e4', socks:'#c8322a', num:'#f4f1e4' }
+  BRAZIL: RETRO_KIT, ENGLAND: RETRO_KIT, ARGENTINA: RETRO_KIT,
+  ITALY: RETRO_KIT, GERMANY: RETRO_KIT, FRANCE: RETRO_KIT
 };
-const HAIRS = ['#20160f','#4a2c14','#8a5a2a','#141416','#c9a45c','#6b3a1c'];
+// short back-and-sides, period-correct: black, dark brown, chestnut, sandy
+const HAIRS = ['#181210','#3a2414','#5a3a1c','#8a6a38'];
 const SKINS = ['#e8b88c','#c98b5e','#9c6238','#6f4426','#4a2d1a'];
 
 /* ── conditions ────────────────────────────────────────────── */
@@ -742,7 +747,7 @@ function toBuf(e){
   const rect = cv.getBoundingClientRect();
   const cx = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
   const cy = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
-  return [ cx * (W/rect.width), cy * (H/rect.height) ];
+  return [ cx * (FRAME_W/rect.width), cy * (FRAME_H/rect.height) - PAD_TOP ];
 }
 cv.addEventListener('pointerdown', e=>{ e.preventDefault(); const [x,y]=toBuf(e); tapAt(x,y); }, {passive:false});
 window.addEventListener('keydown', e=>{
@@ -1198,6 +1203,7 @@ function drawShooter(){
   bx(tx-1.4, -35.5, 3, 2.4, S.skin);                   // neck
   bx(tx-3.6, hy-3.6, 7.2, 7.4, S.skin);
   bx(tx-3.8, hy-4.2, 7.6, 3.6, S.hair);                // hair, back of the head
+  bx(tx-1.1, hy-4.2, 0.6, 3.2, S.skin);                // hard side parting — '60s comb
   bx(tx-3.8, hy-1.2, 1.2, 2.4, S.hair);
   bx(tx+2.6, hy-1.2, 1.2, 2.4, S.hair);
   bx(tx-2.6, hy+3.2, 5.2, 1, '#00000030');
@@ -1551,6 +1557,37 @@ function drawMatchEnd(){
   txt('TAP FOR A NEW SEED', W/2, 380, Math.sin(S.t*5)>0?C.WHITE:C.GREYDK, 10, 'center');
 }
 
+/* ── frame padding: extends the stadium above and below the game
+   buffer so the presentation fills a tall phone screen rather than
+   letterboxing. Purely decorative — the buffer itself is untouched. ── */
+function drawFrameTop(){
+  const g = ctx.createLinearGradient(0,0,0,PAD_TOP);
+  g.addColorStop(0, '#03040a'); g.addColorStop(1, C.STAND2);
+  ctx.fillStyle = g; ctx.fillRect(0,0,FRAME_W,PAD_TOP);
+  for (let i=0;i<FRAME_W;i+=3){
+    const hh = 6 + ((i*7919)%9);
+    const hash = ((i*2654435761)>>>0);
+    ctx.fillStyle = hash%3===0 ? C.CROWD2 : C.CROWD1;
+    ctx.fillRect(i, PAD_TOP-hh, 3, hh);
+  }
+  [26, FRAME_W-26].forEach(px=>{
+    ctx.fillStyle = '#1b2438'; ctx.fillRect(px-1, 4, 2, PAD_TOP-6);
+    ctx.fillStyle = '#e8e0c8';
+    for (let k=0;k<3;k++) ctx.fillRect(px-4+k*4, 2, 2, 2);
+    ctx.save(); ctx.globalAlpha=0.10; ctx.fillStyle='#9fd0ff';
+    ctx.beginPath(); ctx.moveTo(px,6); ctx.lineTo(px+60,PAD_TOP); ctx.lineTo(px-60,PAD_TOP); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  });
+}
+function drawFrameBottom(){
+  const y0 = FRAME_H-PAD_BOTTOM;
+  const g = ctx.createLinearGradient(0,y0,0,FRAME_H);
+  g.addColorStop(0, C.TURFLO); g.addColorStop(1, '#03040a');
+  ctx.fillStyle = g; ctx.fillRect(0,y0,FRAME_W,PAD_BOTTOM);
+  ctx.fillStyle = '#0f4028';
+  for (let y=y0; y<FRAME_H; y++){ if (Math.floor((y-y0)/7)%2===0) ctx.fillRect(0,y,FRAME_W,1); }
+}
+
 /* ── post-processing: shake, flash, RGB split, scanlines, vignette ── */
 const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 function post(){
@@ -1558,8 +1595,13 @@ function post(){
   const ox = sh ? (rnd()-0.5)*sh*2 : 0, oy = sh ? (rnd()-0.5)*sh*2 : 0;
 
   ctx.fillStyle = C.VOID; ctx.fillRect(0,0,cv.width,cv.height);
-  const sc = cv.width / W;
+  const sc = cv.width / FRAME_W;
   ctx.save(); ctx.scale(sc, sc); ctx.imageSmoothingEnabled = false;
+
+  drawFrameTop();
+  drawFrameBottom();
+  ctx.save();
+  ctx.translate(0, PAD_TOP);
 
   if (S.aberr > 0.01 && !reduceMotion){
     const d = S.aberr * 3;
@@ -1598,15 +1640,17 @@ function post(){
     ctx.globalAlpha = 1;
   }
 
-  // scanlines
+  ctx.restore();   // undo the PAD_TOP translate — back to frame space
+
+  // scanlines, over the whole frame
   ctx.globalAlpha = 0.13; ctx.fillStyle = '#000';
-  for (let y=0;y<H;y+=2) ctx.fillRect(0,y,W,1);
+  for (let y=0;y<FRAME_H;y+=2) ctx.fillRect(0,y,FRAME_W,1);
   ctx.globalAlpha = 1;
 
-  // vignette
-  const g = ctx.createRadialGradient(W/2,H/2,H*0.30, W/2,H/2,H*0.72);
+  // vignette, over the whole frame
+  const g = ctx.createRadialGradient(FRAME_W/2,FRAME_H/2,FRAME_H*0.30, FRAME_W/2,FRAME_H/2,FRAME_H*0.72);
   g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(0,0,0,0.55)');
-  ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle = g; ctx.fillRect(0,0,FRAME_W,FRAME_H);
   ctx.restore();
 }
 
@@ -1614,10 +1658,9 @@ function post(){
    RESIZE + LOOP
    ═══════════════════════════════════════════════════════════ */
 function resize(){
-  const availH = window.innerHeight - 26, availW = window.innerWidth - 8;
-  let s = Math.min(availW / W, availH / H);
-  s = s >= 1 ? Math.floor(s) : s;            // integer scale when we can
-  cv.width = Math.round(W*s); cv.height = Math.round(H*s);
+  const availH = window.innerHeight - 20, availW = window.innerWidth - 8;
+  const s = Math.min(availW / FRAME_W, availH / FRAME_H);
+  cv.width = Math.round(FRAME_W*s); cv.height = Math.round(FRAME_H*s);
   cv.style.width = cv.width+'px'; cv.style.height = cv.height+'px';
   ctx.imageSmoothingEnabled = false;
 }
