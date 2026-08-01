@@ -154,10 +154,20 @@ const SFX = {
     if (sweet) tone(base*2, t+0.01, 0.004, 0.10, 0.14, 'triangle');
   },
   tick(hot){ if(!AC) return; const t=AC.currentTime; tone(hot?1400:900, t, 0.002, 0.02, hot?0.10:0.05, 'square'); },
-  juggleBop(footA){ // soft alternating "bop" — the keepy-up beat, satisfying like a metronome
+  juggleBop(kind, sideA){ // the keepy-up beat — foot/knee/head each read differently by ear
     if(!AC) return; const t=AC.currentTime;
-    tone(footA?392:330, t, 0.003, 0.09, 0.16, 'triangle');
-    tone((footA?392:330)*2, t+0.005, 0.003, 0.05, 0.06, 'square');
+    if (kind==='head'){
+      tone(196, t, 0.004, 0.16, 0.22, 'sine'); tone(98, t+0.006, 0.005, 0.22, 0.16, 'sine');
+      return;
+    }
+    if (kind==='knee'){
+      const base = sideA?294:262;
+      tone(base, t, 0.003, 0.10, 0.17, 'square'); tone(base*1.5, t+0.005, 0.003, 0.06, 0.06, 'triangle');
+      return;
+    }
+    const base = sideA?392:330;
+    tone(base, t, 0.003, 0.09, 0.16, 'triangle');
+    tone(base*2, t+0.005, 0.003, 0.05, 0.06, 'square');
   },
   whistleShort(){
     if(!AC) return; const t = AC.currentTime;
@@ -570,7 +580,7 @@ const S = {
   crowdHype:0, gloom:0,
   smokePuffs:[], windParts:[], trail:[],
   // solo keepy-ups mode
-  mode:'SHOOTOUT', menuMode:'SHOOTOUT', ku:null,
+  mode:'SHOOTOUT', menuMode:'KEEPYUPS', ku:null,
   hattrick:{active:false, t:0},
   // create-a-player
   character:{ teamIdx:0, bodyIdx:1, heightIdx:1, skinIdx:1, hairIdx:0, shirtIdx:0, sockIdx:2, shoeIdx:8 },
@@ -614,6 +624,19 @@ const KU_START_CLOCK = 15, KU_BONUS = 5;
 const KU_REVEAL_END = 0.55;
 const JUG = { x: W/2, y: 215, s: 2.35 };   // closeup juggling anchor
 
+/* ── trick progression — the combo gets harder to watch as the streak
+   grows. 0-5: plain foot-to-foot. 6-10: two touches then a header.
+   11+: four knee touches, a header, then one more knee.            */
+const TRICK_PATTERNS = [
+  ['foot','foot'],
+  ['foot','foot','head'],
+  ['knee','knee','knee','knee','head','knee']
+];
+function trickTier(streak){ return streak>=11 ? 2 : streak>=6 ? 1 : 0; }
+const CONTACT_Y     = { foot:0,  knee:-17, head:-40 };  // local-space contact height
+const CONTACT_REACH = { foot:14, knee:11,  head:9 };    // extra arc height above the peak
+function contactX(type, side){ return type==='head' ? 0 : (side===0 ? -5 : 5); }
+
 function shuffledPool(cat){
   const pool = QUESTIONS[cat].slice();
   for (let j=pool.length-1;j>0;j--){ const k=Math.floor(rnd()*(j+1)); [pool[j],pool[k]]=[pool[k],pool[j]]; }
@@ -638,7 +661,7 @@ function beginKeepyups(cat){
     pool: shuffledPool(cat),
     q:null, qPick:-1, qResolved:false, qWasRight:false, qRevealT:0,
     clock: KU_START_CLOCK, streak:0, best:0, answered:0,
-    cycleT:0, foot:0, contactPop:0, celebWord:'', bike:null, bonusFlashT:0
+    cycleT:0, foot:0, trickIdx:0, tier:0, contactPop:0, contactType:'foot', celebWord:'', bike:null, bonusFlashT:0
   };
   gotoScene('KU_READY');
 }
@@ -667,9 +690,15 @@ function updateKeepyups(dt){
   if (juggling){
     ku.cycleT += dt;
     if (ku.cycleT >= 1){
-      ku.cycleT -= 1; ku.foot = 1-ku.foot; ku.contactPop = 1;
-      SFX.juggleBop(ku.foot===0);
-      S.shake = Math.max(S.shake, 0.8);
+      ku.cycleT -= 1;
+      const tier = trickTier(ku.streak);
+      if (tier !== ku.tier){ ku.tier = tier; ku.trickIdx = 0; }
+      else { const pat = TRICK_PATTERNS[ku.tier]; ku.trickIdx = (ku.trickIdx+1) % pat.length; }
+      ku.foot = 1-ku.foot;
+      ku.contactPop = 1;
+      ku.contactType = TRICK_PATTERNS[ku.tier][ku.trickIdx];
+      SFX.juggleBop(ku.contactType, ku.foot===0);
+      S.shake = Math.max(S.shake, ku.contactType==='head' ? 1.2 : 0.8);
     }
     ku.contactPop = Math.max(0, ku.contactPop - dt*3.2);
   }
@@ -1332,6 +1361,18 @@ function drawRollingBanner(word, t, opts){
 }
 function drawPerfectBanner(){ drawRollingBanner('PERFECT SHOT', S.perfect.t, {baseY:148}); }
 
+/* ── the Mexican wave — a clean, deterministic left-to-right sweep
+   that repeats every WAVE_CYCLE seconds. Returns 0..1, the crest's
+   height at column x (in buffer/frame pixels) at time t.           */
+const WAVE_CYCLE = 11, WAVE_DUR = 2.4, WAVE_WIDTH = 0.30, WAVE_LEAD = 0.82;
+function waveBoost(x, t){
+  const cyclePos = t % WAVE_CYCLE;
+  const frac = x / W;
+  const phase = cyclePos/WAVE_DUR - frac*WAVE_LEAD;
+  if (phase < 0 || phase > WAVE_WIDTH) return 0;
+  return Math.sin((phase/WAVE_WIDTH) * Math.PI);
+}
+
 /* ── stadium ───────────────────────────────────────────────── */
 function drawStadium(){
   const dark = S.cond.dark ? 0.55 : 1;
@@ -1342,22 +1383,20 @@ function drawStadium(){
   for (let i=0;i<W;i+=2){
     const hh = 10 + ((i*7919)%11);
     const hash = ((i*2654435761)>>>0);
-    // a living crowd, always shuffling — every column bobs on its own
-    // phase and speed, plus rare bigger hops, so it never looks static
-    const ph = (hash%628)/100, spd = 1.5 + (hash%9)*0.22;
-    const idle = Math.sin(S.t*spd + ph) * (1.0 + (hash%3)*0.5)
-               + (Math.sin(S.t*0.85 + ph*2.3) > 0.965 ? 3.2 : 0);
-    // they come out of their seats — staggered, so a goal ripples rather than pulses
-    const j = idle + (hype > 0 ? Math.max(0, Math.sin(S.t*17 + i*0.55) * hype * 4) : 0);
-    const flick = Math.sin(S.t*2.1 + ph*3) > 0.988;             // stray phone flash
-    const lit = flick || (hype > 0.55 && hash%5===0 && Math.sin(S.t*13 + i) > 0);
+    // a calm baseline murmur — the real spectacle is the wave below
+    const ph = (hash%628)/100, spd = 1.1 + (hash%5)*0.10;
+    const idle = Math.sin(S.t*spd + ph) * 0.5;
+    const wave = waveBoost(i, S.t) * 11;                     // the Mexican wave crest
+    const j = idle + wave + (hype > 0 ? Math.max(0, Math.sin(S.t*17 + i*0.55) * hype * 4) : 0);
+    const lit = wave > 6.5 || (hype > 0.55 && hash%5===0 && Math.sin(S.t*13 + i) > 0);
     rect(i, 76-hh-j, 2, hh+j, lit ? '#9ec4f2' : (hash%3===0 ? C.CROWD2 : C.CROWD1));
   }
-  {    // scarves and arms above the heads — a handful always waving, more with hype
-    b.save(); b.globalAlpha = Math.min(0.55, 0.14 + hype*0.55);
+  {    // scarves and arms above the heads — mostly quiet, rise with the wave or the hype
+    b.save(); b.globalAlpha = Math.min(0.55, 0.08 + hype*0.55);
     for (let i=1;i<W;i+=7){
       const ph = ((i*137)%628)/100;
-      const y = 60 - Math.abs(Math.sin(S.t*(2.2+(i%5)*0.3) + ph)) * (2.0 + hype*4.4);
+      const wave = waveBoost(i, S.t);
+      const y = 60 - Math.abs(Math.sin(S.t*(1.8+(i%5)*0.2) + ph)) * (1.2 + hype*4.4) - wave*10;
       rect(i, y, 1, 3, ((i*40503)>>>0)%2 ? C.GOLD : '#c8d5f0');
     }
     b.restore();
@@ -1704,8 +1743,9 @@ function drawJuggler(anchor){
   let pK=[4.2,-10], pF=[5,0];        // support leg
   let kK=[-4.2,-10], kF=[-5,0];      // active/juggling leg
   let aL=[[-9,-27],[-10,-20]], aR=[[9,-27],[10,-20]];
-  let lean = 0, armsUp = false;
+  let lean = 0, armsUp = false, headDip = 0;
   let ballLocal = null;              // [x,y] in local unit space, or null to skip drawing here
+  let contactLocal = null;           // [x,y] of the leg that just made contact, for the dust poof
 
   if (inBike){
     if (bikeT < 0.30){                                   // leap into the scissor
@@ -1729,20 +1769,40 @@ function drawJuggler(anchor){
     }
   } else {
     const t = ku ? ku.cycleT : (S.t % 1);          // no ku? animate off the clock (character preview)
-    const foot = ku ? ku.foot : (Math.floor(S.t) % 2);
+    const side = ku ? ku.foot : (Math.floor(S.t) % 2);
+    const pattern = ku ? TRICK_PATTERNS[ku.tier] : TRICK_PATTERNS[0];
+    const idx = ku ? ku.trickIdx : (Math.floor(S.t) % pattern.length);
+    const curType = pattern[idx % pattern.length];
+    const nextType = pattern[(idx+1) % pattern.length];
     const flick = Math.max(0, Math.cos(Math.min(1, t/0.35)*Math.PI*0.5));
-    const hop = Math.sin(t*Math.PI) * 1.1;
-    gy -= hop;
-    const active = [lerp(-5,-2,flick), lerp(0,-14,flick)];
-    const activeKnee = [lerp(-4.2,-1,flick), lerp(-10,-17,flick)];
-    const rest = [5,0], restKnee = [4.2,-10];
-    if (foot === 0){ kF=active; kK=activeKnee; pF=rest; pK=restKnee; }
-    else { kF=[-rest[0],rest[1]]; kK=[-restKnee[0],restKnee[1]]; pF=[-active[0],active[1]]; pK=[-activeKnee[0],activeKnee[1]]; }
-    const armSwing = Math.sin(t*Math.PI*2)*2;
-    aL=[[-9-armSwing,-27],[-10-armSwing,-19]]; aR=[[9+armSwing,-27],[10+armSwing,-19]];
 
-    const fromX = foot===0 ? -5 : 5, toX = -fromX;
-    ballLocal = [ lerp(fromX, toX, t), -Math.sin(Math.PI*t)*20 - 2 ];
+    let extraLift = 0;
+    if (curType === 'head'){
+      extraLift = flick * 1.8;
+      headDip = -flick * 3;
+      pF=[5,0]; pK=[4.2,-10]; kF=[-5,0]; kK=[-4.2,-10];       // legs stay grounded
+      aL=[[-11,-30],[-14,-26]]; aR=[[11,-30],[14,-26]];        // arms wide for balance
+    } else {
+      // same left/behind ⇄ right/front swap as the original foot-only rig,
+      // so the active leg alternates which one draws in front each beat
+      const isKnee = curType === 'knee';
+      const active = [lerp(-5,   isKnee?-2.0:-2, flick), lerp(0,   isKnee?-10:-14, flick)];
+      const activeKnee = [lerp(-4.2, isKnee?-2.2:-1, flick), lerp(-10, isKnee?-19:-17, flick)];
+      const rest = [5,0], restKnee = [4.2,-10];
+      if (side === 0){ kF=active; kK=activeKnee; pF=rest; pK=restKnee; contactLocal = kF; }
+      else { kF=[-rest[0],rest[1]]; kK=[-restKnee[0],restKnee[1]]; pF=[-active[0],active[1]]; pK=[-activeKnee[0],activeKnee[1]]; contactLocal = pF; }
+      const armSwing = Math.sin(t*Math.PI*2)*2;
+      aL=[[-9-armSwing,-27],[-10-armSwing,-19]]; aR=[[9+armSwing,-27],[10+armSwing,-19]];
+    }
+    const hop = Math.sin(t*Math.PI) * 1.1;
+    gy -= hop + extraLift;
+
+    const fromX = contactX(curType, side), toX = contactX(nextType, 1-side);
+    const y0 = CONTACT_Y[curType], y1 = CONTACT_Y[nextType];
+    const peak = Math.min(y0,y1) - Math.max(CONTACT_REACH[curType], CONTACT_REACH[nextType]);
+    const bxLocal = lerp(fromX, toX, t);
+    const byLocal = (1-t)*(1-t)*y0 + 2*(1-t)*t*peak + t*t*y1;
+    ballLocal = [ bxLocal, byLocal - 2 ];
   }
 
   // shadow
@@ -1781,7 +1841,7 @@ function drawJuggler(anchor){
   lm(aR[0][0],aR[0][1], aR[1][0],aR[1][1], 2.9, S.skin);
 
   // head, from behind — same period side-parting as the shooter
-  const hy = -39;
+  const hy = -39 + headDip;
   bx(tx-1.4,-35.5, 3, 2.4, S.skin);
   bx(tx-3.8, hy-3.7, 7.6, 7.6, S.skin);
   bx(tx-4.0, hy-4.3, 8.0, 3.7, S.hair);
@@ -1789,11 +1849,15 @@ function drawJuggler(anchor){
   bx(tx-4.0, hy-1.2, 1.2, 2.4, S.hair);
   bx(tx+2.8, hy-1.2, 1.2, 2.4, S.hair);
 
-  // dust poof on each foot contact
+  // contact feedback — dust off the foot/knee, a soft ring off the head
   if (!inBike && ku && ku.contactPop > 0){
-    const footX = ku.foot===0 ? pF[0] : kF[0];   // the foot that just landed the ball
-    b.save(); b.globalAlpha = ku.contactPop*0.5;
-    circ(px(footX), py(1.4), (1-ku.contactPop)*6*s*0.14 + 1.5, C.CHALKDIM);
+    b.save(); b.globalAlpha = ku.contactPop*0.55;
+    if (ku.contactType === 'head'){
+      ring(px(tx), py(hy-2), (1-ku.contactPop)*5*s*0.14 + 2.5, C.CHALKDIM, 1);
+    } else if (contactLocal){
+      const groundY = ku.contactType==='knee' ? contactLocal[1]+2 : 1.4;
+      circ(px(contactLocal[0]), py(groundY), (1-ku.contactPop)*6*s*0.14 + 1.5, C.CHALKDIM);
+    }
     b.restore();
   }
 
@@ -2362,8 +2426,7 @@ function drawFrameTop(){
     const hh = 6 + ((i*7919)%9);
     const hash = ((i*2654435761)>>>0);
     const ph = (hash%628)/100;
-    const bob = Math.sin(S.t*(1.3+(hash%5)*0.24) + ph) * 1.3
-              + (Math.sin(S.t*0.7 + ph*2) > 0.97 ? 2.2 : 0);
+    const bob = Math.sin(S.t*(1.0+(hash%5)*0.14) + ph) * 0.7 + waveBoost(i, S.t)*6;
     ctx.fillStyle = hash%3===0 ? C.CROWD2 : C.CROWD1;
     ctx.fillRect(i, PAD_TOP-hh-bob, 3, hh+bob);
   }
