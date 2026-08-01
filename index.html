@@ -146,6 +146,11 @@ const SFX = {
     if (sweet) tone(base*2, t+0.01, 0.004, 0.10, 0.14, 'triangle');
   },
   tick(hot){ if(!AC) return; const t=AC.currentTime; tone(hot?1400:900, t, 0.002, 0.02, hot?0.10:0.05, 'square'); },
+  juggleBop(footA){ // soft alternating "bop" — the keepy-up beat, satisfying like a metronome
+    if(!AC) return; const t=AC.currentTime;
+    tone(footA?392:330, t, 0.003, 0.09, 0.16, 'triangle');
+    tone((footA?392:330)*2, t+0.005, 0.003, 0.05, 0.06, 'square');
+  },
   whistleShort(){
     if(!AC) return; const t = AC.currentTime;
     const f = noise(t, 0.16, 0.20, 'bandpass', 2600, 14);
@@ -321,7 +326,19 @@ const QUESTIONS = {
     ["Brazil beat which team in the 2002 final?", ["Germany","Italy","France","Spain"], 0],
     ["Brazil beat which team in the 1970 final?", ["Italy","Germany","England","Uruguay"], 0],
     ["Brazil won the 1994 final on penalties against?", ["Italy","Sweden","Germany","Netherlands"], 0],
-    ["Brazil's home shirt is famously which colour?", ["Yellow","Blue","White","Green"], 0]
+    ["Brazil's home shirt is famously which colour?", ["Yellow","Blue","White","Green"], 0],
+    ["Brazil's national team is nicknamed?", ["Seleção","La Roja","Azzurri","Die Mannschaft"], 0],
+    ["Which Brazilian legend is nicknamed 'The King of Football'?", ["Pelé","Ronaldinho","Zico","Romário"], 0],
+    ["Pelé won how many World Cups with Brazil?", ["3","2","4","1"], 0],
+    ["Brazil's away shirt is traditionally which colour?", ["Blue","Green","White","Red"], 0],
+    ["Brazil hosted the World Cup in 1950 but lost the deciding match to which team, a result known as the 'Maracanazo'?", ["Uruguay","Argentina","Italy","Spain"], 0],
+    ["Brazil's 1970 World Cup title was won in which country?", ["Mexico","Chile","USA","Argentina"], 0],
+    ["Brazil's 1958 World Cup title was won in which country?", ["Sweden","Switzerland","France","Chile"], 0],
+    ["Which Brazilian striker won the Golden Boot at the 2002 World Cup?", ["Ronaldo","Ronaldinho","Rivaldo","Romário"], 0],
+    ["Brazil's biggest football rivalry is with which neighbouring country?", ["Argentina","Uruguay","Chile","Paraguay"], 0],
+    ["Which Brazilian right-back captained the side in two World Cup finals?", ["Cafu","Roberto Carlos","Dani Alves","Marcelo"], 0],
+    ["Brazil lost the 1998 World Cup final to which team?", ["France","Italy","Germany","Netherlands"], 0],
+    ["Which Brazilian forward won the Ballon d'Or in 2005?", ["Ronaldinho","Kaká","Ronaldo","Rivaldo"], 0]
   ],
   ENGLAND: [
     ["England won the World Cup in which year?", ["1966","1962","1970","1958"], 0],
@@ -330,7 +347,20 @@ const QUESTIONS = {
     ["England's national stadium is called?", ["Wembley","Villa Park","Elland Road","Anfield"], 0],
     ["England lost the 1990 semi-final on penalties to?", ["West Germany","Italy","Argentina","Cameroon"], 0],
     ["Who did England lose the Euro 2020 final to?", ["Italy","Spain","Denmark","France"], 0],
-    ["England's team nickname is?", ["Three Lions","The Roses","Albion","The Crown"], 0]
+    ["England's team nickname is?", ["Three Lions","The Roses","Albion","The Crown"], 0],
+    ["England's home shirt is traditionally which colour?", ["White","Red","Blue","Navy"], 0],
+    ["England's away shirt is traditionally which colour?", ["Red","Green","Yellow","Black"], 0],
+    ["Who captained England to the 1966 World Cup title?", ["Bobby Moore","Bobby Charlton","Geoff Hurst","Martin Peters"], 0],
+    ["England lost the 2018 World Cup semi-final to which team?", ["Croatia","Belgium","France","Sweden"], 0],
+    ["England lost the Euro 96 semi-final on penalties to which team?", ["Germany","Netherlands","Spain","France"], 0],
+    ["England were knocked out of the 2010 World Cup 4-1 by which team?", ["Germany","Argentina","Portugal","Spain"], 0],
+    ["England's governing football body is commonly known as?", ["The FA","The EFA","UEFA","FIFA"], 0],
+    ["England's 2018 World Cup semi-final run was their first since which earlier tournament?", ["1990","1966","1970","1982"], 0],
+    ["England has hosted the World Cup only once, in which year?", ["1966","1990","1982","2006"], 0],
+    ["Who managed England to their 1966 World Cup title?", ["Alf Ramsey","Bobby Robson","Terry Venables","Gareth Southgate"], 0],
+    ["England's Euro 2020 final defeat to Italy at Wembley was decided by?", ["A penalty shootout","Extra-time golden goal","A replay","Away goals"], 0],
+    ["As a player, Gareth Southgate missed a decisive penalty in the Euro 96 semi-final against?", ["Germany","Netherlands","Spain","France"], 0],
+    ["How many stars appear above England's crest, representing World Cup wins?", ["1","2","3","0"], 0]
   ],
   ARGENTINA: [
     ["How many World Cups has Argentina won?", ["3","2","4","1"], 0],
@@ -338,7 +368,21 @@ const QUESTIONS = {
     ["Argentina beat which team in the 1986 final?", ["West Germany","Belgium","England","Italy"], 0],
     ["The 'Hand of God' goal was scored against?", ["England","Belgium","Uruguay","Italy"], 0],
     ["Argentina beat which team in the 1978 final?", ["Netherlands","Brazil","Peru","Italy"], 0],
-    ["Argentina's home shirt features which stripes?", ["Light blue and white","Red and white","Blue and gold","Green and white"], 0]
+    ["Argentina's home shirt features which stripes?", ["Light blue and white","Red and white","Blue and gold","Green and white"], 0],
+    ["Argentina's national team is nicknamed?", ["La Albiceleste","La Roja","Los Cafeteros","La Verde"], 0],
+    ["Diego Maradona famously wore which shirt number for Argentina?", ["10","9","7","11"], 0],
+    ["Argentina's 1986 World Cup title was won in which country?", ["Mexico","Spain","Italy","USA"], 0],
+    ["Lionel Messi lifted the World Cup trophy for Argentina in which year?", ["2022","2018","2014","2010"], 0],
+    ["Argentina lost the 2014 World Cup final to which team?", ["Germany","Brazil","Netherlands","Spain"], 0],
+    ["Argentina won their first World Cup title in 1978 as?", ["Hosts","Defending champions","Debutants","Runners-up"], 0],
+    ["Argentina lost the 1990 World Cup final to which team?", ["West Germany","Italy","Brazil","England"], 0],
+    ["The 2022 World Cup final between Argentina and France finished level after extra time at what score?", ["3-3","2-2","1-1","4-4"], 0],
+    ["Which Argentine goalkeeper was a penalty-shootout hero in the 2022 World Cup final?", ["Emiliano Martínez","Sergio Romero","Franco Armani","Nahuel Guzmán"], 0],
+    ["Maradona's famous solo run and goal against England in 1986 is nicknamed?", ["The Goal of the Century","The Wonder Strike","The Impossible Goal","The Golden Goal"], 0],
+    ["How many World Cup titles had Argentina won before their 2022 triumph?", ["2","1","3","0"], 0],
+    ["Which Argentine player won the Golden Ball as the 2014 World Cup's best player?", ["Lionel Messi","Ángel Di María","Sergio Agüero","Gonzalo Higuaín"], 0],
+    ["Argentina's biggest football rivalry is with which neighbouring country?", ["Brazil","Chile","Uruguay","Paraguay"], 0],
+    ["Which Argentine number 10 is widely considered one of the greatest players ever, scoring the 'Hand of God' goal?", ["Diego Maradona","Lionel Messi","Gabriel Batistuta","Mario Kempes"], 0]
   ],
   ITALY: [
     ["How many World Cups has Italy won?", ["4","3","5","2"], 0],
@@ -346,7 +390,21 @@ const QUESTIONS = {
     ["Italy's team nickname is?", ["Azzurri","Rossoneri","La Roja","Selecao"], 0],
     ["Italy won Euro 2020 by beating?", ["England","Spain","Belgium","Denmark"], 0],
     ["Italy beat which team in the 1982 final?", ["West Germany","Poland","Brazil","France"], 0],
-    ["Italy's most recent World Cup win was in?", ["2006","1994","1982","2010"], 0]
+    ["Italy's most recent World Cup win was in?", ["2006","1994","1982","2010"], 0],
+    ["Italy's home shirt is famously which colour?", ["Blue","White","Green","Red"], 0],
+    ["Italy hosted and won their first World Cup title in which year?", ["1934","1938","1930","1950"], 0],
+    ["Italy won the 2006 final on penalties after which French player was sent off for a headbutt?", ["Zinedine Zidane","Thierry Henry","Franck Ribéry","Patrick Vieira"], 0],
+    ["Which Italian goalkeeper captained the side to the 1982 World Cup title at age 40?", ["Dino Zoff","Gianluigi Buffon","Walter Zenga","Gianluca Pagliuca"], 0],
+    ["Italy failed to qualify for the World Cup in both 2018 and which other recent tournament?", ["2022","2014","2010","2006"], 0],
+    ["Italy's 1982 World Cup title was won in which country?", ["Spain","Mexico","Argentina","West Germany"], 0],
+    ["Italy's second World Cup title, in 1938, was won in which country?", ["France","Italy","Switzerland","Brazil"], 0],
+    ["Which Italian forward won the Golden Boot at the 1990 home World Cup?", ["Salvatore Schillaci","Roberto Baggio","Paolo Rossi","Gianluca Vialli"], 0],
+    ["Which Italian player won the Golden Boot at the 1982 World Cup?", ["Paolo Rossi","Marco Tardelli","Bruno Conti","Dino Zoff"], 0],
+    ["Italy's away shirt is traditionally which colour?", ["White","Red","Black","Grey"], 0],
+    ["How many times has Italy won the World Cup as hosts?", ["1","2","0","3"], 0],
+    ["Italy were eliminated from the 1990 home World Cup semi-final, on penalties, by which team?", ["Argentina","West Germany","Brazil","England"], 0],
+    ["Who managed Italy to their 2006 World Cup title?", ["Marcello Lippi","Cesare Prandelli","Roberto Mancini","Arrigo Sacchi"], 0],
+    ["Italy have won the European Championship how many times, as of the 2020 edition?", ["2","1","3","0"], 0]
   ],
   GERMANY: [
     ["How many World Cups has Germany won?", ["4","3","5","2"], 0],
@@ -354,14 +412,43 @@ const QUESTIONS = {
     ["Germany won the 1990 final against?", ["Argentina","Italy","England","Netherlands"], 0],
     ["The 'Miracle of Bern' 1954 final was won against?", ["Hungary","Austria","Uruguay","Brazil"], 0],
     ["Germany's team nickname is?", ["Die Mannschaft","Der Adler","Die Elf","Der Sturm"], 0],
-    ["Which city hosted the 2014 World Cup final?", ["Rio de Janeiro","Sao Paulo","Brasilia","Belo Horizonte"], 0]
+    ["Which city hosted the 2014 World Cup final?", ["Rio de Janeiro","Sao Paulo","Brasilia","Belo Horizonte"], 0],
+    ["Germany's home shirt is traditionally which colour?", ["White","Black","Red","Yellow"], 0],
+    ["Germany's away shirt has traditionally featured which colour?", ["Green","Blue","Red","Orange"], 0],
+    ["Which German striker is the World Cup's all-time top goalscorer, with 16 goals?", ["Miroslav Klose","Gerd Müller","Thomas Müller","Lukas Podolski"], 0],
+    ["Germany won the World Cup in 1974 as hosts, beating which team in the final?", ["Netherlands","Sweden","Brazil","Poland"], 0],
+    ["Germany's 1990 World Cup title was won under which country name, before reunification?", ["West Germany","East Germany","Germany","Prussia"], 0],
+    ["Which legendary German sweeper captained the side to the 1974 World Cup title?", ["Franz Beckenbauer","Sepp Maier","Gerd Müller","Uwe Seeler"], 0],
+    ["Germany reached the World Cup final in 2002 but lost to which team?", ["Brazil","Italy","France","Argentina"], 0],
+    ["Germany, as defending champions, were eliminated in the group stage of which World Cup?", ["2018","2010","2006","2014"], 0],
+    ["Gerd Müller scored the winning goal in which World Cup final?", ["1974","1954","1990","1970"], 0],
+    ["The 1954 'Miracle of Bern' final was played in which country?", ["Switzerland","Germany","Hungary","Austria"], 0],
+    ["By 2014, Germany had reached how many World Cup finals in total?", ["8","6","7","5"], 0],
+    ["Which German football legend was nicknamed 'Der Kaiser'?", ["Franz Beckenbauer","Sepp Maier","Oliver Kahn","Lothar Matthäus"], 0],
+    ["Lothar Matthäus, one of Germany's greatest midfielders, played in how many World Cup tournaments?", ["5","4","6","3"], 0],
+    ["Thomas Müller won the Golden Boot as a breakout young star at which World Cup?", ["2010","2014","2018","2006"], 0]
   ],
   FRANCE: [
     ["How many World Cups has France won?", ["2","1","3","4"], 0],
     ["France won the 1998 final against?", ["Brazil","Italy","Croatia","Germany"], 0],
     ["France won the 2018 final against?", ["Croatia","Belgium","England","Argentina"], 0],
     ["France's team nickname is?", ["Les Bleus","Les Rouges","La Roja","Les Lions"], 0],
-    ["France first won the European Championship in?", ["1984","1980","2000","1976"], 0]
+    ["France first won the European Championship in?", ["1984","1980","2000","1976"], 0],
+    ["France's home shirt is traditionally which colour?", ["Blue","White","Red","Navy"], 0],
+    ["Which French player scored twice in the 1998 World Cup final against Brazil?", ["Zinedine Zidane","Emmanuel Petit","Thierry Henry","Didier Deschamps"], 0],
+    ["France's 2018 World Cup title was won in which country?", ["Russia","Brazil","Germany","Qatar"], 0],
+    ["Which young French forward won the Best Young Player award at the 2018 World Cup?", ["Kylian Mbappé","Antoine Griezmann","Ousmane Dembélé","Olivier Giroud"], 0],
+    ["France's 2022 World Cup final defeat to Argentina finished level after extra time at what score?", ["3-3","2-2","1-1","4-4"], 0],
+    ["Which French striker scored a hat-trick in the 2022 World Cup final?", ["Kylian Mbappé","Olivier Giroud","Antoine Griezmann","Karim Benzema"], 0],
+    ["Who captained France to the 2018 World Cup title?", ["Hugo Lloris","Raphaël Varane","Paul Pogba","N'Golo Kanté"], 0],
+    ["Who coached France to their 1998 World Cup title?", ["Aimé Jacquet","Didier Deschamps","Roger Lemerre","Michel Hidalgo"], 0],
+    ["Didier Deschamps won the World Cup with France as a player in 1998, and later as a coach in which year?", ["2018","2014","2006","2022"], 0],
+    ["France's away shirt is traditionally which colour?", ["White","Red","Black","Green"], 0],
+    ["Which French legend, nicknamed 'Le Roi', won three consecutive Ballons d'Or in the 1980s?", ["Michel Platini","Zinedine Zidane","Thierry Henry","Just Fontaine"], 0],
+    ["Just Fontaine's record 13 goals at a single World Cup came in 1958, hosted by which country?", ["Sweden","France","Switzerland","Brazil"], 0],
+    ["France lost the 2006 World Cup final to Italy on penalties, after a headbutt from which player?", ["Zinedine Zidane","Thierry Henry","Patrick Vieira","Franck Ribéry"], 0],
+    ["France's 1998 World Cup final win over Brazil was played at which Paris stadium?", ["Stade de France","Parc des Princes","Vélodrome","Groupama Stadium"], 0],
+    ["Michel Platini won the Ballon d'Or three years running in which decade?", ["1980s","1970s","1990s","2000s"], 0]
   ]
 };
 const CATS = Object.keys(QUESTIONS);
@@ -466,13 +553,17 @@ const S = {
   // fx
   shake:0, flash:0, aberr:0, hitstop:0, inflate:0, streakBreak:0,
   crowdHype:0, gloom:0,
-  smokePuffs:[], windParts:[], trail:[]
+  smokePuffs:[], windParts:[], trail:[],
+  // solo keepy-ups mode
+  mode:'SHOOTOUT', menuMode:'SHOOTOUT', ku:null,
+  hattrick:{active:false, t:0}
 };
 
 function targetRadius(){ return 30 * (1 + 0.10*Math.min(S.streak,5)); }
 
 function beginMatch(cat){
   srand(SEED);
+  S.mode = 'SHOOTOUT';
   S.cat = cat;
   S.questions = buildQuestionSet(cat, 9);
   S.round = 0; S.shot = 0; S.score = 0; S.oppScore = 0; S.streak = 0;
@@ -492,6 +583,121 @@ function beginMatch(cat){
 }
 
 function gotoScene(s){ S.scene = s; S.sceneT = 0; }
+
+/* ═══════════════════════════════════════════════════════════
+   SOLO KEEPY-UPS — a trivia survival mode. World Cup teams only
+   (the same CATS as the shootout's category grid). The character
+   juggles continuously in closeup; every correct answer buys 5
+   more seconds; a wrong answer or an empty clock ends the run.
+   ═══════════════════════════════════════════════════════════ */
+const KU_START_CLOCK = 15, KU_BONUS = 5;
+const KU_REVEAL_END = 0.55;
+const JUG = { x: W/2, y: 215, s: 2.35 };   // closeup juggling anchor
+
+function shuffledPool(cat){
+  const pool = QUESTIONS[cat].slice();
+  for (let j=pool.length-1;j>0;j--){ const k=Math.floor(rnd()*(j+1)); [pool[j],pool[k]]=[pool[k],pool[j]]; }
+  return pool;
+}
+function nextKUQuestion(){
+  const ku = S.ku;
+  if (!ku.pool.length) ku.pool = shuffledPool(S.cat);
+  const q = ku.pool.pop();
+  const opts = q[1].map((text, idx)=>({ text, correct: idx === q[2] }));
+  for (let j=opts.length-1;j>0;j--){ const k=Math.floor(rnd()*(j+1)); [opts[j],opts[k]]=[opts[k],opts[j]]; }
+  ku.q = { text:q[0], opts };
+  ku.qPick = -1; ku.qResolved = false; ku.qWasRight = false; ku.qRevealT = 0;
+}
+function beginKeepyups(cat){
+  srand(SEED);
+  S.mode = 'KEEPYUPS';
+  S.cat = cat;
+  S.hair = HAIRS[rint(0,HAIRS.length-1)];
+  S.skin = SKINS[rint(0,SKINS.length-1)];
+  S.shirtNum = rint(1,11);
+  S.crowdHype = 0; S.gloom = 0;
+  S.ku = {
+    pool: shuffledPool(cat),
+    q:null, qPick:-1, qResolved:false, qWasRight:false, qRevealT:0,
+    clock: KU_START_CLOCK, streak:0, best:0, answered:0,
+    cycleT:0, foot:0, contactPop:0, celebWord:'', bike:null, bonusFlashT:0
+  };
+  gotoScene('KU_READY');
+}
+function pickKUAnswer(i){
+  const ku = S.ku;
+  if (ku.qResolved) return;
+  ku.qPick = i; ku.qResolved = true; ku.qRevealT = 0;
+  ku.qWasRight = i>=0 && ku.q.opts[i].correct;
+  if (ku.qWasRight) SFX.correct(); else SFX.wrong();
+}
+function startBicycle(){
+  S.ku.bike = { t:0 };
+  SFX.crowdBreath();
+  gotoScene('KU_BICYCLE');
+}
+function endKeepyups(){
+  SFX.miss(); SFX.crowdBoo();
+  setTimeout(()=>{ if (audioOn && AC) SFX.sadSting(); }, 300);
+  S.gloom = 1; S.hitstop = 0.10;
+  gotoScene('KU_OVER');
+}
+
+function updateKeepyups(dt){
+  const ku = S.ku;
+  const juggling = S.scene==='KU_READY' || S.scene==='KU_PLAY' || S.scene==='KU_HATTRICK';
+  if (juggling){
+    ku.cycleT += dt;
+    if (ku.cycleT >= 1){
+      ku.cycleT -= 1; ku.foot = 1-ku.foot; ku.contactPop = 1;
+      SFX.juggleBop(ku.foot===0);
+      S.shake = Math.max(S.shake, 0.8);
+    }
+    ku.contactPop = Math.max(0, ku.contactPop - dt*3.2);
+  }
+  ku.bonusFlashT = Math.max(0, ku.bonusFlashT - dt*1.2);
+
+  if (S.scene === 'KU_PLAY'){
+    if (!ku.qResolved){
+      ku.clock -= dt;
+      if (ku.clock < 3 && S.t - lastTickSound > 0.25){ SFX.tick(true); lastTickSound = S.t; }
+      else if (ku.clock >= 3 && S.t - lastTickSound > 0.5){ SFX.tick(false); lastTickSound = S.t; }
+      if (ku.clock <= 0){ ku.clock = 0; endKeepyups(); return; }
+    } else {
+      ku.qRevealT += dt;
+      if (ku.qRevealT >= KU_REVEAL_END){
+        if (!ku.qWasRight){ endKeepyups(); return; }
+        ku.clock = Math.min(60, ku.clock + KU_BONUS);
+        ku.bonusFlashT = 1;
+        ku.streak++; ku.best = Math.max(ku.best, ku.streak); ku.answered++;
+        if (ku.streak % 5 === 0){ ku.celebWord = ku.streak+' STREAK'; startBicycle(); }
+        else if (ku.streak % 3 === 0){ ku.celebWord = 'HAT-TRICK'; S.hattrick = {active:true, t:0}; gotoScene('KU_HATTRICK'); }
+        else { nextKUQuestion(); }
+      }
+    }
+    return;
+  }
+
+  if (S.scene === 'KU_HATTRICK'){
+    if (S.sceneT > 1.3){ nextKUQuestion(); gotoScene('KU_PLAY'); }
+    return;
+  }
+
+  if (S.scene === 'KU_BICYCLE'){
+    const bk = ku.bike;
+    const before = bk.t;
+    bk.t += dt;
+    if (before < 0.30 && bk.t >= 0.30){          // contact — the ball launches
+      SFX.boot(2); S.flash = 0.4; S.shake = 5; S.hitstop = 0.05;
+    }
+    if (before < 1.25 && bk.t >= 1.25){          // it sinks into the goal
+      SFX.ring(3); SFX.crowdRoar(1); S.crowdHype = 1; S.flash = Math.max(S.flash,0.3);
+    }
+    if (bk.t > 2.3){ nextKUQuestion(); gotoScene('KU_PLAY'); }
+    return;
+  }
+  // KU_READY / KU_OVER: nothing else to simulate
+}
 
 /* ── set up the upcoming shot ──────────────────────────────── */
 function prepShot(){
@@ -713,9 +919,12 @@ function tapAt(px, py){
   initAudio();
   switch (S.scene){
     case 'TITLE':
-      SFX.whistleShort();
-      // pick category by tapping the grid, else default
-      { const pick = catHit(px, py); beginMatch(pick || CATS[0]); }
+      // mode toggle, then pick category by tapping the grid
+      { const m = modeHit(px, py); if (m){ S.menuMode = m; SFX.lock(0, true); return; } }
+      { const pick = catHit(px, py); if (!pick) return;
+        SFX.whistleShort();
+        if (S.menuMode === 'KEEPYUPS') beginKeepyups(pick); else beginMatch(pick);
+      }
       return;
     case 'ROUNDCARD': if (S.sceneT > 0.35){ SFX.whistleShort(); prepShot(); } return;
     case 'QUESTION': {
@@ -747,6 +956,18 @@ function tapAt(px, py){
     }
     case 'RESOLVE': if (S.sceneT > 0.5) advance(); return;
     case 'MATCHEND': if (S.sceneT > 0.6){ SEED = (SEED*1664525+1013904223)>>>0; gotoScene('TITLE'); } return;
+
+    case 'KU_READY': SFX.whistleShort(); nextKUQuestion(); gotoScene('KU_PLAY'); return;
+    case 'KU_PLAY': {
+      if (S.ku.qResolved) return;
+      const i = answerHit(px, py);
+      if (i >= 0) pickKUAnswer(i);
+      return;
+    }
+    case 'KU_HATTRICK': case 'KU_BICYCLE': return;   // these play out on their own
+    case 'KU_OVER':
+      if (S.sceneT > 0.5){ SEED = (SEED*1664525+1013904223)>>>0; gotoScene('TITLE'); }
+      return;
   }
 }
 /* Shared-question flow, QuizUp-style:
@@ -775,10 +996,11 @@ function applyQuestion(){
 }
 
 // hit regions
-let ANSWER_RECTS = [], CAT_RECTS = [];
+let ANSWER_RECTS = [], CAT_RECTS = [], MODE_RECTS = [];
 function answerHit(px,py){ for (let i=0;i<ANSWER_RECTS.length;i++){ const r=ANSWER_RECTS[i];
   if (px>=r[0]&&px<=r[0]+r[2]&&py>=r[1]&&py<=r[1]+r[3]) return i; } return -1; }
 function catHit(px,py){ for (const r of CAT_RECTS){ if (px>=r[0]&&px<=r[0]+r[2]&&py>=r[1]&&py<=r[1]+r[3]) return r[4]; } return null; }
+function modeHit(px,py){ for (const r of MODE_RECTS){ if (px>=r[0]&&px<=r[0]+r[2]&&py>=r[1]&&py<=r[1]+r[3]) return r[4]; } return null; }
 
 function toBuf(e){
   const rect = cv.getBoundingClientRect();
@@ -794,6 +1016,9 @@ window.addEventListener('keydown', e=>{
   }
   if (e.code>='Digit1'&&e.code<='Digit4' && S.scene==='QUESTION' && !S.qResolved){
     pickAnswer(+e.code.slice(5)-1);
+  }
+  if (e.code>='Digit1'&&e.code<='Digit4' && S.scene==='KU_PLAY' && S.ku && !S.ku.qResolved){
+    pickKUAnswer(+e.code.slice(5)-1);
   }
 }, {passive:false});
 
@@ -813,6 +1038,7 @@ function update(dt){
   S.crowdHype = Math.max(0, S.crowdHype - dt*0.42);
   S.gloom = Math.max(0, S.gloom - dt*0.45);
   if (S.perfect.active){ S.perfect.t += dt; if (S.perfect.t > 1.5) S.perfect.active = false; }
+  if (S.hattrick.active){ S.hattrick.t += dt; if (S.hattrick.t > 1.5) S.hattrick.active = false; }
 
   for (const w of S.windParts){
     w.x += S.windDir * (S.wind*0.9 + 6) * w.s * dt;
@@ -834,6 +1060,12 @@ function update(dt){
       if (!S.oppApplied && S.qRevealT >= REVEAL_ANS){ S.oppApplied = true; applyQuestion(); }
       if (S.qRevealT >= REVEAL_END) gotoScene('READY');
     }
+    return;
+  }
+
+  if (S.scene==='KU_READY' || S.scene==='KU_PLAY' || S.scene==='KU_HATTRICK' ||
+      S.scene==='KU_BICYCLE' || S.scene==='KU_OVER'){
+    updateKeepyups(dt);
     return;
   }
 
@@ -941,6 +1173,11 @@ function draw(){
   if (S.scene === 'TITLE'){ drawTitle(); post(); return; }
   if (S.scene === 'MATCHEND'){ drawMatchEnd(); post(); return; }
 
+  if (S.scene==='KU_READY' || S.scene==='KU_PLAY' || S.scene==='KU_HATTRICK' ||
+      S.scene==='KU_BICYCLE' || S.scene==='KU_OVER'){
+    drawKeepyups(); post(); return;
+  }
+
   drawStadium();
   drawGoalAndTarget();
   drawGauges();
@@ -952,23 +1189,24 @@ function draw(){
   post();
 }
 
-/* ── PERFECT SHOT — both gold cores hit together. Letters roll in one
-   by one with a little overshoot, then shimmer as a travelling wave
-   until the callout fades, same chunky gold/white palette as the HUD. ── */
-function drawPerfectBanner(){
-  const t = S.perfect.t;
-  const word = 'PERFECT SHOT';
-  const cw = 15, fontPx = 13;
+/* ── ROLLING BANNER — a reusable big-callout renderer. Letters roll in
+   one by one with a little overshoot, then shimmer as a travelling
+   wave until the callout fades. Same chunky gold/white palette
+   everywhere it's used: PERFECT SHOT, HAT-TRICK, N STREAK…          ── */
+function drawRollingBanner(word, t, opts){
+  const o = opts || {};
+  const cw = o.cw || 15, fontPx = o.fontPx || 13;
   const totalW = word.length * cw;
   const baseX = W/2 - totalW/2 + cw/2;
-  const baseY = 148;
-  const inDur = 0.40, fadeStart = 1.05, fadeDur = 0.30;
+  const baseY = o.baseY != null ? o.baseY : 148;
+  const inDur = 0.40, fadeStart = o.fadeStart != null ? o.fadeStart : 1.05, fadeDur = 0.30;
   const globalAlpha = t > fadeStart ? Math.max(0, 1 - (t-fadeStart)/fadeDur) : 1;
   if (globalAlpha <= 0) return;
+  const colA = o.colA || C.GOLD2, colB = o.colB || C.GOLD, washCol = o.washCol || C.GOLD;
 
-  // a soft gold wash behind the callout
+  // a soft colour wash behind the callout
   b.save(); b.globalAlpha = globalAlpha * 0.16 * Math.min(1, t/0.3);
-  rect(0, baseY-11, W, 24, C.GOLD);
+  rect(0, baseY-11, W, 24, washCol);
   b.restore();
 
   b.save();
@@ -996,12 +1234,13 @@ function drawPerfectBanner(){
     b.scale(Math.max(0.01,scale), Math.max(0.01,scale));
     b.fillStyle = '#000000a0';
     b.fillText(ch, 1, 2);
-    b.fillStyle = Math.sin(t*6 - i*0.6) > 0 ? C.GOLD2 : C.GOLD;
+    b.fillStyle = Math.sin(t*6 - i*0.6) > 0 ? colA : colB;
     b.fillText(ch, 0, 0);
     b.restore();
   }
   b.restore();
 }
+function drawPerfectBanner(){ drawRollingBanner('PERFECT SHOT', S.perfect.t, {baseY:148}); }
 
 /* ── stadium ───────────────────────────────────────────────── */
 function drawStadium(){
@@ -1342,6 +1581,284 @@ function drawShooter(){
   }
 }
 
+/* ═══════════════════════════════════════════════════════════
+   KEEPY-UPS — closeup juggling, same rig style as the shooter but
+   bigger and centred. One loop = one second = one foot to the other.
+   During a streak-5 celebration the loop hands off to a bicycle
+   kick that sends the ball away into a goal set up behind him.
+   ═══════════════════════════════════════════════════════════ */
+const lerp2 = (a,c,t) => [lerp(a[0],c[0],t), lerp(a[1],c[1],t)];
+
+function drawJuggler(){
+  const ku = S.ku;
+  const inBike = S.scene === 'KU_BICYCLE';
+  const bikeT = inBike ? ku.bike.t : -1;
+  const cx = JUG.x, s = JUG.s;
+  let gy = JUG.y;
+  if (!inBike) gy += Math.sin(S.t*3)*0.6;                 // idle breathing sway
+
+  const kit = KITS[S.cat] || KITS.ENGLAND;
+  const px = x => cx + x*s, py = y => gy + y*s;
+  function lm(x0,y0,x1,y1,w,c){ b.strokeStyle=c; b.lineWidth=Math.max(1.2,w*s); b.lineCap='butt';
+    b.beginPath(); b.moveTo(px(x0),py(y0)); b.lineTo(px(x1),py(y1)); b.stroke(); }
+  function bx(x,y,w,h,c){ b.fillStyle=c;
+    b.fillRect(Math.round(px(x)), Math.round(py(y)), Math.max(1,Math.round(w*s)), Math.max(1,Math.round(h*s))); }
+  function boot(x,y,flip){
+    bx(x-(flip?2.6:0.6), y-1.2, 3.2, 2.4, '#111318');
+    bx(x-(flip?2.6:0.6), y+0.6, 3.2, 0.8, '#f4f1e4');
+  }
+
+  let pK=[4.2,-10], pF=[5,0];        // support leg
+  let kK=[-4.2,-10], kF=[-5,0];      // active/juggling leg
+  let aL=[[-9,-27],[-10,-20]], aR=[[9,-27],[10,-20]];
+  let lean = 0, armsUp = false;
+  let ballLocal = null;              // [x,y] in local unit space, or null to skip drawing here
+
+  if (inBike){
+    if (bikeT < 0.30){                                   // leap into the scissor
+      const k = bikeT/0.30;
+      gy -= Math.sin(k*Math.PI)*10;
+      pF = lerp2([5,0],[-9,-22],k);   pK = lerp2([4.2,-10],[-2,-16],k);
+      kF = lerp2([-5,0],[11,-26],k);  kK = lerp2([-4.2,-10],[4,-18],k);
+      aL=[[-12,-24],[-16,-18]]; aR=[[12,-24],[16,-18]];
+      lean = lerp(0,-8,k);
+    } else if (bikeT < 0.80){                             // settle back down
+      const k = Math.min(1,(bikeT-0.30)/0.5);
+      gy -= 10*(1-k);
+      pF = lerp2([-9,-22],[5,0],k);  pK = lerp2([-2,-16],[4.2,-10],k);
+      kF = lerp2([11,-26],[7,-3],k); kK = lerp2([4,-18],[-2,-13],k);
+      aL=[[-12,-24],[-16,-18]]; aR=[[12,-24],[16,-18]];
+      lean = lerp(-8,0,k);
+    } else {                                              // celebrate the finish
+      armsUp = true;
+      pF=[4,0]; pK=[3.5,-10]; kF=[-4,0]; kK=[-3.5,-10];
+      aL=[[-10,-38],[-11.5,-45]]; aR=[[10,-38],[11.5,-45]];
+    }
+  } else {
+    const t = ku ? ku.cycleT : 0;
+    const foot = ku ? ku.foot : 0;
+    const flick = Math.max(0, Math.cos(Math.min(1, t/0.35)*Math.PI*0.5));
+    const hop = Math.sin(t*Math.PI) * 1.1;
+    gy -= hop;
+    const active = [lerp(-5,-2,flick), lerp(0,-14,flick)];
+    const activeKnee = [lerp(-4.2,-1,flick), lerp(-10,-17,flick)];
+    const rest = [5,0], restKnee = [4.2,-10];
+    if (foot === 0){ kF=active; kK=activeKnee; pF=rest; pK=restKnee; }
+    else { kF=[-rest[0],rest[1]]; kK=[-restKnee[0],restKnee[1]]; pF=[-active[0],active[1]]; pK=[-activeKnee[0],activeKnee[1]]; }
+    const armSwing = Math.sin(t*Math.PI*2)*2;
+    aL=[[-9-armSwing,-27],[-10-armSwing,-19]]; aR=[[9+armSwing,-27],[10+armSwing,-19]];
+
+    const fromX = foot===0 ? -5 : 5, toX = -fromX;
+    ballLocal = [ lerp(fromX, toX, t), -Math.sin(Math.PI*t)*20 - 2 ];
+  }
+
+  // shadow
+  b.save(); b.globalAlpha=0.28; b.fillStyle='#04140b';
+  b.beginPath(); b.ellipse(px(0.5), py(0.8), 12*s, 3.4*s, 0,0,6.2832); b.fill(); b.restore();
+
+  // legs (juggling leg behind, support leg in front — same order as the shooter)
+  lm(-3,-19, kK[0],kK[1], 4.8, kit.shorts);
+  lm(kK[0],kK[1], kF[0],kF[1], 3.8, S.skin);
+  bx(kF[0]-1.7, kF[1]-1, 3.6, 3.6, kit.socks);
+  boot(kF[0], kF[1]+2.2, true);
+
+  // torso
+  const tx = lean;
+  bx(tx-6.8,-33.5, 13.6, 15.5, kit.shirt);
+  bx(tx-6.8,-33.5, 13.6, 1.6, kit.trim);
+  bx(tx-6.8,-20.5, 13.6, 2, kit.trim);
+  bx(tx-7.7,-32.5, 1.2, 6, kit.trim);
+  bx(tx+6.5,-32.5, 1.2, 6, kit.trim);
+  b.fillStyle = kit.num;
+  b.font = 'bold '+Math.max(5, Math.round(8*s))+'px ui-monospace, Menlo, monospace';
+  b.textAlign='center'; b.textBaseline='middle';
+  b.fillText(String(S.shirtNum), px(tx), py(-27));
+  bx(tx-6.3,-21, 12.6, 8, kit.shorts);
+
+  // support leg in front
+  lm(tx+3,-19, pK[0],pK[1], 5, kit.shorts);
+  lm(pK[0],pK[1], pF[0],pF[1], 4, S.skin);
+  bx(pF[0]-1.7, pF[1]-4.6, 3.6, 4.4, kit.socks);
+  boot(pF[0], pF[1], false);
+
+  // arms
+  lm(tx-6.8,-31.5, aL[0][0],aL[0][1], 3.5, kit.shirt);
+  lm(aL[0][0],aL[0][1], aL[1][0],aL[1][1], 2.9, S.skin);
+  lm(tx+6.8,-31.5, aR[0][0],aR[0][1], 3.5, kit.shirt);
+  lm(aR[0][0],aR[0][1], aR[1][0],aR[1][1], 2.9, S.skin);
+
+  // head, from behind — same period side-parting as the shooter
+  const hy = -39;
+  bx(tx-1.4,-35.5, 3, 2.4, S.skin);
+  bx(tx-3.8, hy-3.7, 7.6, 7.6, S.skin);
+  bx(tx-4.0, hy-4.3, 8.0, 3.7, S.hair);
+  bx(tx-1.15, hy-4.3, 0.6, 3.3, S.skin);
+  bx(tx-4.0, hy-1.2, 1.2, 2.4, S.hair);
+  bx(tx+2.8, hy-1.2, 1.2, 2.4, S.hair);
+
+  // dust poof on each foot contact
+  if (!inBike && ku && ku.contactPop > 0){
+    const footX = ku.foot===0 ? pF[0] : kF[0];   // the foot that just landed the ball
+    b.save(); b.globalAlpha = ku.contactPop*0.5;
+    circ(px(footX), py(1.4), (1-ku.contactPop)*6*s*0.14 + 1.5, C.CHALKDIM);
+    b.restore();
+  }
+
+  // the ball — juggling loop only; the bicycle kick draws its own flight
+  if (ballLocal){
+    const wob = Math.sin(S.t*20)*0.4;
+    drawBall(px(ballLocal[0])+wob, py(ballLocal[1]), 9);
+  }
+}
+
+/* ── a small goal set up behind him, for the ball to sink into ──── */
+function drawDistantGoal(scale, cy, bikeT){
+  const gw = 96*scale, gh = 50*scale;
+  const x0 = W/2-gw/2, y0 = cy;
+  b.save();
+  b.beginPath(); b.rect(x0,y0,gw,gh); b.clip();
+  rect(x0,y0,gw,gh,'#0c1526');
+  for (let x=x0; x<=x0+gw; x+=6*scale) line(x,y0,x,y0+gh,C.NET);
+  for (let y=y0; y<=y0+gh; y+=6*scale) line(x0,y,x0+gw,y,C.NET);
+  b.restore();
+  rect(x0-2,y0-2,gw+4,2,C.POST);
+  rect(x0-2,y0-2,2,gh+4,C.POST);
+  rect(x0+gw,y0-2,2,gh+4,C.POST);
+  if (bikeT >= 1.25){
+    const k = Math.max(0, 1-(bikeT-1.25)/0.4);
+    b.save(); b.globalAlpha = 0.55*k;
+    circ(W/2, y0+gh*0.5, gw*0.42, C.GOLD2);
+    b.restore();
+  }
+}
+
+function drawBicycleScene(){
+  const bk = S.ku.bike, t = bk.t;
+  drawDistantGoal(0.55, 66, t);
+
+  if (t > 0.30 && t < 1.30){                                // the rush toward goal
+    const k = (t-0.30)/1.0;
+    b.save(); b.globalAlpha = 0.20*Math.sin(Math.min(1,k)*Math.PI);
+    for (let i=0;i<14;i++){
+      const ang = (i/14)*6.2832 + S.t*2;
+      const x0 = W/2 + Math.cos(ang)*10, y0 = 90 + Math.sin(ang)*10;
+      const x1 = W/2 + Math.cos(ang)*130, y1 = 90 + Math.sin(ang)*130;
+      line(x0,y0,x1,y1, C.GOLD2);
+    }
+    b.restore();
+  }
+
+  if (t >= 0.28 && t < 1.25){                                // the ball itself, receding
+    const k = Math.max(0, Math.min(1, (t-0.28)/0.95));
+    const ease = k*k;
+    const bx_ = W/2 + Math.sin(ease*Math.PI)*16;             // it loops up and over him
+    const by_ = lerp(JUG.y-30, 66+25, ease);
+    const br = lerp(9, 2, ease);
+    drawBall(bx_, by_, Math.max(1,br));
+  }
+
+  drawJuggler();                                             // he occludes the ball as it passes
+}
+
+/* ── HUD, question panel, ready/over screens ──────────────────── */
+function drawKUHUD(){
+  const ku = S.ku;
+  rect(0,0,W,50,C.INK); rect(0,49,W,1,C.PANELED);
+  txt(S.cat, 4, 3, C.GREYDK, 7);
+  txt('KEEPY-UPS', 4, 11, C.GOLD, 13);
+
+  const c = ku.clock;
+  const col = c<4 ? C.RED : c<8 ? C.GOLD : C.GREEN;
+  txt(c.toFixed(1)+'s', W/2, 4, col, 18, 'center');
+  if (S.scene==='KU_PLAY' && !ku.qResolved && c<4 && Math.sin(S.t*8)>0)
+    rect(W/2-32, 2, 64, 24, 'rgba(232,64,44,0.14)');
+  if (ku.bonusFlashT > 0){
+    b.save(); b.globalAlpha = Math.min(1, ku.bonusFlashT);
+    txt('+'+KU_BONUS+'s', W/2, 2 - (1-ku.bonusFlashT)*14, C.GOLD2, 9, 'center');
+    b.restore();
+  }
+
+  txt('STREAK', W-4, 3, C.GREYDK, 7, 'right');
+  txt(String(ku.streak), W-4, 11, ku.streak>0?C.GOLD:C.GREY, 16, 'right');
+  txt('BEST '+ku.best, W-4, 40, C.GREYDK, 7, 'right');
+
+  const pipCount = ku.streak===0 ? 0 : ((ku.streak-1)%5)+1;
+  streakPips(4, 30, pipCount, false, null);
+  txt('TO NEXT STREAK', 42, 30, C.GREYDK, 7);
+}
+
+function drawKUQuestion(){
+  const ku = S.ku;
+  if (!ku.q) return;
+  const y = 234;
+  panel(14, y, W-28, 178);
+  txt(S.cat, 24, y+8, C.GOLD2, 8);
+  txt('+'+KU_BONUS+'s ON CORRECT', W-24, y+8, C.GREYDK, 8, 'right');
+
+  const lines = wrapText(ku.q.text, W-56);
+  lines.forEach((l,i)=> txt(l, W/2, y+22+i*12, C.WHITE, 9, 'center'));
+
+  ANSWER_RECTS = [];
+  const oy = y + 30 + lines.length*12;
+  ku.q.opts.forEach((o,i)=>{
+    const rx=30, ry=oy+i*29, rw=W-60, rh=24;
+    ANSWER_RECTS.push([rx,ry,rw,rh]);
+    let bg=C.PANEL, fg=C.WHITE, bd=C.PANELED;
+    if (ku.qResolved){
+      if (o.correct){ bg='#124a2c'; bd=C.GREEN; fg='#6ee08a'; }
+      else if (i===ku.qPick){ bg='#4a1a14'; bd=C.RED; fg='#f08a7a'; }
+      else { fg=C.GREYDK; }
+    }
+    rect(rx,ry,rw,rh,bd); rect(rx+1,ry+1,rw-2,rh-2,bg);
+    txt(String(i+1), rx+6, ry+7, C.GREYDK, 9);
+    txt(o.text, rx+20, ry+7, fg, 9);
+  });
+
+  if (ku.qResolved){
+    const msg = ku.qWasRight ? ('+'+KU_BONUS+'s · STREAK '+ku.streak) : 'WRONG';
+    txt(msg, W/2, oy+ku.q.opts.length*29+6, ku.qWasRight?C.GOLD:C.RED, 10, 'center');
+  }
+}
+
+function drawKUReady(){
+  const a = Math.min(1, S.sceneT*4);
+  b.save(); b.globalAlpha = 0.55*a; rect(0,54,W,H-54,C.INK); b.restore();
+  const y = 150;
+  panel(20, y, W-40, 132);
+  txt('SOLO KEEPY-UPS', W/2, y+12, C.GOLD, 15, 'center');
+  txt(S.cat, W/2, y+32, C.GREYDK, 9, 'center');
+  wrapText('Answer fast — every correct answer buys '+KU_BONUS+' more seconds. Any wrong answer, or an empty clock, ends the run.', W-64)
+    .forEach((l,i)=> txt(l, W/2, y+52+i*11, C.GREY, 8, 'center'));
+  txt('TAP TO START', W/2, y+114, Math.sin(S.t*5)>0?C.WHITE:C.GREYDK, 10, 'center');
+}
+
+function drawKUOver(){
+  const a = Math.min(1, S.sceneT*4);
+  b.save(); b.globalAlpha = 0.55*a; rect(0,54,W,H-54,C.INK); b.restore();
+  const ku = S.ku;
+  const y = 130;
+  panel(20, y, W-40, 170);
+  txt('RUN OVER', W/2, y+14, C.RED, 20, 'center');
+  txt(S.cat, W/2, y+40, C.GREYDK, 9, 'center');
+  txt('BEST STREAK', W/2, y+66, C.GREYDK, 8, 'center');
+  txt(String(ku.best), W/2, y+78, C.GOLD, 26, 'center');
+  txt('ANSWERED '+ku.answered, W/2, y+118, C.GREY, 9, 'center');
+  txt('TAP FOR TITLE', W/2, y+150, Math.sin(S.t*5)>0?C.WHITE:C.GREYDK, 10, 'center');
+}
+
+function drawKeepyups(){
+  drawStadium();
+  if (S.scene === 'KU_BICYCLE') drawBicycleScene();
+  else drawJuggler();
+  drawKUHUD();
+  if (S.scene === 'KU_READY') drawKUReady();
+  if (S.scene === 'KU_PLAY') drawKUQuestion();
+  if (S.scene === 'KU_OVER') drawKUOver();
+  if (S.hattrick.active) drawRollingBanner('HAT-TRICK', S.hattrick.t, {baseY:148});
+  if (S.scene === 'KU_BICYCLE' && S.ku.bike.t >= 1.25)
+    drawRollingBanner(S.ku.celebWord, S.ku.bike.t-1.25, {baseY:112, fadeStart:0.85});
+}
+
 /* ── the three gauges ──────────────────────────────────────── */
 function drawGauges(){
   const active = S.scene;
@@ -1623,18 +2140,29 @@ function drawTitle(){
   txt('both gold cores together → PERFECT SHOT', 30, hy+46, C.GOLD2, 8);
   txt('wind moves the ball after you commit', 30, hy+58, C.ORANGE, 8);
 
+  // mode toggle — shootout vs. solo trivia survival
+  MODE_RECTS = [];
+  const modes = [['SHOOTOUT','SHOOTOUT'], ['KEEPY-UPS','KEEPYUPS']];
+  modes.forEach(([label,key],i)=>{
+    const w = 106, h = 16, x = W/2 - 114 + i*114, y = 253;
+    MODE_RECTS.push([x,y,w,h,key]);
+    const on = S.menuMode === key;
+    rect(x,y,w,h, on?C.GOLD:C.PANELED); rect(x+1,y+1,w-2,h-2, on?'#3a2c06':C.PANEL);
+    txt(label, x+w/2, y+4, on?C.GOLD2:C.GREYDK, 8, 'center');
+  });
+
   // category grid
-  txt('CHOOSE A CATEGORY', W/2, 276, C.GREYDK, 8, 'center');
+  txt(S.menuMode==='KEEPYUPS' ? 'CHOOSE A TEAM' : 'CHOOSE A CATEGORY', W/2, 280, C.GREYDK, 8, 'center');
   CAT_RECTS = [];
   CATS.forEach((c,i)=>{
     const col = i%2, row = Math.floor(i/2);
-    const x = 26 + col*120, y = 292 + row*26, w = 112, h = 21;
+    const x = 26 + col*120, y = 296 + row*26, w = 112, h = 21;
     CAT_RECTS.push([x,y,w,h,c]);
     const hot = Math.floor(S.t*2)%CATS.length === i;
     rect(x,y,w,h, hot?C.GOLDDK:C.PANELED); rect(x+1,y+1,w-2,h-2, C.PANEL);
     txt(c, x+w/2, y+6, hot?C.GOLD2:C.GREY, 9, 'center');
   });
-  txt('seed '+SEED.toString(16).slice(0,8)+'  ·  same seed, same match', W/2, 406, C.GREYDK, 7, 'center');
+  txt('seed '+SEED.toString(16).slice(0,8)+'  ·  same seed, same match', W/2, 400, C.GREYDK, 7, 'center');
 }
 function drawMatchEnd(){
   if (!backdrop) makeBackdrop();
