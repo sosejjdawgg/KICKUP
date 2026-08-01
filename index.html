@@ -497,19 +497,26 @@ const HANDLE_B = ['_88','_xg','FC','__','_09','ito','ov','ski','_gk','21','_7','
 const OPP_COLS = ['#4ea8ff','#c95cf0','#3fd06a','#ff8a3d','#f04a7a','#4fd8d0'];
 
 /* ── kit colours ───────────────────────────────────────────
-   Every shooter wears the same retro '66-style kit regardless of
-   category — white shirt, navy trim and shorts, red socks. Plain
+   Trim, shorts and number stay a fixed retro '66-style navy — shirt,
+   socks and boots are yours to pick in character creation. Plain
    solid colours only. No crest, no maker's marks, no stripe
-   pattern. A yellow shirt is not a kit design; a kit design is
+   pattern. A coloured shirt is not a kit design; a kit design is
    licensed IP. See doc §9.1.                                    */
-const RETRO_KIT = { shirt:'#f4f1e4', trim:'#1c3f8f', shorts:'#16203a', socks:'#c8322a', num:'#16203a' };
-const KITS = {
-  BRAZIL: RETRO_KIT, ENGLAND: RETRO_KIT, ARGENTINA: RETRO_KIT,
-  ITALY: RETRO_KIT, GERMANY: RETRO_KIT, FRANCE: RETRO_KIT
-};
 // short back-and-sides, period-correct: black, dark brown, chestnut, sandy
 const HAIRS = ['#181210','#3a2414','#5a3a1c','#8a6a38'];
 const SKINS = ['#e8b88c','#c98b5e','#9c6238','#6f4426','#4a2d1a'];
+const PALETTE = ['#f4f1e4','#1c3f8f','#c8322a','#1e7a3c','#f2c518','#8ecae6','#6b3fa0','#ff8a3d','#111318','#2e6fd0'];
+const TEAM_OPTS = CATS.concat(['ICON']);
+const BODY_OPTS = ['SKINNY','MID','HEAVY'], BODY_W = [0.82, 1.0, 1.26];
+const HEIGHT_OPTS = ['SHORT','MID','TALL'], HEIGHT_H = [0.88, 1.0, 1.13];
+function playerKit(){
+  const c = S.character;
+  return { shirt:PALETTE[c.shirtIdx], trim:'#1c3f8f', shorts:'#16203a', socks:PALETTE[c.sockIdx], num:'#16203a', shoe:PALETTE[c.shoeIdx] };
+}
+function bodyMetrics(){
+  const c = S.character;
+  return { bodyW: BODY_W[c.bodyIdx], hScale: HEIGHT_H[c.heightIdx] };
+}
 
 /* ── conditions ────────────────────────────────────────────── */
 const CONDS = [
@@ -528,7 +535,7 @@ const ROUND_NAME = ['STATIC','MOVING','THE KEEPER'];
    STATE
    ═══════════════════════════════════════════════════════════ */
 const S = {
-  scene:'TITLE',            // TITLE ROUNDCARD QUESTION READY AIM P_POWER P_ACCURACY STRIKE FLIGHT RESOLVE MATCHEND
+  scene:'CREATE',           // CREATE TITLE ROUNDCARD QUESTION READY AIM P_POWER P_ACCURACY STRIKE FLIGHT RESOLVE MATCHEND
   t:0, sceneT:0,
   cat:'BRAZIL', questions:[],
   round:0, shot:0,          // 0-indexed
@@ -556,7 +563,9 @@ const S = {
   smokePuffs:[], windParts:[], trail:[],
   // solo keepy-ups mode
   mode:'SHOOTOUT', menuMode:'SHOOTOUT', ku:null,
-  hattrick:{active:false, t:0}
+  hattrick:{active:false, t:0},
+  // create-a-player
+  character:{ teamIdx:0, bodyIdx:1, heightIdx:1, skinIdx:1, hairIdx:0, shirtIdx:0, sockIdx:2, shoeIdx:8 }
 };
 
 function targetRadius(){ return 30 * (1 + 0.10*Math.min(S.streak,5)); }
@@ -575,8 +584,6 @@ function beginMatch(cat){
     col: OPP_COLS[rint(0,OPP_COLS.length-1)],
     streak: 0, right: 0
   };
-  S.hair = HAIRS[rint(0,HAIRS.length-1)];
-  S.skin = SKINS[rint(0,SKINS.length-1)];
   S.shirtNum = rint(1,11);
   S.windParts = []; for (let i=0;i<26;i++) S.windParts.push({x:rnd()*W, y:GOAL.y0+rnd()*GH, s:0.4+rnd()});
   gotoScene('ROUNDCARD');
@@ -612,8 +619,6 @@ function beginKeepyups(cat){
   srand(SEED);
   S.mode = 'KEEPYUPS';
   S.cat = cat;
-  S.hair = HAIRS[rint(0,HAIRS.length-1)];
-  S.skin = SKINS[rint(0,SKINS.length-1)];
   S.shirtNum = rint(1,11);
   S.crowdHype = 0; S.gloom = 0;
   S.ku = {
@@ -918,8 +923,16 @@ function advance(){
 function tapAt(px, py){
   initAudio();
   switch (S.scene){
+    case 'CREATE': {
+      const hit = createHit(px, py);
+      if (!hit) return;
+      if (hit[4] === 'go'){ confirmCharacter(); SFX.whistleShort(); gotoScene('TITLE'); }
+      else cycleCharacter(hit[4], hit[5]);
+      return;
+    }
     case 'TITLE':
-      // mode toggle, then pick category by tapping the grid
+      // edit player, mode toggle, then pick category by tapping the grid
+      if (editHit(px, py)){ SFX.lock(0, true); gotoScene('CREATE'); return; }
       { const m = modeHit(px, py); if (m){ S.menuMode = m; SFX.lock(0, true); return; } }
       { const pick = catHit(px, py); if (!pick) return;
         SFX.whistleShort();
@@ -996,11 +1009,31 @@ function applyQuestion(){
 }
 
 // hit regions
-let ANSWER_RECTS = [], CAT_RECTS = [], MODE_RECTS = [];
+let ANSWER_RECTS = [], CAT_RECTS = [], MODE_RECTS = [], CREATE_RECTS = [], EDIT_RECT = null;
 function answerHit(px,py){ for (let i=0;i<ANSWER_RECTS.length;i++){ const r=ANSWER_RECTS[i];
   if (px>=r[0]&&px<=r[0]+r[2]&&py>=r[1]&&py<=r[1]+r[3]) return i; } return -1; }
 function catHit(px,py){ for (const r of CAT_RECTS){ if (px>=r[0]&&px<=r[0]+r[2]&&py>=r[1]&&py<=r[1]+r[3]) return r[4]; } return null; }
 function modeHit(px,py){ for (const r of MODE_RECTS){ if (px>=r[0]&&px<=r[0]+r[2]&&py>=r[1]&&py<=r[1]+r[3]) return r[4]; } return null; }
+function createHit(px,py){ for (const r of CREATE_RECTS){ if (px>=r[0]&&px<=r[0]+r[2]&&py>=r[1]&&py<=r[1]+r[3]) return r; } return null; }
+function editHit(px,py){ const r=EDIT_RECT; return r && px>=r[0]&&px<=r[0]+r[2]&&py>=r[1]&&py<=r[1]+r[3]; }
+
+function cycleCharacter(key, dir){
+  const c = S.character;
+  const wrap = (i,n) => (i+dir+n)%n;
+  if (key==='team') c.teamIdx = wrap(c.teamIdx, TEAM_OPTS.length);
+  else if (key==='body') c.bodyIdx = wrap(c.bodyIdx, BODY_OPTS.length);
+  else if (key==='height') c.heightIdx = wrap(c.heightIdx, HEIGHT_OPTS.length);
+  else if (key==='skin') c.skinIdx = wrap(c.skinIdx, SKINS.length);
+  else if (key==='hair') c.hairIdx = wrap(c.hairIdx, HAIRS.length);
+  else if (key==='shirt') c.shirtIdx = wrap(c.shirtIdx, PALETTE.length);
+  else if (key==='socks') c.sockIdx = wrap(c.sockIdx, PALETTE.length);
+  else if (key==='shoes') c.shoeIdx = wrap(c.shoeIdx, PALETTE.length);
+  SFX.tick(false);
+}
+function confirmCharacter(){
+  S.hair = HAIRS[S.character.hairIdx];
+  S.skin = SKINS[S.character.skinIdx];
+}
 
 function toBuf(e){
   const rect = cv.getBoundingClientRect();
@@ -1170,6 +1203,7 @@ function dither(x,y,w,h,c,step){ b.fillStyle=c; const st=step||2;
 function draw(){
   b.fillStyle = C.VOID; b.fillRect(0,0,W,H);
 
+  if (S.scene === 'CREATE'){ drawCreate(); post(); return; }
   if (S.scene === 'TITLE'){ drawTitle(); post(); return; }
   if (S.scene === 'MATCHEND'){ drawMatchEnd(); post(); return; }
 
@@ -1458,19 +1492,20 @@ function drawShooter(){
     if (phase === 'FOLLOW') gy -= 1.6;
   }
 
-  const kit = KITS[S.cat] || KITS.ENGLAND;
+  const kit = playerKit();
+  const { bodyW, hScale } = bodyMetrics();
   // local unit space → screen
-  const px = x => cx + x*s, py = y => gy + y*s;
+  const px = x => cx + x*s*bodyW, py = y => gy + y*s*hScale;
   function lm(x0,y0,x1,y1,w,c){
-    b.strokeStyle=c; b.lineWidth=Math.max(1.2,w*s); b.lineCap='butt';
+    b.strokeStyle=c; b.lineWidth=Math.max(1.2,w*s*bodyW); b.lineCap='butt';
     b.beginPath(); b.moveTo(px(x0),py(y0)); b.lineTo(px(x1),py(y1)); b.stroke();
   }
   function bx(x,y,w,h,c){
     b.fillStyle=c;
-    b.fillRect(Math.round(px(x)), Math.round(py(y)), Math.max(1,Math.round(w*s)), Math.max(1,Math.round(h*s)));
+    b.fillRect(Math.round(px(x)), Math.round(py(y)), Math.max(1,Math.round(w*s*bodyW)), Math.max(1,Math.round(h*s*hScale)));
   }
   function boot(x,y,flip){
-    bx(x-(flip?2.6:0.6), y-1.2, 3.2, 2.4, '#111318');
+    bx(x-(flip?2.6:0.6), y-1.2, 3.2, 2.4, kit.shoe);
     bx(x-(flip?2.6:0.6), y+0.6, 3.2, 0.8, '#f4f1e4');
   }
 
@@ -1589,22 +1624,24 @@ function drawShooter(){
    ═══════════════════════════════════════════════════════════ */
 const lerp2 = (a,c,t) => [lerp(a[0],c[0],t), lerp(a[1],c[1],t)];
 
-function drawJuggler(){
+function drawJuggler(anchor){
+  anchor = anchor || JUG;
   const ku = S.ku;
   const inBike = S.scene === 'KU_BICYCLE';
   const bikeT = inBike ? ku.bike.t : -1;
-  const cx = JUG.x, s = JUG.s;
-  let gy = JUG.y;
+  const cx = anchor.x, s = anchor.s;
+  let gy = anchor.y;
   if (!inBike) gy += Math.sin(S.t*3)*0.6;                 // idle breathing sway
 
-  const kit = KITS[S.cat] || KITS.ENGLAND;
-  const px = x => cx + x*s, py = y => gy + y*s;
-  function lm(x0,y0,x1,y1,w,c){ b.strokeStyle=c; b.lineWidth=Math.max(1.2,w*s); b.lineCap='butt';
+  const kit = playerKit();
+  const { bodyW, hScale } = bodyMetrics();
+  const px = x => cx + x*s*bodyW, py = y => gy + y*s*hScale;
+  function lm(x0,y0,x1,y1,w,c){ b.strokeStyle=c; b.lineWidth=Math.max(1.2,w*s*bodyW); b.lineCap='butt';
     b.beginPath(); b.moveTo(px(x0),py(y0)); b.lineTo(px(x1),py(y1)); b.stroke(); }
   function bx(x,y,w,h,c){ b.fillStyle=c;
-    b.fillRect(Math.round(px(x)), Math.round(py(y)), Math.max(1,Math.round(w*s)), Math.max(1,Math.round(h*s))); }
+    b.fillRect(Math.round(px(x)), Math.round(py(y)), Math.max(1,Math.round(w*s*bodyW)), Math.max(1,Math.round(h*s*hScale))); }
   function boot(x,y,flip){
-    bx(x-(flip?2.6:0.6), y-1.2, 3.2, 2.4, '#111318');
+    bx(x-(flip?2.6:0.6), y-1.2, 3.2, 2.4, kit.shoe);
     bx(x-(flip?2.6:0.6), y+0.6, 3.2, 0.8, '#f4f1e4');
   }
 
@@ -1635,8 +1672,8 @@ function drawJuggler(){
       aL=[[-10,-38],[-11.5,-45]]; aR=[[10,-38],[11.5,-45]];
     }
   } else {
-    const t = ku ? ku.cycleT : 0;
-    const foot = ku ? ku.foot : 0;
+    const t = ku ? ku.cycleT : (S.t % 1);          // no ku? animate off the clock (character preview)
+    const foot = ku ? ku.foot : (Math.floor(S.t) % 2);
     const flick = Math.max(0, Math.cos(Math.min(1, t/0.35)*Math.PI*0.5));
     const hop = Math.sin(t*Math.PI) * 1.1;
     gy -= hop;
@@ -2122,9 +2159,66 @@ function makeBackdrop(){
   for (let y=0;y<H;y++) for (let x=(y%3); x<W; x+=3) g.fillRect(x,y,1,1);
 }
 
+/* ── create-a-player ──────────────────────────────────────────
+   Tony Hawk-style: a big live preview up top, a stack of attribute
+   rows with < > arrows below, same panel/arrow language as the rest
+   of the menus.                                                  ── */
+function drawCreate(){
+  if (!backdrop) makeBackdrop();
+  b.drawImage(backdrop, 0, 0);
+  txt('CREATE YOUR PLAYER', W/2, 8, C.GOLD, 13, 'center');
+  txt('TAP THE ARROWS TO CHANGE HIM', W/2, 22, C.GREYDK, 7, 'center');
+
+  drawJuggler({ x: W/2, y: 150, s: 2.0 });
+
+  const c = S.character;
+  const rows = [
+    ['team',  'TEAM',   TEAM_OPTS[c.teamIdx], null],
+    ['body',  'BODY',   BODY_OPTS[c.bodyIdx], null],
+    ['height','HEIGHT', HEIGHT_OPTS[c.heightIdx], null],
+    ['skin',  'SKIN',   null, SKINS[c.skinIdx]],
+    ['hair',  'HAIR',   null, HAIRS[c.hairIdx]],
+    ['shirt', 'SHIRT',  null, PALETTE[c.shirtIdx]],
+    ['socks', 'SOCKS',  null, PALETTE[c.sockIdx]],
+    ['shoes', 'SHOES',  null, PALETTE[c.shoeIdx]]
+  ];
+  const top = 192, rh = 24, laX = 158, valCx = 208, raX = 240;
+  CREATE_RECTS = [];
+  rows.forEach(([key,label,textVal,swatch], i)=>{
+    const y = top + i*rh;
+    rect(16,y,W-32,rh-4, C.PANELED); rect(17,y+1,W-34,rh-6, C.PANEL);
+    txt(label, 24, y+7, C.GREYDK, 8);
+
+    CREATE_RECTS.push([laX, y, 20, rh-4, key, -1]);
+    CREATE_RECTS.push([raX, y, 20, rh-4, key, 1]);
+    txt('<', laX+10, y+6, C.GREY, 11, 'center');
+    txt('>', raX+10, y+6, C.GREY, 11, 'center');
+
+    if (swatch){
+      rect(valCx-20, y+4, 40, rh-12, '#0a1220');
+      rect(valCx-18, y+5, 36, rh-14, swatch);
+    } else {
+      txt(textVal, valCx, y+7, C.WHITE, 9, 'center');
+    }
+  });
+
+  const by = top + rows.length*rh + 14;
+  CREATE_RECTS.push([40, by, W-80, 22, 'go', 0]);
+  rect(40,by,W-80,22, Math.sin(S.t*5)>0?C.GOLD:C.GOLDDK);
+  rect(41,by+1,W-82,20,'#241a06');
+  txt('KICK OFF →', W/2, by+6, C.GOLD2, 10, 'center');
+}
+
 function drawTitle(){
   if (!backdrop) makeBackdrop();
   b.drawImage(backdrop, 0, 0);
+
+  // edit player — top right, out of the way
+  EDIT_RECT = [W-70, 4, 62, 14];
+  rect(EDIT_RECT[0], EDIT_RECT[1], EDIT_RECT[2], EDIT_RECT[3], C.PANELED);
+  rect(EDIT_RECT[0]+1, EDIT_RECT[1]+1, EDIT_RECT[2]-2, EDIT_RECT[3]-2, C.PANEL);
+  txt('EDIT PLAYER', W-39, 8, C.GREYDK, 6, 'center');
+
   // crest
   const cy = 60;
   rect(W/2-46, cy, 92, 56, C.INK); rect(W/2-45, cy+1, 90, 54, '#0d1424');
