@@ -15,10 +15,17 @@
   #hint{position:fixed;bottom:6px;left:0;right:0;text-align:center;color:#3d4d6b;
     font-size:10px;letter-spacing:.14em;text-transform:uppercase;pointer-events:none}
   @media (prefers-reduced-motion:reduce){canvas{box-shadow:0 0 0 1px #1b2438}}
+  #menuBtn{position:fixed;top:8px;left:8px;z-index:5;
+    font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    font-size:10px;letter-spacing:.10em;color:#b9b8ae;background:#0e1526;
+    border:1px solid #1d2942;border-radius:2px;padding:6px 9px;cursor:pointer;
+    -webkit-tap-highlight-color:transparent;user-select:none}
+  #menuBtn:active{background:#1d2942;color:#ffe89a}
 </style>
 </head>
 <body>
 <div id="wrap"><canvas id="cv"></canvas></div>
+<button id="menuBtn" type="button">≡ MENU</button>
 <div id="hint">tap / click / space &nbsp;·&nbsp; aim it, power it, place it</div>
 
 <script>
@@ -92,8 +99,9 @@ function initAudio(){
   const Ctor = window.AudioContext || window.webkitAudioContext;
   if (!Ctor) { audioOn = false; return; }
   AC = new Ctor();
-  master = AC.createGain(); master.gain.value = 0.5; master.connect(AC.destination);
+  master = AC.createGain(); master.gain.value = S.audioMuted ? 0 : S.audioVolume; master.connect(AC.destination);
 }
+function applyVolume(){ if (master) master.gain.value = S.audioMuted ? 0 : S.audioVolume; }
 function env(node, t, a, d, peak){
   const g = AC.createGain();
   g.gain.setValueAtTime(0.0001, t);
@@ -565,7 +573,12 @@ const S = {
   mode:'SHOOTOUT', menuMode:'SHOOTOUT', ku:null,
   hattrick:{active:false, t:0},
   // create-a-player
-  character:{ teamIdx:0, bodyIdx:1, heightIdx:1, skinIdx:1, hairIdx:0, shirtIdx:0, sockIdx:2, shoeIdx:8 }
+  character:{ teamIdx:0, bodyIdx:1, heightIdx:1, skinIdx:1, hairIdx:0, shirtIdx:0, sockIdx:2, shoeIdx:8 },
+  // settings + save
+  settingsOpen:false, settingsConfirmQuit:false, saveFlashT:0,
+  audioVolume:0.5, audioMuted:false,
+  reduceMotion: !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches),
+  bestEverStreak:0
 };
 
 function targetRadius(){ return 30 * (1 + 0.10*Math.min(S.streak,5)); }
@@ -675,6 +688,7 @@ function updateKeepyups(dt){
         ku.clock = Math.min(60, ku.clock + KU_BONUS);
         ku.bonusFlashT = 1;
         ku.streak++; ku.best = Math.max(ku.best, ku.streak); ku.answered++;
+        if (ku.streak > S.bestEverStreak){ S.bestEverStreak = ku.streak; saveGame(); }
         if (ku.streak % 5 === 0){ ku.celebWord = ku.streak+' STREAK'; startBicycle(); }
         else if (ku.streak % 3 === 0){ ku.celebWord = 'HAT-TRICK'; S.hattrick = {active:true, t:0}; gotoScene('KU_HATTRICK'); }
         else { nextKUQuestion(); }
@@ -922,6 +936,7 @@ function advance(){
    ═══════════════════════════════════════════════════════════ */
 function tapAt(px, py){
   initAudio();
+  if (S.settingsOpen){ handleSettingsTap(px, py); return; }
   switch (S.scene){
     case 'CREATE': {
       const hit = createHit(px, py);
@@ -1033,6 +1048,38 @@ function cycleCharacter(key, dir){
 function confirmCharacter(){
   S.hair = HAIRS[S.character.hairIdx];
   S.skin = SKINS[S.character.skinIdx];
+  saveGame();
+}
+
+/* ── save/load — character, settings, best-ever streak. Best-effort:
+   some contexts (private browsing, sandboxed file://) block storage
+   entirely, so every call is guarded and failure is silent.       ── */
+const SAVE_KEY = 'kickup_save_v1';
+function saveGame(){
+  try{
+    localStorage.setItem(SAVE_KEY, JSON.stringify({
+      character: S.character,
+      audioVolume: S.audioVolume,
+      audioMuted: S.audioMuted,
+      reduceMotion: S.reduceMotion,
+      bestEverStreak: S.bestEverStreak
+    }));
+    return true;
+  } catch(e){ return false; }
+}
+function loadGame(){
+  try{
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return;
+    const d = JSON.parse(raw);
+    if (d.character) Object.assign(S.character, d.character);
+    if (typeof d.audioVolume === 'number') S.audioVolume = d.audioVolume;
+    if (typeof d.audioMuted === 'boolean') S.audioMuted = d.audioMuted;
+    if (typeof d.reduceMotion === 'boolean') S.reduceMotion = d.reduceMotion;
+    if (typeof d.bestEverStreak === 'number') S.bestEverStreak = d.bestEverStreak;
+    S.hair = HAIRS[S.character.hairIdx];
+    S.skin = SKINS[S.character.skinIdx];
+  } catch(e){ /* storage unavailable — start fresh */ }
 }
 
 function toBuf(e){
@@ -1042,8 +1089,16 @@ function toBuf(e){
   return [ cx * (FRAME_W/rect.width), cy * (FRAME_H/rect.height) - PAD_TOP ];
 }
 cv.addEventListener('pointerdown', e=>{ e.preventDefault(); const [x,y]=toBuf(e); tapAt(x,y); }, {passive:false});
+document.getElementById('menuBtn').addEventListener('click', e=>{
+  e.preventDefault(); e.stopPropagation();
+  initAudio();
+  S.settingsOpen = !S.settingsOpen;
+  S.settingsConfirmQuit = false;
+});
 window.addEventListener('keydown', e=>{
+  if (e.code==='Escape'){ e.preventDefault(); S.settingsOpen = !S.settingsOpen; S.settingsConfirmQuit = false; return; }
   if (e.code==='Space'||e.code==='Enter'){ e.preventDefault();
+    if (S.settingsOpen) return;
     if (S.scene==='QUESTION' && !S.qResolved) return;      // questions need a real choice
     tapAt(-1,-1);
   }
@@ -1062,6 +1117,7 @@ const DT = 1/120;
 let tickAcc = 0, lastTickSound = 0;
 
 function update(dt){
+  if (S.settingsOpen){ S.saveFlashT = Math.max(0, S.saveFlashT - dt*0.8); return; }
   S.t += dt; S.sceneT += dt;
   S.shake = Math.max(0, S.shake - dt*14);
   S.flash = Math.max(0, S.flash - dt*2.4);
@@ -1203,13 +1259,13 @@ function dither(x,y,w,h,c,step){ b.fillStyle=c; const st=step||2;
 function draw(){
   b.fillStyle = C.VOID; b.fillRect(0,0,W,H);
 
-  if (S.scene === 'CREATE'){ drawCreate(); post(); return; }
-  if (S.scene === 'TITLE'){ drawTitle(); post(); return; }
-  if (S.scene === 'MATCHEND'){ drawMatchEnd(); post(); return; }
+  if (S.scene === 'CREATE'){ drawCreate(); finishDraw(); return; }
+  if (S.scene === 'TITLE'){ drawTitle(); finishDraw(); return; }
+  if (S.scene === 'MATCHEND'){ drawMatchEnd(); finishDraw(); return; }
 
   if (S.scene==='KU_READY' || S.scene==='KU_PLAY' || S.scene==='KU_HATTRICK' ||
       S.scene==='KU_BICYCLE' || S.scene==='KU_OVER'){
-    drawKeepyups(); post(); return;
+    drawKeepyups(); finishDraw(); return;
   }
 
   drawStadium();
@@ -1220,7 +1276,7 @@ function draw(){
   if (S.scene === 'QUESTION') drawQuestion();
   if (S.scene === 'RESOLVE') drawResolve();
   if (S.perfect.active) drawPerfectBanner();
-  post();
+  finishDraw();
 }
 
 /* ── ROLLING BANNER — a reusable big-callout renderer. Letters roll in
@@ -1863,7 +1919,7 @@ function drawKUReady(){
   const y = 150;
   panel(20, y, W-40, 132);
   txt('SOLO KEEPY-UPS', W/2, y+12, C.GOLD, 15, 'center');
-  txt(S.cat, W/2, y+32, C.GREYDK, 9, 'center');
+  txt(S.cat + (S.bestEverStreak>0 ? '  ·  YOUR BEST '+S.bestEverStreak : ''), W/2, y+32, C.GREYDK, 9, 'center');
   wrapText('Answer fast — every correct answer buys '+KU_BONUS+' more seconds. Any wrong answer, or an empty clock, ends the run.', W-64)
     .forEach((l,i)=> txt(l, W/2, y+52+i*11, C.GREY, 8, 'center'));
   txt('TAP TO START', W/2, y+114, Math.sin(S.t*5)>0?C.WHITE:C.GREYDK, 10, 'center');
@@ -2329,10 +2385,90 @@ function drawFrameBottom(){
   for (let y=y0; y<FRAME_H; y++){ if (Math.floor((y-y0)/7)%2===0) ctx.fillRect(0,y,FRAME_W,1); }
 }
 
+/* ── settings / pause menu — top-left MENU button, always available.
+   Freezes the sim (see update()) and draws on top of whatever scene
+   is behind it. Same panel/row language as everything else.       ── */
+let SETTINGS_RECTS = [], SETTINGS_PANEL = [0,0,0,0];
+function settingsHit(px,py){ for (const r of SETTINGS_RECTS){ if (px>=r[0]&&px<=r[0]+r[2]&&py>=r[1]&&py<=r[1]+r[3]) return r; } return null; }
+function handleSettingsTap(px,py){
+  const hit = settingsHit(px,py);
+  if (!hit){
+    const p = SETTINGS_PANEL;
+    const inPanel = px>=p[0]&&px<=p[0]+p[2]&&py>=p[1]&&py<=p[1]+p[3];
+    if (!inPanel){ S.settingsOpen = false; S.settingsConfirmQuit = false; }
+    return;
+  }
+  const key = hit[4];
+  if (key !== 'quit') S.settingsConfirmQuit = false;
+  if (key === 'sound'){ S.audioMuted = !S.audioMuted; applyVolume(); SFX.tick(!S.audioMuted); }
+  else if (key === 'vol'){ S.audioVolume = Math.max(0, Math.min(1, S.audioVolume + hit[5]*0.1)); applyVolume(); SFX.tick(true); }
+  else if (key === 'motion'){ S.reduceMotion = !S.reduceMotion; }
+  else if (key === 'save'){ const ok = saveGame(); S.saveFlashT = ok ? 1.4 : 0; SFX.correct(); }
+  else if (key === 'quit'){
+    if (S.settingsConfirmQuit){
+      S.settingsOpen = false; S.settingsConfirmQuit = false;
+      S.ku = null; S.mode = 'SHOOTOUT';
+      gotoScene('TITLE');
+    } else { S.settingsConfirmQuit = true; SFX.wrong(); }
+  }
+  else if (key === 'close'){ S.settingsOpen = false; S.settingsConfirmQuit = false; }
+}
+function drawSettings(){
+  b.save(); b.globalAlpha = 0.72; rect(0,0,W,H,C.INK); b.restore();
+
+  const px0=24, py0=100, pw=240, ph=210;
+  SETTINGS_PANEL = [px0,py0,pw,ph];
+  panel(px0,py0,pw,ph);
+  txt('PAUSED', W/2, py0+10, C.GOLD, 15, 'center');
+
+  SETTINGS_RECTS = [];
+  const rx = px0+12, rw = pw-24, rh = 26;
+  let ry = py0+36;
+
+  rect(rx,ry,rw,rh-4, C.PANEL);
+  txt('SOUND', rx+8, ry+7, C.GREYDK, 8);
+  txt(S.audioMuted?'OFF':'ON', rx+rw-30, ry+7, S.audioMuted?C.RED:C.GREEN, 9, 'center');
+  SETTINGS_RECTS.push([rx, ry, rw, rh-4, 'sound']);
+  ry += rh;
+
+  rect(rx,ry,rw,rh-4, C.PANEL);
+  txt('VOLUME', rx+8, ry+7, C.GREYDK, 8);
+  SETTINGS_RECTS.push([rx+rw-70, ry, 20, rh-4, 'vol', -1]);
+  SETTINGS_RECTS.push([rx+rw-22, ry, 20, rh-4, 'vol', 1]);
+  txt('<', rx+rw-60, ry+6, C.GREY, 10, 'center');
+  txt('>', rx+rw-12, ry+6, C.GREY, 10, 'center');
+  txt(Math.round(S.audioVolume*100)+'%', rx+rw-36, ry+7, C.WHITE, 9, 'center');
+  ry += rh;
+
+  rect(rx,ry,rw,rh-4, C.PANEL);
+  txt('REDUCE MOTION', rx+8, ry+7, C.GREYDK, 8);
+  txt(S.reduceMotion?'ON':'OFF', rx+rw-30, ry+7, S.reduceMotion?C.GREEN:C.GREYDK, 9, 'center');
+  SETTINGS_RECTS.push([rx, ry, rw, rh-4, 'motion']);
+  ry += rh + 6;
+
+  SETTINGS_RECTS.push([rx, ry, rw, 22, 'save']);
+  rect(rx,ry,rw,22, C.PANELED); rect(rx+1,ry+1,rw-2,20, C.PANEL);
+  txt(S.saveFlashT>0 ? 'SAVED ✓' : 'SAVE PLAYER', W/2, ry+6, S.saveFlashT>0?C.GOLD2:C.WHITE, 9, 'center');
+  ry += 28;
+
+  SETTINGS_RECTS.push([rx, ry, rw, 22, 'quit']);
+  rect(rx,ry,rw,22, S.settingsConfirmQuit?C.RED:C.PANELED);
+  rect(rx+1,ry+1,rw-2,20, S.settingsConfirmQuit?'#3a1410':C.PANEL);
+  txt(S.settingsConfirmQuit ? 'TAP AGAIN TO CONFIRM' : 'QUIT TO MENU', W/2, ry+6, S.settingsConfirmQuit?'#ff8a7a':C.WHITE, 9, 'center');
+  ry += 28;
+
+  SETTINGS_RECTS.push([rx, ry, rw, 22, 'close']);
+  rect(rx,ry,rw,22, C.GOLDDK); rect(rx+1,ry+1,rw-2,20, '#241a06');
+  txt('RESUME', W/2, ry+6, C.GOLD2, 9, 'center');
+}
+function finishDraw(){
+  if (S.settingsOpen) drawSettings();
+  post();
+}
+
 /* ── post-processing: shake, flash, RGB split, scanlines, vignette ── */
-const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 function post(){
-  const sh = reduceMotion ? 0 : S.shake;
+  const sh = S.reduceMotion ? 0 : S.shake;
   const ox = sh ? (rnd()-0.5)*sh*2 : 0, oy = sh ? (rnd()-0.5)*sh*2 : 0;
 
   ctx.fillStyle = C.VOID; ctx.fillRect(0,0,cv.width,cv.height);
@@ -2344,7 +2480,7 @@ function post(){
   ctx.save();
   ctx.translate(0, PAD_TOP);
 
-  if (S.aberr > 0.01 && !reduceMotion){
+  if (S.aberr > 0.01 && !S.reduceMotion){
     const d = S.aberr * 3;
     ta.clearRect(0,0,W,H); ta.drawImage(buf,0,0);
     ta.globalCompositeOperation='multiply'; ta.fillStyle='#ff2020'; ta.fillRect(0,0,W,H);
@@ -2394,6 +2530,8 @@ function post(){
   ctx.fillStyle = g; ctx.fillRect(0,0,FRAME_W,FRAME_H);
   ctx.restore();
 }
+
+loadGame();
 
 /* ═══════════════════════════════════════════════════════════
    RESIZE + LOOP
