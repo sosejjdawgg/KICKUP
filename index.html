@@ -56,6 +56,12 @@ const tA = document.createElement('canvas'); tA.width=W; tA.height=H;
 const tB = document.createElement('canvas'); tB.width=W; tB.height=H;
 const ta = tA.getContext('2d'), tb = tB.getContext('2d');
 
+// a small scratch canvas the language flags are drawn flat onto, then
+// sampled column-by-column with a vertical sine offset to make them wave
+const FLAG_W = 40, FLAG_H = 26;
+const flagBuf = document.createElement('canvas'); flagBuf.width = FLAG_W; flagBuf.height = FLAG_H;
+const flagCtx = flagBuf.getContext('2d');
+
 /* ── palette: floodlit night stadium ─────────────────────────
    Derived from the subject: sodium floodlights on wet grass,
    chalk paint, terrace flare orange, scoreboard LED gold.     */
@@ -350,6 +356,170 @@ Object.assign(SFX, {
 });
 
 /* ═══════════════════════════════════════════════════════════
+   I18N — UI chrome only. Trivia questions stay English for now;
+   translating ~120 questions across 4 languages is a separate job.
+   ═══════════════════════════════════════════════════════════ */
+const I18N = {
+  en: {
+    tagline:"THREE TAPS · TEN SECONDS · ONE GOAL", edit_player:"EDIT PLAYER",
+    mode_shootout:"SHOOTOUT", mode_keepyups:"KEEPY-UPS",
+    choose_team:"CHOOSE A TEAM", choose_category:"CHOOSE A CATEGORY",
+    how_aim:"AIM", how_aim_desc:"tap the goal · pick your spot",
+    how_power:"POWER", how_power_desc:"gold core = perfect · he runs up",
+    how_accuracy:"ACCURACY", how_accuracy_desc:"gold core = perfect · sweep sets curl",
+    how_perfect:"both gold cores together → PERFECT SHOT",
+    how_wind:"wind moves the ball after you commit", kick_off:"KICK OFF →",
+    paused:"PAUSED", sound:"SOUND", volume:"VOLUME", reduce_motion:"REDUCE MOTION",
+    ladder_setting:"LADDER", ladder_balls:"BALLS", ladder_money:"MONEY",
+    save_player:"SAVE PLAYER", saved:"SAVED ✓", quit_to_menu:"QUIT TO MENU",
+    tap_again_confirm:"TAP AGAIN TO CONFIRM", resume:"RESUME", on:"ON", off:"OFF",
+    rank_prefix:"RANK", best_prefix:"BEST", safety_net:"SAFETY NET!",
+    hat_trick:"HAT-TRICK", secured_suffix:"SECURED!", solo_keepyups:"SOLO KEEPY-UPS",
+    ready_desc:"Answer fast — every correct answer buys {n} more seconds. Ranks 5 and 10 are safety nets — one wrong answer past them sends you back, not out.",
+    your_best:"YOUR BEST", tap_to_start:"TAP TO START", ladder_complete:"LADDER COMPLETE!",
+    run_over:"RUN OVER", rank_reached:"RANK REACHED", answered_prefix:"ANSWERED",
+    tap_for_title:"TAP FOR TITLE", wrong:"WRONG", on_correct:"ON CORRECT",
+    second_chance:"2ND CHANCE",
+    create_title:"CREATE YOUR PLAYER", create_subtitle:"TAP THE ARROWS TO CHANGE HIM",
+    cat_team:"TEAM", cat_body:"BODY", cat_height:"HEIGHT", cat_skin:"SKIN",
+    cat_hair:"HAIR", cat_shirt:"SHIRT", cat_socks:"SOCKS", cat_shoes:"SHOES",
+    body_skinny:"SKINNY", body_mid:"MID", body_heavy:"HEAVY",
+    height_short:"SHORT", height_mid:"MID", height_tall:"TALL",
+    lang_title:"CHOOSE YOUR LANGUAGE", lang_subtitle:"TAP A FLAG TO CONTINUE",
+    name_header:"WHO'S PLAYING?", name_label:"NAME", name_number_label:"NUMBER",
+    name_continue:"CONTINUE →",
+  },
+  fr: {
+    tagline:"TROIS TOUCHES · DIX SECONDES · UN BUT", edit_player:"MODIFIER",
+    mode_shootout:"TIRS AU BUT", mode_keepyups:"JONGLAGES",
+    choose_team:"CHOISIS UNE ÉQUIPE", choose_category:"CHOISIS UNE CATÉGORIE",
+    how_aim:"VISER", how_aim_desc:"touche le but · choisis ta zone",
+    how_power:"PUISSANCE", how_power_desc:"cœur doré = parfait · il prend son élan",
+    how_accuracy:"PRÉCISION", how_accuracy_desc:"cœur doré = parfait · le geste donne l'effet",
+    how_perfect:"deux cœurs dorés ensemble → TIR PARFAIT",
+    how_wind:"le vent dévie le ballon après ta frappe", kick_off:"COUP D'ENVOI →",
+    paused:"PAUSE", sound:"SON", volume:"VOLUME", reduce_motion:"RÉDUIRE ANIMATIONS",
+    ladder_setting:"ÉCHELLE", ladder_balls:"BALLONS", ladder_money:"ARGENT",
+    save_player:"SAUVEGARDER", saved:"ENREGISTRÉ ✓", quit_to_menu:"QUITTER",
+    tap_again_confirm:"APPUIE ENCORE POUR CONFIRMER", resume:"REPRENDRE", on:"OUI", off:"NON",
+    rank_prefix:"RANG", best_prefix:"MEILLEUR", safety_net:"FILET DE SÉCURITÉ !",
+    hat_trick:"HAT-TRICK", secured_suffix:"SÉCURISÉ !", solo_keepyups:"JONGLAGES SOLO",
+    ready_desc:"Réponds vite — chaque bonne réponse ajoute {n} secondes. Les rangs 5 et 10 sont des filets de sécurité — une erreur après eux te renvoie en arrière, sans t'éliminer.",
+    your_best:"TON MEILLEUR", tap_to_start:"APPUIE POUR COMMENCER", ladder_complete:"ÉCHELLE TERMINÉE !",
+    run_over:"PARTIE TERMINÉE", rank_reached:"RANG ATTEINT", answered_prefix:"RÉPONSES",
+    tap_for_title:"APPUIE POUR LE MENU", wrong:"FAUX", on_correct:"SI CORRECT",
+    second_chance:"2E CHANCE",
+    create_title:"CRÉE TON JOUEUR", create_subtitle:"TOUCHE LES FLÈCHES POUR LE MODIFIER",
+    cat_team:"ÉQUIPE", cat_body:"CORPS", cat_height:"TAILLE", cat_skin:"PEAU",
+    cat_hair:"CHEVEUX", cat_shirt:"MAILLOT", cat_socks:"CHAUSSETTES", cat_shoes:"CHAUSSURES",
+    body_skinny:"MINCE", body_mid:"MOYEN", body_heavy:"COSTAUD",
+    height_short:"PETIT", height_mid:"MOYEN", height_tall:"GRAND",
+    lang_title:"CHOISIS TA LANGUE", lang_subtitle:"TOUCHE UN DRAPEAU POUR CONTINUER",
+    name_header:"QUI JOUE ?", name_label:"NOM", name_number_label:"NUMÉRO",
+    name_continue:"CONTINUER →",
+  },
+  es: {
+    tagline:"TRES TOQUES · DIEZ SEGUNDOS · UN GOL", edit_player:"EDITAR",
+    mode_shootout:"PENALTIS", mode_keepyups:"TOQUES",
+    choose_team:"ELIGE UN EQUIPO", choose_category:"ELIGE UNA CATEGORÍA",
+    how_aim:"APUNTAR", how_aim_desc:"toca la portería · elige tu zona",
+    how_power:"POTENCIA", how_power_desc:"núcleo dorado = perfecto · toma carrera",
+    how_accuracy:"PRECISIÓN", how_accuracy_desc:"núcleo dorado = perfecto · el gesto da efecto",
+    how_perfect:"ambos núcleos dorados → TIRO PERFECTO",
+    how_wind:"el viento desvía el balón tras el disparo", kick_off:"SAQUE INICIAL →",
+    paused:"PAUSA", sound:"SONIDO", volume:"VOLUMEN", reduce_motion:"REDUCIR MOVIMIENTO",
+    ladder_setting:"ESCALERA", ladder_balls:"BALONES", ladder_money:"DINERO",
+    save_player:"GUARDAR", saved:"GUARDADO ✓", quit_to_menu:"SALIR AL MENÚ",
+    tap_again_confirm:"TOCA DE NUEVO PARA CONFIRMAR", resume:"CONTINUAR", on:"SÍ", off:"NO",
+    rank_prefix:"RANGO", best_prefix:"MEJOR", safety_net:"¡RED DE SEGURIDAD!",
+    hat_trick:"TRIPLETE", secured_suffix:"¡ASEGURADO!", solo_keepyups:"TOQUES EN SOLITARIO",
+    ready_desc:"Responde rápido — cada acierto suma {n} segundos. Los rangos 5 y 10 son redes de seguridad — un fallo tras ellos te hace retroceder, no te elimina.",
+    your_best:"TU MEJOR", tap_to_start:"TOCA PARA EMPEZAR", ladder_complete:"¡ESCALERA COMPLETA!",
+    run_over:"PARTIDA TERMINADA", rank_reached:"RANGO ALCANZADO", answered_prefix:"RESPONDIDAS",
+    tap_for_title:"TOCA PARA EL MENÚ", wrong:"INCORRECTO", on_correct:"SI ACIERTAS",
+    second_chance:"2ª OPORTUNIDAD",
+    create_title:"CREA TU JUGADOR", create_subtitle:"TOCA LAS FLECHAS PARA CAMBIARLO",
+    cat_team:"EQUIPO", cat_body:"CUERPO", cat_height:"ALTURA", cat_skin:"PIEL",
+    cat_hair:"PELO", cat_shirt:"CAMISETA", cat_socks:"MEDIAS", cat_shoes:"BOTAS",
+    body_skinny:"DELGADO", body_mid:"MEDIO", body_heavy:"FORNIDO",
+    height_short:"BAJO", height_mid:"MEDIO", height_tall:"ALTO",
+    lang_title:"ELIGE TU IDIOMA", lang_subtitle:"TOCA UNA BANDERA PARA CONTINUAR",
+    name_header:"¿QUIÉN JUEGA?", name_label:"NOMBRE", name_number_label:"NÚMERO",
+    name_continue:"CONTINUAR →",
+  },
+  de: {
+    tagline:"DREI TIPPS · ZEHN SEKUNDEN · EIN TOR", edit_player:"BEARBEITEN",
+    mode_shootout:"ELFMETER", mode_keepyups:"JONGLIEREN",
+    choose_team:"TEAM WÄHLEN", choose_category:"KATEGORIE WÄHLEN",
+    how_aim:"ZIELEN", how_aim_desc:"aufs Tor tippen · Ziel wählen",
+    how_power:"KRAFT", how_power_desc:"goldener Kern = perfekt · er läuft an",
+    how_accuracy:"PRÄZISION", how_accuracy_desc:"goldener Kern = perfekt · Wisch bestimmt Effet",
+    how_perfect:"beide goldenen Kerne zusammen → PERFEKTER SCHUSS",
+    how_wind:"der Wind lenkt den Ball nach dem Schuss ab", kick_off:"ANSTOSS →",
+    paused:"PAUSIERT", sound:"TON", volume:"LAUTSTÄRKE", reduce_motion:"BEWEGUNG REDUZIEREN",
+    ladder_setting:"LEITER", ladder_balls:"BÄLLE", ladder_money:"GELD",
+    save_player:"SPEICHERN", saved:"GESPEICHERT ✓", quit_to_menu:"ZUM MENÜ",
+    tap_again_confirm:"NOCHMAL TIPPEN ZUM BESTÄTIGEN", resume:"FORTSETZEN", on:"JA", off:"NEIN",
+    rank_prefix:"RANG", best_prefix:"BESTWERT", safety_net:"SICHERHEITSNETZ!",
+    hat_trick:"HATTRICK", secured_suffix:"GESICHERT!", solo_keepyups:"SOLO-JONGLIEREN",
+    ready_desc:"Antworte schnell — jede richtige Antwort bringt {n} weitere Sekunden. Rang 5 und 10 sind Sicherheitsnetze — ein Fehler danach wirft dich zurück, aber nicht raus.",
+    your_best:"DEIN BESTWERT", tap_to_start:"TIPPEN ZUM START", ladder_complete:"LEITER GESCHAFFT!",
+    run_over:"LAUF BEENDET", rank_reached:"ERREICHTER RANG", answered_prefix:"BEANTWORTET",
+    tap_for_title:"TIPPEN FÜRS MENÜ", wrong:"FALSCH", on_correct:"BEI RICHTIG",
+    second_chance:"2. CHANCE",
+    create_title:"SPIELER ERSTELLEN", create_subtitle:"PFEILE TIPPEN, UM IHN ZU ÄNDERN",
+    cat_team:"TEAM", cat_body:"KÖRPER", cat_height:"GRÖSSE", cat_skin:"HAUT",
+    cat_hair:"HAARE", cat_shirt:"TRIKOT", cat_socks:"STUTZEN", cat_shoes:"SCHUHE",
+    body_skinny:"SCHLANK", body_mid:"MITTEL", body_heavy:"KRÄFTIG",
+    height_short:"KLEIN", height_mid:"MITTEL", height_tall:"GROSS",
+    lang_title:"SPRACHE WÄHLEN", lang_subtitle:"TIPPE EINE FLAGGE ZUM FORTFAHREN",
+    name_header:"WER SPIELT?", name_label:"NAME", name_number_label:"NUMMER",
+    name_continue:"WEITER →",
+  },
+  it: {
+    tagline:"TRE TOCCHI · DIECI SECONDI · UN GOL", edit_player:"MODIFICA",
+    mode_shootout:"RIGORI", mode_keepyups:"PALLEGGI",
+    choose_team:"SCEGLI UNA SQUADRA", choose_category:"SCEGLI UNA CATEGORIA",
+    how_aim:"MIRA", how_aim_desc:"tocca la porta · scegli il punto",
+    how_power:"POTENZA", how_power_desc:"nucleo dorato = perfetto · prende la rincorsa",
+    how_accuracy:"PRECISIONE", how_accuracy_desc:"nucleo dorato = perfetto · il gesto dà effetto",
+    how_perfect:"entrambi i nuclei dorati → TIRO PERFETTO",
+    how_wind:"il vento devia il pallone dopo il tiro", kick_off:"CALCIO D'INIZIO →",
+    paused:"IN PAUSA", sound:"AUDIO", volume:"VOLUME", reduce_motion:"RIDUCI ANIMAZIONI",
+    ladder_setting:"SCALA", ladder_balls:"PALLONI", ladder_money:"SOLDI",
+    save_player:"SALVA", saved:"SALVATO ✓", quit_to_menu:"ESCI AL MENU",
+    tap_again_confirm:"TOCCA ANCORA PER CONFERMARE", resume:"RIPRENDI", on:"SÌ", off:"NO",
+    rank_prefix:"GRADO", best_prefix:"MIGLIORE", safety_net:"RETE DI SICUREZZA!",
+    hat_trick:"TRIPLETTA", secured_suffix:"ASSICURATO!", solo_keepyups:"PALLEGGI IN SOLITARIA",
+    ready_desc:"Rispondi in fretta — ogni risposta giusta aggiunge {n} secondi. I gradi 5 e 10 sono reti di sicurezza — un errore dopo di essi ti fa retrocedere, non ti elimina.",
+    your_best:"IL TUO MIGLIORE", tap_to_start:"TOCCA PER INIZIARE", ladder_complete:"SCALA COMPLETATA!",
+    run_over:"PARTITA FINITA", rank_reached:"GRADO RAGGIUNTO", answered_prefix:"RISPOSTE",
+    tap_for_title:"TOCCA PER IL MENU", wrong:"SBAGLIATO", on_correct:"SE CORRETTO",
+    second_chance:"2ª CHANCE",
+    create_title:"CREA IL TUO GIOCATORE", create_subtitle:"TOCCA LE FRECCE PER MODIFICARLO",
+    cat_team:"SQUADRA", cat_body:"CORPO", cat_height:"ALTEZZA", cat_skin:"PELLE",
+    cat_hair:"CAPELLI", cat_shirt:"MAGLIA", cat_socks:"CALZETTONI", cat_shoes:"SCARPE",
+    body_skinny:"MAGRO", body_mid:"MEDIO", body_heavy:"ROBUSTO",
+    height_short:"BASSO", height_mid:"MEDIO", height_tall:"ALTO",
+    lang_title:"SCEGLI LA LINGUA", lang_subtitle:"TOCCA UNA BANDIERA PER CONTINUARE",
+    name_header:"CHI GIOCA?", name_label:"NOME", name_number_label:"NUMERO",
+    name_continue:"CONTINUA →",
+  },
+};
+function t(key, vars){
+  let s = (I18N[S.language] && I18N[S.language][key]) || I18N.en[key] || key;
+  if (vars) for (const k in vars) s = s.split('{'+k+'}').join(vars[k]);
+  return s;
+}
+const LANGUAGES = [
+  { code:'en', name:'ENGLISH',  pattern:'cross', colors:['#ffffff','#ce1124'] },        // St George's Cross — the flag England fans actually fly
+  { code:'fr', name:'FRANÇAIS', pattern:'v3',    colors:['#0055a4','#ffffff','#ef4135'] },
+  { code:'es', name:'ESPAÑOL',  pattern:'h3w',   colors:['#aa151b','#f1bf00'] },
+  { code:'de', name:'DEUTSCH',  pattern:'h3',    colors:['#000000','#dd0000','#ffce00'] },
+  { code:'it', name:'ITALIANO', pattern:'v3',    colors:['#009246','#ffffff','#ce2b37'] },
+];
+
+/* ═══════════════════════════════════════════════════════════
    QUESTIONS — text only. See design doc §9.1 on why never images.
    ═══════════════════════════════════════════════════════════ */
 const QUESTIONS = {
@@ -570,7 +740,9 @@ const ROUND_NAME = ['STATIC','MOVING','THE KEEPER'];
    STATE
    ═══════════════════════════════════════════════════════════ */
 const S = {
-  scene:'CREATE',           // CREATE TITLE ROUNDCARD QUESTION READY AIM P_POWER P_ACCURACY STRIKE FLIGHT RESOLVE MATCHEND
+  scene:'LANGUAGE',         // LANGUAGE NAME CREATE TITLE ROUNDCARD QUESTION READY AIM P_POWER P_ACCURACY STRIKE FLIGHT RESOLVE MATCHEND
+  language:'en', langPick:0,
+  playerName:'', playerNumber:10,
   t:0, sceneT:0,
   cat:'BRAZIL', questions:[],
   round:0, shot:0,          // 0-indexed
@@ -627,7 +799,7 @@ function beginMatch(cat){
     col: OPP_COLS[rint(0,OPP_COLS.length-1)],
     streak: 0, right: 0
   };
-  S.shirtNum = rint(1,11);
+  S.shirtNum = S.playerNumber;
   S.windParts = []; for (let i=0;i<26;i++) S.windParts.push({x:rnd()*W, y:GOAL.y0+rnd()*GH, s:0.4+rnd()});
   gotoScene('ROUNDCARD');
 }
@@ -643,7 +815,7 @@ function gotoScene(s){ S.scene = s; S.sceneT = 0; }
 const KU_START_CLOCK = 15, KU_BONUS = 5;
 const KU_REVEAL_END = 0.55;
 const JUG = { x: W/2, y: 215, s: 2.35 };   // closeup juggling anchor
-const KU_JUG = { x: 195, y: 215, s: 2.05 }; // shifted right to make room for the money ladder
+const KU_JUG = { x: 172, y: 215, s: 2.56 }; // shifted only enough for the ladder, +25% scale
 
 /* ── trick progression — the combo gets harder to watch as the streak
    grows. 0-5: plain foot-to-foot. 6-10: two touches then a header.
@@ -684,7 +856,7 @@ function beginKeepyups(cat){
   srand(SEED);
   S.mode = 'KEEPYUPS';
   S.cat = cat;
-  S.shirtNum = rint(1,11);
+  S.shirtNum = S.playerNumber;
   S.crowdHype = 0; S.gloom = 0;
   S.ku = {
     pool: shuffledPool(cat),
@@ -772,11 +944,11 @@ function updateKeepyups(dt){
           spawnConfetti(36); triggerCrowdBurst();
           startBicycle();
         } else if (ku.rank % 5 === 0){
-          ku.celebWord = MONEY_LABELS[ku.rank-1]+' SECURED!';
+          ku.celebWord = MONEY_LABELS[ku.rank-1]+' '+t('secured_suffix');
           spawnConfetti(24); triggerCrowdBurst();
           startBicycle();
         } else if (ku.rank % 3 === 0){
-          ku.celebWord = 'HAT-TRICK'; S.hattrick = {active:true, t:0}; gotoScene('KU_HATTRICK');
+          ku.celebWord = t('hat_trick'); S.hattrick = {active:true, t:0}; gotoScene('KU_HATTRICK');
         } else {
           nextKUQuestion();
         }
@@ -1034,6 +1206,29 @@ function tapAt(px, py){
   initAudio();
   if (S.settingsOpen){ handleSettingsTap(px, py); return; }
   switch (S.scene){
+    case 'LANGUAGE': {
+      const code = langHit(px, py);
+      if (!code) return;
+      SFX.lock(0, true); S.language = code; gotoScene('NAME');
+      return;
+    }
+    case 'NAME': {
+      const hit = nameHit(px, py);
+      if (!hit) return;
+      if (hit.length === 6){                     // NAME_RECTS: [key, delta, x, y, w, h]
+        if (hit[0] === 'num'){ S.playerNumber = ((S.playerNumber - 1 + hit[1] + 99) % 99) + 1; SFX.tick(true); }
+        else if (hit[0] === 'go'){
+          if (!S.playerName) S.playerName = t('name_label');
+          SFX.whistleShort(); saveGame(); gotoScene('CREATE');
+        }
+      } else {                                    // KEYBOARD_RECTS: [ch, x, y, w, h]
+        const ch = hit[0];
+        if (ch === '⌫') S.playerName = S.playerName.slice(0,-1);
+        else if (S.playerName.length < 12) S.playerName += ch;
+        SFX.tick(true);
+      }
+      return;
+    }
     case 'CREATE': {
       const hit = createHit(px, py);
       if (!hit) return;
@@ -1258,7 +1453,10 @@ function saveGame(){
       audioMuted: S.audioMuted,
       reduceMotion: S.reduceMotion,
       ladderStyle: S.ladderStyle,
-      bestEverRank: S.bestEverRank
+      bestEverRank: S.bestEverRank,
+      language: S.language,
+      playerName: S.playerName,
+      playerNumber: S.playerNumber
     }));
     return true;
   } catch(e){ return false; }
@@ -1275,6 +1473,9 @@ function loadGame(){
     if (d.ladderStyle === 'football' || d.ladderStyle === 'money') S.ladderStyle = d.ladderStyle;
     if (typeof d.bestEverRank === 'number') S.bestEverRank = d.bestEverRank;
     else if (typeof d.bestEverStreak === 'number') S.bestEverRank = Math.min(15, d.bestEverStreak); // migrate old saves
+    if (I18N[d.language]) S.language = d.language;
+    if (typeof d.playerName === 'string') S.playerName = d.playerName;
+    if (typeof d.playerNumber === 'number') S.playerNumber = d.playerNumber;
     S.hair = HAIRS[S.character.hairIdx];
     S.skin = SKINS[S.character.skinIdx];
   } catch(e){ /* storage unavailable — start fresh */ }
@@ -1445,6 +1646,14 @@ function txt(s,x,y,c,size,align,weight){
   b.fillStyle=c; b.font=(weight||'bold')+' '+(size||8)+'px ui-monospace, Menlo, Consolas, monospace';
   b.textAlign=align||'left'; b.textBaseline='top'; b.fillText(s, Math.round(x), Math.round(y));
 }
+// like txt(), but shrinks the font until it fits maxWidth — some translations
+// run longer than English and this file has several fixed single-line labels
+function txtFit(s,x,y,c,maxSize,maxWidth,align,weight){
+  let size = maxSize;
+  b.font=(weight||'bold')+' '+size+'px ui-monospace, Menlo, Consolas, monospace';
+  while (size > 5 && b.measureText(s).width > maxWidth) size--, b.font=(weight||'bold')+' '+size+'px ui-monospace, Menlo, Consolas, monospace';
+  txt(s,x,y,c,size,align,weight);
+}
 function wrapText(s, max){
   const words = s.split(' '); const lines=[]; let cur='';
   b.font='bold 9px ui-monospace, Menlo, Consolas, monospace';
@@ -1464,6 +1673,8 @@ function dither(x,y,w,h,c,step){ b.fillStyle=c; const st=step||2;
 function draw(){
   b.fillStyle = C.VOID; b.fillRect(0,0,W,H);
 
+  if (S.scene === 'LANGUAGE'){ drawLanguage(); finishDraw(); return; }
+  if (S.scene === 'NAME'){ drawNameEntry(); finishDraw(); return; }
   if (S.scene === 'CREATE'){ drawCreate(); finishDraw(); return; }
   if (S.scene === 'TITLE'){ drawTitle(); finishDraw(); return; }
   if (S.scene === 'MATCHEND'){ drawMatchEnd(); finishDraw(); return; }
@@ -2111,7 +2322,7 @@ function drawKUHUD(){
   const ku = S.ku;
   rect(0,0,W,50,C.INK); rect(0,49,W,1,C.PANELED);
   txt(S.cat, 4, 3, C.GREYDK, 7);
-  txt('KEEPY-UPS', 4, 11, C.GOLD, 13);
+  txt(t('mode_keepyups'), 4, 11, C.GOLD, 13);
 
   const c = ku.clock;
   const col = c<4 ? C.RED : c<8 ? C.GOLD : C.GREEN;
@@ -2124,9 +2335,9 @@ function drawKUHUD(){
     b.restore();
   }
 
-  txt('RANK '+ku.rank+'/15', W-4, 3, C.GREYDK, 7, 'right');
+  txt(t('rank_prefix')+' '+ku.rank+'/15', W-4, 3, C.GREYDK, 7, 'right');
   txt(ku.rank>0 ? MONEY_LABELS[ku.rank-1] : '£0', W-4, 11, ku.rank>0?C.GOLD:C.GREY, 16, 'right');
-  txt('BEST '+ku.best, W-4, 40, C.GREYDK, 7, 'right');
+  txt(t('best_prefix')+' '+ku.best, W-4, 40, C.GREYDK, 7, 'right');
 }
 
 function drawKUQuestion(){
@@ -2135,7 +2346,7 @@ function drawKUQuestion(){
   const y = 234;
   panel(14, y, W-28, 178);
   txt(S.cat, 24, y+8, C.GOLD2, 8);
-  txt('+'+KU_BONUS+'s ON CORRECT', W-24, y+8, C.GREYDK, 8, 'right');
+  txt('+'+KU_BONUS+'s '+t('on_correct'), W-24, y+8, C.GREYDK, 8, 'right');
 
   const lines = wrapText(ku.q.text, W-56);
   lines.forEach((l,i)=> txt(l, W/2, y+22+i*12, C.WHITE, 9, 'center'));
@@ -2157,7 +2368,7 @@ function drawKUQuestion(){
   });
 
   if (ku.qResolved){
-    const msg = ku.qWasRight ? ('+'+KU_BONUS+'s · '+MONEY_LABELS[ku.rank-1]) : 'WRONG';
+    const msg = ku.qWasRight ? ('+'+KU_BONUS+'s · '+MONEY_LABELS[ku.rank-1]) : t('wrong');
     txt(msg, W/2, oy+ku.q.opts.length*29+6, ku.qWasRight?C.GOLD:C.RED, 10, 'center');
   }
 }
@@ -2167,11 +2378,11 @@ function drawKUReady(){
   b.save(); b.globalAlpha = 0.55*a; rect(0,54,W,H-54,C.INK); b.restore();
   const y = 150;
   panel(20, y, W-40, 132);
-  txt('SOLO KEEPY-UPS', W/2, y+12, C.GOLD, 15, 'center');
-  txt(S.cat + (S.bestEverRank>0 ? '  ·  YOUR BEST '+MONEY_LABELS[S.bestEverRank-1] : ''), W/2, y+32, C.GREYDK, 9, 'center');
-  wrapText('Answer fast — every correct answer buys '+KU_BONUS+' more seconds. Ranks 5 and 10 are safety nets — one wrong answer past them sends you back, not out.', W-64)
+  txt(t('solo_keepyups'), W/2, y+12, C.GOLD, 15, 'center');
+  txt(S.cat + (S.bestEverRank>0 ? '  ·  '+t('your_best')+' '+MONEY_LABELS[S.bestEverRank-1] : ''), W/2, y+32, C.GREYDK, 9, 'center');
+  wrapText(t('ready_desc', {n:KU_BONUS}), W-64)
     .forEach((l,i)=> txt(l, W/2, y+52+i*11, C.GREY, 8, 'center'));
-  txt('TAP TO START', W/2, y+114, Math.sin(S.t*5)>0?C.WHITE:C.GREYDK, 10, 'center');
+  txt(t('tap_to_start'), W/2, y+114, Math.sin(S.t*5)>0?C.WHITE:C.GREYDK, 10, 'center');
 }
 
 function drawKUOver(){
@@ -2181,19 +2392,19 @@ function drawKUOver(){
   const y = 130;
   panel(20, y, W-40, 170);
   if (ku.won){
-    txt('LADDER COMPLETE!', W/2, y+14, C.GOLD, 18, 'center');
+    txt(t('ladder_complete'), W/2, y+14, C.GOLD, 18, 'center');
     txt(MONEY_LABELS[14]+'!', W/2, y+38, C.GOLD2, 16, 'center');
   } else {
-    txt('RUN OVER', W/2, y+14, C.RED, 20, 'center');
+    txt(t('run_over'), W/2, y+14, C.RED, 20, 'center');
     txt(S.cat, W/2, y+40, C.GREYDK, 9, 'center');
   }
-  txt('RANK REACHED', W/2, y+66, C.GREYDK, 8, 'center');
+  txt(t('rank_reached'), W/2, y+66, C.GREYDK, 8, 'center');
   txt(String(ku.best)+'/15', W/2, y+78, C.GOLD, 26, 'center');
-  txt('ANSWERED '+ku.answered, W/2, y+118, C.GREY, 9, 'center');
-  txt('TAP FOR TITLE', W/2, y+150, Math.sin(S.t*5)>0?C.WHITE:C.GREYDK, 10, 'center');
+  txt(t('answered_prefix')+' '+ku.answered, W/2, y+118, C.GREY, 9, 'center');
+  txt(t('tap_for_title'), W/2, y+150, Math.sin(S.t*5)>0?C.WHITE:C.GREYDK, 10, 'center');
 }
 
-const LADDER_X = 4, LADDER_Y = 60, LADDER_W = 78, LADDER_ROW_H = 32, LADDER_GROUP = 5;
+const LADDER_X = 4, LADDER_Y = 64, LADDER_W = 78, LADDER_ROW_H = 33, LADDER_GROUP = 5;
 
 /* a small ball icon for the ladder — plain/dim/gold/blue share one drawer,
    the rank-15 diamond gets its own shimmering shape. */
@@ -2245,10 +2456,10 @@ function drawMoneyLadder(){
   const groupStart = group * LADDER_GROUP;
 
   if (football){
-    const cx = LADDER_X + 30, r = 8;
+    const cx = LADDER_X + 32, r = 10;
     const yFor = slot => LADDER_Y + (LADDER_GROUP-slot)*LADDER_ROW_H + LADDER_ROW_H/2 - 2;
     const yTop = yFor(LADDER_GROUP), yBottom = yFor(1);
-    const railL = cx - 14, railR = cx + 14;
+    const railL = cx - 16, railR = cx + 16;
 
     // a literal ladder — two rails and a rung per question, so the climb
     // itself stays legible even though only one group of 5 is on screen
@@ -2269,12 +2480,20 @@ function drawMoneyLadder(){
       const secured = rank <= ku.rank;
       const isCurrent = rank === ku.rank + 1;
       const cy = yFor(slot);
+      const isLifeline = isTop && !isFinal;
       const style = isFinal ? 'diamond' : isTop ? (used ? 'blue' : 'gold') : (secured ? 'plain' : 'dim');
       if (isCurrent){
         const pulse = 0.35 + 0.35*Math.sin(S.t*6);
         b.save(); b.globalAlpha = pulse; ring(cx, cy, r+4, C.GOLD2, 1.6); b.restore();
       }
       drawLadderBall(cx, cy, r, style);
+
+      // a small money counter beside every ball, so the scale of the climb
+      // is always visible — checkpoints add a compact "2ND CHANCE" tag
+      const lx = railR + 6;
+      const moneyCol = secured || isCurrent ? C.WHITE : C.GREYDK;
+      txt(MONEY_LABELS[rank-1], lx, cy - (isLifeline?7:3), moneyCol, 7);
+      if (isLifeline) txt(t('second_chance'), lx, cy+2, used ? C.BLUE : C.GOLD, 5);
     }
     return;
   }
@@ -2316,8 +2535,8 @@ function drawKeepyups(){
   if (S.scene === 'KU_READY') drawKUReady();
   if (S.scene === 'KU_PLAY') drawKUQuestion();
   if (S.scene === 'KU_OVER') drawKUOver();
-  if (S.hattrick.active) drawRollingBanner('HAT-TRICK', S.hattrick.t, {baseY:148});
-  if (S.safetyNet.active) drawRollingBanner('SAFETY NET!', S.safetyNet.t, {baseY:148});
+  if (S.hattrick.active) drawRollingBanner(t('hat_trick'), S.hattrick.t, {baseY:148});
+  if (S.safetyNet.active) drawRollingBanner(t('safety_net'), S.safetyNet.t, {baseY:148});
   if (S.scene === 'KU_BICYCLE' && S.ku.bike.t >= 1.25)
     drawRollingBanner(S.ku.celebWord, S.ku.bike.t-1.25, {baseY:112, fadeStart:0.85});
 }
@@ -2751,6 +2970,171 @@ function drawCreatePreview(){
   }
 }
 
+/* ── language select — the very first thing a player sees ──────
+   Flat flags are drawn onto a small scratch canvas, then re-drawn
+   into the main buffer one column at a time with a per-column sine
+   offset, so each one flutters independently like real cloth.     ── */
+function drawFlagFlat(lang){
+  const c = flagCtx, w = FLAG_W, h = FLAG_H, [c1,c2,c3] = lang.colors;
+  c.clearRect(0,0,w,h);
+  if (lang.pattern === 'v3'){
+    c.fillStyle = c1; c.fillRect(0,0,w/3,h);
+    c.fillStyle = c2; c.fillRect(w/3,0,w/3,h);
+    c.fillStyle = c3; c.fillRect(w*2/3,0,w/3,h);
+  } else if (lang.pattern === 'h3'){
+    c.fillStyle = c1; c.fillRect(0,0,w,h/3);
+    c.fillStyle = c2; c.fillRect(0,h/3,w,h/3);
+    c.fillStyle = c3; c.fillRect(0,h*2/3,w,h/3);
+  } else if (lang.pattern === 'h3w'){                 // red-yellow(wide)-red
+    c.fillStyle = c1; c.fillRect(0,0,w,h);
+    c.fillStyle = c2; c.fillRect(0,h*0.25,w,h*0.5);
+  } else if (lang.pattern === 'cross'){                // St George's Cross
+    c.fillStyle = c1; c.fillRect(0,0,w,h);
+    c.fillStyle = c2; c.fillRect(0,h*0.38,w,h*0.24); c.fillRect(w*0.4,0,w*0.2,h);
+  }
+}
+function drawWavyFlag(cx, cy, w, h, lang, phase, amp){
+  drawFlagFlat(lang);
+  for (let i=0;i<w;i++){
+    const k = i/w;
+    const wave = Math.sin(phase*2.4 + i*0.42) * (amp*0.3 + amp*k);
+    b.drawImage(flagBuf, i*FLAG_W/w, 0, FLAG_W/w, FLAG_H, Math.round(cx - w/2 + i), Math.round(cy - h/2 + wave), 1, h);
+  }
+}
+
+let LANG_RECTS = [];
+function drawLanguage(){
+  // a quiet drifting starfield — no pitch, no crest, this is before any of that
+  const g = b.createRadialGradient(W/2,H*0.35,20, W/2,H*0.35,H*0.9);
+  g.addColorStop(0,'#111b34'); g.addColorStop(1,'#05070d');
+  b.fillStyle = g; b.fillRect(0,0,W,H);
+  for (let i=0;i<46;i++){
+    const hash = (i*2654435761)>>>0;
+    const sx = (hash%W), sy = ((hash>>>8)%H);
+    const tw = 0.4 + 0.6*Math.max(0, Math.sin(S.t*1.4 + (hash%100)*0.1));
+    b.save(); b.globalAlpha = tw*0.8; rect(sx, sy, 1, 1, '#cfe0ff'); b.restore();
+  }
+
+  const glow = 0.5 + 0.5*Math.sin(S.t*1.2);
+  b.save(); b.globalAlpha = 0.5 + glow*0.5;
+  txt('KICKUP', W/2, 34, C.GOLD, 20, 'center');
+  b.restore();
+  txt(t('lang_title'), W/2, 66, C.WHITE, 12, 'center');
+  txt(t('lang_subtitle'), W/2, 80, C.GREYDK, 8, 'center');
+
+  LANG_RECTS = [];
+  const top = 108, rh = 60;
+  LANGUAGES.forEach((lang,i)=>{
+    const y = top + i*rh, picked = S.language === lang.code;
+    LANG_RECTS.push([20, y, W-40, rh-10, lang.code]);
+
+    if (picked){
+      b.save(); b.globalAlpha = 0.5 + 0.5*Math.sin(S.t*4);
+      rect(19, y-1, W-38, rh-8, C.GOLD2);
+      b.restore();
+    }
+    rect(20, y, W-40, rh-10, picked ? C.GOLD : C.PANELED);
+    rect(21, y+1, W-42, rh-12, C.PANEL);
+
+    const fcx = 62, fcy = y + (rh-10)/2;
+    b.save();
+    if (picked){ b.globalAlpha = 0.35 + 0.25*Math.sin(S.t*5); circ(fcx, fcy, 24, C.GOLD2); b.globalAlpha=1; }
+    b.restore();
+    drawWavyFlag(fcx, fcy, FLAG_W, FLAG_H, lang, S.t + i*1.7, picked ? 3.2 : 1.8);
+    ring(fcx, fcy, FLAG_H*0.62, 'rgba(0,0,0,0.4)', 1);
+
+    txt(lang.name, 100, y+14, picked?C.GOLD2:C.WHITE, 12);
+    if (picked){ txt(t('lang_subtitle'), 100, y+30, C.GOLD2, 7); }
+  });
+}
+function langHit(px,py){
+  for (const r of LANG_RECTS) if (px>=r[0]&&px<=r[0]+r[2]&&py>=r[1]&&py<=r[1]+r[3]) return r[4];
+  return null;
+}
+
+/* ── name & number — inspired by Tony Hawk's Pro Skater's name-entry
+   screen: the shirt spins slowly on the spot, the number on its back
+   updates live as you dial it.                                     ── */
+function drawNameEntry(){
+  const g = b.createRadialGradient(W/2,H*0.4,20, W/2,H*0.4,H*0.9);
+  g.addColorStop(0,'#111b34'); g.addColorStop(1,'#05070d');
+  b.fillStyle = g; b.fillRect(0,0,W,H);
+
+  txt(t('name_header'), W/2, 34, C.GOLD, 16, 'center');
+
+  // the shirt — a flattened, symmetric torso silhouette that spins on a
+  // vertical axis by squashing its width with a cosine and swapping
+  // which face (front/back) is drawn past the 90° turn
+  const cx = W/2, cy = 170, spin = S.t*0.9;
+  const facingBack = Math.cos(spin) < 0;
+  const squash = Math.max(0.1, Math.abs(Math.cos(spin)));
+  const kit = playerKit();
+  const bw = 50*squash, bh = 60;
+  b.save();
+  b.globalAlpha = 0.25 + squash*0.75;                 // thin edge-on sliver fades a touch
+  b.translate(cx, cy);
+  rect(-bw*0.36, -bh/2, bw*0.72, bh*0.24, kit.trim);   // shoulders/collar trim peeking above the body
+  rect(-bw/2, -bh*0.38, bw, bh*0.82, kit.shirt);       // body
+  rect(-bw*0.72, -bh*0.32, bw*0.22, bh*0.34, kit.shirt);  // sleeve L
+  rect(bw*0.5,  -bh*0.32, bw*0.22, bh*0.34, kit.shirt);   // sleeve R
+  rect(-bw*0.14, -bh*0.42, bw*0.28, bh*0.1, kit.trim);    // collar notch
+  if (squash > 0.35 && facingBack){
+    b.fillStyle = '#0d1424';
+    b.font = 'bold 22px ui-monospace, Menlo, Consolas, monospace';
+    b.textAlign = 'center'; b.textBaseline = 'middle';
+    b.save(); b.scale(squash, 1); b.fillText(String(S.playerNumber), 0, 4); b.restore();
+  }
+  b.restore();
+
+  // name field
+  const ny = 250;
+  rect(30, ny, W-60, 26, C.PANELED); rect(31, ny+1, W-62, 24, C.PANEL);
+  txt(t('name_label'), 38, ny-11, C.GREYDK, 8);
+  const showCursor = Math.sin(S.t*4) > 0;
+  txt((S.playerName || '') + (showCursor?'_':''), W/2, ny+9, C.WHITE, 11, 'center');
+
+  // number stepper
+  const numY = 296;
+  txt(t('name_number_label'), 38, numY-11, C.GREYDK, 8);
+  NAME_RECTS = [];
+  NAME_RECTS.push(['num', -1, 30, numY, 30, 24]);
+  NAME_RECTS.push(['num', 1, W-60, numY, 30, 24]);
+  rect(30, numY, 30, 24, C.PANELED); rect(31,numY+1,28,22,C.PANEL);
+  rect(W-60, numY, 30, 24, C.PANELED); rect(W-59,numY+1,28,22,C.PANEL);
+  txt('<', 45, numY+7, C.GREY, 12, 'center');
+  txt('>', W-45, numY+7, C.GREY, 12, 'center');
+  rect(70, numY, W-140, 24, C.PANELED); rect(71,numY+1,W-142,22,C.PANEL);
+  txt(String(S.playerNumber), W/2, numY+5, C.GOLD, 14, 'center');
+
+  // continue
+  const by = 340;
+  NAME_RECTS.push(['go', 0, 40, by, W-80, 22]);
+  rect(40,by,W-80,22, Math.sin(S.t*5)>0?C.GOLD:C.GOLDDK);
+  rect(41,by+1,W-82,20,'#241a06');
+  txt(t('name_continue'), W/2, by+6, C.GOLD2, 10, 'center');
+
+  KEYBOARD_RECTS = drawNameKeyboard(70, 360);
+}
+let NAME_RECTS = [], KEYBOARD_RECTS = [];
+const NAME_KEYS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ⌫';
+function drawNameKeyboard(x0, y0){
+  const rects = [];
+  const cols = 9, kw = (W-140)/cols, kh = 14;
+  [...NAME_KEYS].forEach((ch,i)=>{
+    const col = i%cols, row = Math.floor(i/cols);
+    const x = x0 + col*kw, y = y0 + row*(kh+2);
+    rects.push([ch, x, y, kw-2, kh]);
+    rect(x, y, kw-2, kh, C.PANELED); rect(x+0.5, y+0.5, kw-3, kh-1, C.PANEL);
+    txt(ch, x+kw/2-1, y+3, C.GREY, 7, 'center');
+  });
+  return rects;
+}
+function nameHit(px,py){
+  for (const r of NAME_RECTS) if (px>=r[2]&&px<=r[2]+r[4]&&py>=r[3]&&py<=r[3]+r[5]) return r;
+  for (const r of KEYBOARD_RECTS) if (px>=r[1]&&px<=r[1]+r[3]&&py>=r[2]&&py<=r[2]+r[4]) return r;
+  return null;
+}
+
 /* ── create-a-player ──────────────────────────────────────────
    Tony Hawk-style: a big live preview up top, a stack of attribute
    rows with < > arrows below, same panel/arrow language as the rest
@@ -2758,21 +3142,23 @@ function drawCreatePreview(){
 function drawCreate(){
   if (!backdrop) makeBackdrop();
   b.drawImage(backdrop, 0, 0);
-  txt('CREATE YOUR PLAYER', W/2, 8, C.GOLD, 13, 'center');
-  txt('TAP THE ARROWS TO CHANGE HIM', W/2, 22, C.GREYDK, 7, 'center');
+  txt(t('create_title'), W/2, 8, C.GOLD, 13, 'center');
+  txt(t('create_subtitle'), W/2, 22, C.GREYDK, 7, 'center');
 
   drawCreatePreview();
 
   const c = S.character;
+  const BODY_T = [t('body_skinny'), t('body_mid'), t('body_heavy')];
+  const HEIGHT_T = [t('height_short'), t('height_mid'), t('height_tall')];
   const rows = [
-    ['team',  'TEAM',   TEAM_OPTS[c.teamIdx], null],
-    ['body',  'BODY',   BODY_OPTS[c.bodyIdx], null],
-    ['height','HEIGHT', HEIGHT_OPTS[c.heightIdx], null],
-    ['skin',  'SKIN',   null, SKINS[c.skinIdx]],
-    ['hair',  'HAIR',   null, HAIRS[c.hairIdx]],
-    ['shirt', 'SHIRT',  null, PALETTE[c.shirtIdx]],
-    ['socks', 'SOCKS',  null, PALETTE[c.sockIdx]],
-    ['shoes', 'SHOES',  null, PALETTE[c.shoeIdx]]
+    ['team',  t('cat_team'),   TEAM_OPTS[c.teamIdx], null],
+    ['body',  t('cat_body'),   BODY_T[c.bodyIdx], null],
+    ['height',t('cat_height'), HEIGHT_T[c.heightIdx], null],
+    ['skin',  t('cat_skin'),   null, SKINS[c.skinIdx]],
+    ['hair',  t('cat_hair'),   null, HAIRS[c.hairIdx]],
+    ['shirt', t('cat_shirt'),  null, PALETTE[c.shirtIdx]],
+    ['socks', t('cat_socks'),  null, PALETTE[c.sockIdx]],
+    ['shoes', t('cat_shoes'),  null, PALETTE[c.shoeIdx]]
   ];
   const top = 192, rh = 24, laX = 158, valCx = 208, raX = 240;
   CREATE_RECTS = [];
@@ -2790,7 +3176,7 @@ function drawCreate(){
       rect(valCx-20, y+4, 40, rh-12, '#0a1220');
       rect(valCx-18, y+5, 36, rh-14, swatch);
     } else {
-      txt(textVal, valCx, y+7, C.WHITE, 9, 'center');
+      txtFit(textVal, valCx, y+7, C.WHITE, 9, raX-laX-24, 'center');
     }
   });
 
@@ -2798,7 +3184,7 @@ function drawCreate(){
   CREATE_RECTS.push([40, by, W-80, 22, 'go', 0]);
   rect(40,by,W-80,22, Math.sin(S.t*5)>0?C.GOLD:C.GOLDDK);
   rect(41,by+1,W-82,20,'#241a06');
-  txt('KICK OFF →', W/2, by+6, C.GOLD2, 10, 'center');
+  txt(t('kick_off'), W/2, by+6, C.GOLD2, 10, 'center');
 
   if (S.confetti.length) drawConfetti();
 }
@@ -2811,46 +3197,46 @@ function drawTitle(){
   EDIT_RECT = [W-70, 4, 62, 14];
   rect(EDIT_RECT[0], EDIT_RECT[1], EDIT_RECT[2], EDIT_RECT[3], C.PANELED);
   rect(EDIT_RECT[0]+1, EDIT_RECT[1]+1, EDIT_RECT[2]-2, EDIT_RECT[3]-2, C.PANEL);
-  txt('EDIT PLAYER', W-39, 8, C.GREYDK, 6, 'center');
+  txt(t('edit_player'), W-39, 8, C.GREYDK, 6, 'center');
 
   // crest
   const cy = 60;
   rect(W/2-46, cy, 92, 56, C.INK); rect(W/2-45, cy+1, 90, 54, '#0d1424');
   circ(W/2, cy+28, 20, C.BLUEDK); circ(W/2, cy+28, 14, C.RED); circ(W/2, cy+28, 8, '#f0efe4'); circ(W/2, cy+28, 3.5, C.GOLD);
   txt('KICKUP', W/2, cy+70, C.GOLD, 26, 'center');
-  txt('THREE TAPS · TEN SECONDS · ONE GOAL', W/2, cy+100, C.GREY, 8, 'center');
+  txt(t('tagline'), W/2, cy+100, C.GREY, 8, 'center');
 
   // how
   const hy = 190;
-  txt('1  AIM', 26, hy, C.WHITE, 9);        txt('tap the goal · pick your spot', 92, hy, C.GREYDK, 8);
-  txt('2  POWER', 26, hy+14, C.WHITE, 9);   txt('gold core = perfect · he runs up', 92, hy+14, C.GREYDK, 8);
-  txt('3  ACCURACY', 26, hy+28, C.WHITE, 9);txt('gold core = perfect · sweep sets curl', 92, hy+28, C.GREYDK, 8);
-  txt('both gold cores together → PERFECT SHOT', 30, hy+46, C.GOLD2, 8);
-  txt('wind moves the ball after you commit', 30, hy+58, C.ORANGE, 8);
+  txtFit('1  '+t('how_aim'), 26, hy, C.WHITE, 9, 62);        txtFit(t('how_aim_desc'), 92, hy, C.GREYDK, 8, W-100);
+  txtFit('2  '+t('how_power'), 26, hy+14, C.WHITE, 9, 62);   txtFit(t('how_power_desc'), 92, hy+14, C.GREYDK, 8, W-100);
+  txtFit('3  '+t('how_accuracy'), 26, hy+28, C.WHITE, 9, 62);txtFit(t('how_accuracy_desc'), 92, hy+28, C.GREYDK, 8, W-100);
+  txtFit(t('how_perfect'), 30, hy+44, C.GOLD2, 8, W-56);
+  txtFit(t('how_wind'), 30, hy+55, C.ORANGE, 8, W-56);
 
   // mode toggle — shootout vs. solo trivia survival
   MODE_RECTS = [];
-  const modes = [['SHOOTOUT','SHOOTOUT'], ['KEEPY-UPS','KEEPYUPS']];
+  const modes = [[t('mode_shootout'),'SHOOTOUT'], [t('mode_keepyups'),'KEEPYUPS']];
   modes.forEach(([label,key],i)=>{
-    const w = 106, h = 16, x = W/2 - 114 + i*114, y = 253;
+    const w = 106, h = 16, x = W/2 - 114 + i*114, y = 258;
     MODE_RECTS.push([x,y,w,h,key]);
     const on = S.menuMode === key;
     rect(x,y,w,h, on?C.GOLD:C.PANELED); rect(x+1,y+1,w-2,h-2, on?'#3a2c06':C.PANEL);
-    txt(label, x+w/2, y+4, on?C.GOLD2:C.GREYDK, 8, 'center');
+    txtFit(label, x+w/2, y+4, on?C.GOLD2:C.GREYDK, 8, w-10, 'center');
   });
 
   // category grid
-  txt(S.menuMode==='KEEPYUPS' ? 'CHOOSE A TEAM' : 'CHOOSE A CATEGORY', W/2, 280, C.GREYDK, 8, 'center');
+  txt(S.menuMode==='KEEPYUPS' ? t('choose_team') : t('choose_category'), W/2, 285, C.GREYDK, 8, 'center');
   CAT_RECTS = [];
   CATS.forEach((c,i)=>{
     const col = i%2, row = Math.floor(i/2);
-    const x = 26 + col*120, y = 296 + row*26, w = 112, h = 21;
+    const x = 26 + col*120, y = 300 + row*26, w = 112, h = 21;
     CAT_RECTS.push([x,y,w,h,c]);
     const hot = Math.floor(S.t*2)%CATS.length === i;
     rect(x,y,w,h, hot?C.GOLDDK:C.PANELED); rect(x+1,y+1,w-2,h-2, C.PANEL);
     txt(c, x+w/2, y+6, hot?C.GOLD2:C.GREY, 9, 'center');
   });
-  txt('seed '+SEED.toString(16).slice(0,8)+'  ·  same seed, same match', W/2, 400, C.GREYDK, 7, 'center');
+  txt('seed '+SEED.toString(16).slice(0,8)+'  ·  same seed, same match', W/2, 404, C.GREYDK, 7, 'center');
 }
 function drawMatchEnd(){
   if (!backdrop) makeBackdrop();
@@ -2943,6 +3329,10 @@ function handleSettingsTap(px,py){
   else if (key === 'vol'){ S.audioVolume = Math.max(0, Math.min(1, S.audioVolume + hit[5]*0.1)); applyVolume(); SFX.tick(true); }
   else if (key === 'motion'){ S.reduceMotion = !S.reduceMotion; }
   else if (key === 'ladder'){ S.ladderStyle = S.ladderStyle==='football' ? 'money' : 'football'; }
+  else if (key === 'language'){
+    const i = LANGUAGES.findIndex(l=>l.code===S.language);
+    S.language = LANGUAGES[(i+1)%LANGUAGES.length].code;
+  }
   else if (key === 'save'){ const ok = saveGame(); S.saveFlashT = ok ? 1.4 : 0; SFX.correct(); }
   else if (key === 'quit'){
     if (S.settingsConfirmQuit){
@@ -2956,23 +3346,23 @@ function handleSettingsTap(px,py){
 function drawSettings(){
   b.save(); b.globalAlpha = 0.72; rect(0,0,W,H,C.INK); b.restore();
 
-  const px0=24, py0=88, pw=240, ph=236;
+  const px0=24, py0=76, pw=240, ph=262;
   SETTINGS_PANEL = [px0,py0,pw,ph];
   panel(px0,py0,pw,ph);
-  txt('PAUSED', W/2, py0+10, C.GOLD, 15, 'center');
+  txt(t('paused'), W/2, py0+10, C.GOLD, 15, 'center');
 
   SETTINGS_RECTS = [];
   const rx = px0+12, rw = pw-24, rh = 26;
   let ry = py0+36;
 
   rect(rx,ry,rw,rh-4, C.PANEL);
-  txt('SOUND', rx+8, ry+7, C.GREYDK, 8);
-  txt(S.audioMuted?'OFF':'ON', rx+rw-30, ry+7, S.audioMuted?C.RED:C.GREEN, 9, 'center');
+  txt(t('sound'), rx+8, ry+7, C.GREYDK, 8);
+  txt(S.audioMuted?t('off'):t('on'), rx+rw-30, ry+7, S.audioMuted?C.RED:C.GREEN, 9, 'center');
   SETTINGS_RECTS.push([rx, ry, rw, rh-4, 'sound']);
   ry += rh;
 
   rect(rx,ry,rw,rh-4, C.PANEL);
-  txt('VOLUME', rx+8, ry+7, C.GREYDK, 8);
+  txt(t('volume'), rx+8, ry+7, C.GREYDK, 8);
   SETTINGS_RECTS.push([rx+rw-70, ry, 20, rh-4, 'vol', -1]);
   SETTINGS_RECTS.push([rx+rw-22, ry, 20, rh-4, 'vol', 1]);
   txt('<', rx+rw-60, ry+6, C.GREY, 10, 'center');
@@ -2981,31 +3371,37 @@ function drawSettings(){
   ry += rh;
 
   rect(rx,ry,rw,rh-4, C.PANEL);
-  txt('REDUCE MOTION', rx+8, ry+7, C.GREYDK, 8);
-  txt(S.reduceMotion?'ON':'OFF', rx+rw-30, ry+7, S.reduceMotion?C.GREEN:C.GREYDK, 9, 'center');
+  txt(t('reduce_motion'), rx+8, ry+7, C.GREYDK, 8);
+  txt(S.reduceMotion?t('on'):t('off'), rx+rw-30, ry+7, S.reduceMotion?C.GREEN:C.GREYDK, 9, 'center');
   SETTINGS_RECTS.push([rx, ry, rw, rh-4, 'motion']);
   ry += rh;
 
   rect(rx,ry,rw,rh-4, C.PANEL);
-  txt('LADDER', rx+8, ry+7, C.GREYDK, 8);
-  txt(S.ladderStyle==='football'?'BALLS':'MONEY', rx+rw-38, ry+7, C.GOLD2, 9, 'center');
+  txt(t('ladder_setting'), rx+8, ry+7, C.GREYDK, 8);
+  txt(S.ladderStyle==='football'?t('ladder_balls'):t('ladder_money'), rx+rw-38, ry+7, C.GOLD2, 9, 'center');
   SETTINGS_RECTS.push([rx, ry, rw, rh-4, 'ladder']);
+  ry += rh;
+
+  rect(rx,ry,rw,rh-4, C.PANEL);
+  txt('LANGUAGE', rx+8, ry+7, C.GREYDK, 8);
+  txt(LANGUAGES.find(l=>l.code===S.language).name, rx+rw-8, ry+7, C.GOLD2, 8, 'right');
+  SETTINGS_RECTS.push([rx, ry, rw, rh-4, 'language']);
   ry += rh + 6;
 
   SETTINGS_RECTS.push([rx, ry, rw, 22, 'save']);
   rect(rx,ry,rw,22, C.PANELED); rect(rx+1,ry+1,rw-2,20, C.PANEL);
-  txt(S.saveFlashT>0 ? 'SAVED ✓' : 'SAVE PLAYER', W/2, ry+6, S.saveFlashT>0?C.GOLD2:C.WHITE, 9, 'center');
+  txt(S.saveFlashT>0 ? t('saved') : t('save_player'), W/2, ry+6, S.saveFlashT>0?C.GOLD2:C.WHITE, 9, 'center');
   ry += 28;
 
   SETTINGS_RECTS.push([rx, ry, rw, 22, 'quit']);
   rect(rx,ry,rw,22, S.settingsConfirmQuit?C.RED:C.PANELED);
   rect(rx+1,ry+1,rw-2,20, S.settingsConfirmQuit?'#3a1410':C.PANEL);
-  txt(S.settingsConfirmQuit ? 'TAP AGAIN TO CONFIRM' : 'QUIT TO MENU', W/2, ry+6, S.settingsConfirmQuit?'#ff8a7a':C.WHITE, 9, 'center');
+  txt(S.settingsConfirmQuit ? t('tap_again_confirm') : t('quit_to_menu'), W/2, ry+6, S.settingsConfirmQuit?'#ff8a7a':C.WHITE, 9, 'center');
   ry += 28;
 
   SETTINGS_RECTS.push([rx, ry, rw, 22, 'close']);
   rect(rx,ry,rw,22, C.GOLDDK); rect(rx+1,ry+1,rw-2,20, '#241a06');
-  txt('RESUME', W/2, ry+6, C.GOLD2, 9, 'center');
+  txt(t('resume'), W/2, ry+6, C.GOLD2, 9, 'center');
 }
 function finishDraw(){
   if (S.settingsOpen) drawSettings();
