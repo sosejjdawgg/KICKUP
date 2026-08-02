@@ -204,6 +204,23 @@ const SFX = {
     [660,880,1108,1320].forEach((f,i)=> tone(f, t+i*0.045, 0.004, 0.22, 0.18, 'square'));
     tone(1760, t+0.19, 0.006, 0.4, 0.16, 'triangle');
   },
+  boom(){ // a big, punchy perfect-trap impact — bigger than a normal strike
+    if(!AC) return; const t=AC.currentTime;
+    noise(t, 0.10, 0.36, 'lowpass', 500, 1.4);
+    sweepTone(220, 45, t, 0.28, 0.55, 'sine');
+    [1600,2200].forEach((f,i)=> tone(f, t+0.006*i, 0.004, 0.30, 0.10, 'triangle'));
+    noise(t, 0.03, 0.30, 'highpass', 4800, 1);
+  },
+  tootToot(){ // blunt vuvuzela-style horn, twice — the crowd going for it
+    if(!AC) return; const t=AC.currentTime;
+    [0, 0.34].forEach(off=>{
+      const o = AC.createOscillator(); o.type='sawtooth';
+      o.frequency.setValueAtTime(233, t+off);
+      const f = AC.createBiquadFilter(); f.type='lowpass'; f.frequency.value=850; f.Q.value=1;
+      o.connect(f); env(f, t+off, 0.02, 0.22, 0.18);
+      o.start(t+off); o.stop(t+off+0.28);
+    });
+  },
   block(){ // deflating, and slightly funny
     if(!AC) return; const t=AC.currentTime;
     noise(t,0.11,0.26,'lowpass',300,1); sweepTone(150,52,t,0.30,0.20,'triangle');
@@ -585,6 +602,7 @@ const S = {
   // create-a-player
   character:{ teamIdx:0, bodyIdx:1, heightIdx:1, skinIdx:1, hairIdx:0, shirtIdx:0, sockIdx:2, shoeIdx:8 },
   createShow:{ phase:'REST', phaseT:0, cycleT:0, foot:0, routineIdx:0, beatIdx:-1 },
+  crowdBurst:null, confetti:[],
   // settings + save
   settingsOpen:false, settingsConfirmQuit:false, saveFlashT:0,
   audioVolume:0.5, audioMuted:false,
@@ -1087,17 +1105,42 @@ function resetCreateShow(){
 
 /* ── create-a-player showcase — ball rests at his right foot until you
    touch a control, then he starts juggling. After CS_TRICK_DELAY
-   seconds he breaks into one of Maradona's warm-up routines: a huge
-   flick tracked all the way up and trapped dead on the back of his
-   neck (with a celebration), or bouncing the ball shoulder to
-   shoulder. Routines alternate, then it's back to plain juggling.  */
+   seconds he breaks into one of Maradona's warm-up routines:
+   (A) a huge flick that leaves the frame entirely, tracked by eye
+       through an anticipation beat while the crowd builds, then a
+       BOOM perfect trap on the back of his neck and an eruption; or
+   (B) shoulder-to-shoulder keepy-ups arcing well above his head,
+       which settle onto the crown of his head for a five-second
+       balancing act before dropping back down.
+   Routines alternate, then it's back to plain juggling.            */
 const CS_TRICK_DELAY = 15;
-const CS_HC_LAUNCH = 0.30, CS_HC_CATCH = 3.10, CS_HC_HOLD_END = 3.55, CS_HC_TOTAL = 4.6;
-const CS_SH_LIFT = 0.35, CS_SH_BOUNCE_PERIOD = 0.75, CS_SH_BOUNCES = 5;
-const CS_SH_TOTAL = CS_SH_LIFT + CS_SH_BOUNCES*CS_SH_BOUNCE_PERIOD + 0.5;
+const CS_HC_LAUNCH = 0.30, CS_HC_EXIT = 0.75, CS_HC_ANTIC_END = 2.60, CS_HC_CATCH = 3.35, CS_HC_TOTAL = 4.6;
+const CS_SH_LIFT = 0.35, CS_SH_BOUNCE_PERIOD = 0.75, CS_SH_BOUNCES = 5, CS_SH_SETTLE = 0.4;
+const CS_SH_TOTAL = CS_SH_LIFT + CS_SH_BOUNCES*CS_SH_BOUNCE_PERIOD + CS_SH_SETTLE;
+const CS_HB_HOLD = 5.0, CS_HB_DROP = 0.5, CS_HB_TOTAL = CS_HB_HOLD + CS_HB_DROP;
+
+function spawnConfetti(n){
+  for (let i=0;i<n;i++){
+    S.confetti.push({
+      x: rnd()*W, y: -10 - rnd()*60,
+      vy: 40 + rnd()*35, sway: 1.5 + rnd()*2.5, ph: rnd()*6.28,
+      col: [C.GOLD,C.GOLD2,C.RED,C.BLUE,C.GREEN,'#ffffff'][rint(0,5)],
+      size: 2 + rint(0,1)
+    });
+  }
+}
+function drawConfetti(){
+  for (const p of S.confetti) rect(p.x, p.y, p.size, p.size, p.col);
+}
 
 function updateCreateShow(dt){
   const cs = S.createShow;
+
+  if (S.confetti.length){
+    for (const p of S.confetti){ p.y += p.vy*dt; p.x += Math.sin(S.t*2+p.ph)*p.sway*dt*14; }
+    S.confetti = S.confetti.filter(p => p.y < H+10);
+  }
+
   if (cs.phase === 'REST') return;
   const before = cs.phaseT;
   cs.phaseT += dt;
@@ -1118,8 +1161,16 @@ function updateCreateShow(dt){
   }
 
   if (cs.phase === 'HIGH_CATCH'){
-    if (before < CS_HC_CATCH && after >= CS_HC_CATCH){ SFX.boot(2); SFX.ring(3); S.flash = 0.3; S.shake = 3; }
-    if (before < CS_HC_HOLD_END && after >= CS_HC_HOLD_END){ SFX.crowdRoar(1); S.crowdHype = 1; SFX.perfectCue(); }
+    if (before < CS_HC_EXIT && after >= CS_HC_EXIT) SFX.boot(1);                 // the powerful kick away
+    if (before < CS_HC_ANTIC_END-1.2 && after >= CS_HC_ANTIC_END-1.2) SFX.crowdBreath();  // tension starts
+    if (after > CS_HC_EXIT && after < CS_HC_CATCH){                              // anticipation slowly builds
+      const k = Math.min(1, (after-CS_HC_EXIT)/(CS_HC_CATCH-CS_HC_EXIT));
+      S.crowdHype = Math.max(S.crowdHype, k*0.55);
+    }
+    if (before < CS_HC_CATCH && after >= CS_HC_CATCH){                           // BOOM
+      SFX.boom(); S.flash = 0.5; S.shake = 6; S.hitstop = 0.06;
+      SFX.crowdRoar(1); S.crowdHype = 1; triggerCrowdBurst();
+    }
     if (after >= CS_HC_TOTAL){ cs.phase='JUGGLE'; cs.phaseT=0; cs.cycleT=0; cs.routineIdx=1-cs.routineIdx; }
     return;
   }
@@ -1133,7 +1184,16 @@ function updateCreateShow(dt){
         if (beatIdx !== cs.beatIdx){ cs.beatIdx = beatIdx; SFX.juggleBop('knee', beatIdx%2===0); S.shake = Math.max(S.shake,0.5); }
       }
     }
-    if (after >= CS_SH_TOTAL){ cs.phase='JUGGLE'; cs.phaseT=0; cs.cycleT=0; cs.routineIdx=1-cs.routineIdx; }
+    if (after >= CS_SH_TOTAL){ cs.phase='HEAD_BALANCE'; cs.phaseT=0; }
+    return;
+  }
+
+  if (cs.phase === 'HEAD_BALANCE'){
+    if (before < 0.05 && after >= 0.05){
+      SFX.tootToot(); SFX.crowdRoar(1); S.crowdHype = 1; triggerCrowdBurst(); spawnConfetti(32);
+    }
+    if (before < 2.6 && after >= 2.6){ SFX.tootToot(); triggerCrowdBurst(); S.crowdHype = Math.max(S.crowdHype, 0.85); }
+    if (after >= CS_HB_TOTAL){ cs.phase='JUGGLE'; cs.phaseT=0; cs.cycleT=0; cs.routineIdx=1-cs.routineIdx; }
     return;
   }
 }
@@ -1215,6 +1275,10 @@ function update(dt){
   S.gloom = Math.max(0, S.gloom - dt*0.45);
   if (S.perfect.active){ S.perfect.t += dt; if (S.perfect.t > 1.5) S.perfect.active = false; }
   if (S.hattrick.active){ S.hattrick.t += dt; if (S.hattrick.t > 1.5) S.hattrick.active = false; }
+  if (S.crowdBurst){
+    const b = S.crowdBurst;
+    if (S.t - b.startT > (b.count-1)*b.spacing + b.dur + 0.2) S.crowdBurst = null;
+  }
 
   if (S.scene === 'CREATE'){ updateCreateShow(dt); return; }
 
@@ -1425,12 +1489,24 @@ function drawPerfectBanner(){ drawRollingBanner('PERFECT SHOT', S.perfect.t, {ba
    that repeats every WAVE_CYCLE seconds. Returns 0..1, the crest's
    height at column x (in buffer/frame pixels) at time t.           */
 const WAVE_CYCLE = 11, WAVE_DUR = 2.4, WAVE_WIDTH = 0.30, WAVE_LEAD = 0.82;
-function waveBoost(x, t){
-  const cyclePos = t % WAVE_CYCLE;
+function waveBoostFrom(x, t, startT, dur){
+  const cyclePos = t - startT;
+  if (cyclePos < 0 || cyclePos > dur) return 0;
   const frac = x / W;
-  const phase = cyclePos/WAVE_DUR - frac*WAVE_LEAD;
+  const phase = cyclePos/dur - frac*WAVE_LEAD;
   if (phase < 0 || phase > WAVE_WIDTH) return 0;
   return Math.sin((phase/WAVE_WIDTH) * Math.PI);
+}
+function waveBoost(x, t){
+  return waveBoostFrom(x, t, Math.floor(t/WAVE_CYCLE)*WAVE_CYCLE, WAVE_DUR);
+}
+// an on-demand burst of several quick successive waves — "the crowd goes wild"
+function triggerCrowdBurst(){ S.crowdBurst = { startT: S.t, count: 3, spacing: 0.85, dur: 1.7 }; }
+function burstWaveBoost(x, t){
+  const bst = S.crowdBurst; if (!bst) return 0;
+  let sum = 0;
+  for (let k=0; k<bst.count; k++) sum += waveBoostFrom(x, t, bst.startT + k*bst.spacing, bst.dur);
+  return Math.min(1.4, sum);
 }
 
 /* ── stadium ───────────────────────────────────────────────── */
@@ -1446,18 +1522,19 @@ function drawStadium(){
     // a calm baseline murmur — the real spectacle is the wave below
     const ph = (hash%628)/100, spd = 1.1 + (hash%5)*0.10;
     const idle = Math.sin(S.t*spd + ph) * 0.5;
-    const wave = waveBoost(i, S.t) * 11;                     // the Mexican wave crest
+    const wave = (waveBoost(i, S.t) + burstWaveBoost(i, S.t)) * 11;   // the Mexican wave crest(s)
     const j = idle + wave + (hype > 0 ? Math.max(0, Math.sin(S.t*17 + i*0.55) * hype * 4) : 0);
     const lit = wave > 6.5 || (hype > 0.55 && hash%5===0 && Math.sin(S.t*13 + i) > 0);
     rect(i, 76-hh-j, 2, hh+j, lit ? '#9ec4f2' : (hash%3===0 ? C.CROWD2 : C.CROWD1));
   }
-  {    // scarves and arms above the heads — mostly quiet, rise with the wave or the hype
+  {    // scarves, arms and banners above the heads — mostly quiet, rise with the wave or the hype
     b.save(); b.globalAlpha = Math.min(0.55, 0.08 + hype*0.55);
     for (let i=1;i<W;i+=7){
       const ph = ((i*137)%628)/100;
-      const wave = waveBoost(i, S.t);
+      const wave = waveBoost(i, S.t) + burstWaveBoost(i, S.t);
       const y = 60 - Math.abs(Math.sin(S.t*(1.8+(i%5)*0.2) + ph)) * (1.2 + hype*4.4) - wave*10;
-      rect(i, y, 1, 3, ((i*40503)>>>0)%2 ? C.GOLD : '#c8d5f0');
+      const big = hype > 0.75;                        // banners come out when it's really going off
+      rect(i, y, big?2:1, big?5:3, ((i*40503)>>>0)%2 ? C.GOLD : '#c8d5f0');
     }
     b.restore();
   }
@@ -2346,13 +2423,6 @@ function drawCreatePreview(){
   const { bodyW, hScale } = bodyMetrics();
 
   let cx = W/2, gy = 150, s = 2.0;
-  if (cs.phase === 'HIGH_CATCH'){
-    // pull the camera back a touch so a huge flick has room to fly
-    const zoomIn = Math.min(1, cs.phaseT/CS_HC_LAUNCH);
-    const zoomOut = cs.phaseT > CS_HC_TOTAL-0.6 ? Math.max(0,(CS_HC_TOTAL-cs.phaseT)/0.6) : 1;
-    const zoomK = zoomIn * zoomOut;
-    gy = lerp(150, 174, zoomK); s = lerp(2.0, 1.5, zoomK);
-  }
   gy += Math.sin(S.t*3)*0.5;
 
   const px = x => cx + x*s*bodyW, py = y => gy + y*s*hScale;
@@ -2390,51 +2460,80 @@ function drawCreatePreview(){
       kF=[lerp(-5,-2,k), lerp(0,-18,k)]; kK=[lerp(-4.2,-1,k), lerp(-10,-20,k)];
       pF=[5,0]; pK=[4.2,-10];
       aL=[[-11,-29],[-15,-24]]; aR=[[11,-29],[15,-24]];
-      ballLocal = [ lerp(-5,-4,k), lerp(0,-6,k) ];
-    } else if (T < CS_HC_CATCH){                         // rise, hang, fall — tracked all the way
-      const k = Math.min(1, (T-CS_HC_LAUNCH)/(CS_HC_CATCH-CS_HC_LAUNCH));
-      const x0=-4, y0=-6, x1=0, y1=-34, peak=-88;
-      ballLocal = [ lerp(x0,x1,k), (1-k)*(1-k)*y0 + 2*(1-k)*k*peak + k*k*y1 ];
-      const lookUp = Math.sin(Math.min(1,k*1.3)*Math.PI*0.5);
-      headDip = -lookUp*3.5; lean = -lookUp*1.5;
+      ballLocal = [ lerp(-5,-3,k), lerp(0,-8,k) ];
+    } else if (T < CS_HC_EXIT){                          // powers up and out of frame entirely
+      const k = (T-CS_HC_LAUNCH)/(CS_HC_EXIT-CS_HC_LAUNCH);
+      ballLocal = [ lerp(-3,-1,k), lerp(-8,-95,k*k) ];    // accelerating rise, well past the top edge
+      const lookUp = Math.min(1, k*2);
+      headDip = -lookUp*3.8; lean = -lookUp*1.3;
       pF=[5,0]; pK=[4.2,-10]; kF=[-5,0]; kK=[-4.2,-10];
       aL=[[-10,-28],[-13,-22]]; aR=[[10,-28],[13,-22]];
-    } else if (T < CS_HC_HOLD_END){                      // trapped dead on the back of his neck
-      ballLocal = [0,-34]; headDip=-3.5; lean=-1.5;
+    } else if (T < CS_HC_ANTIC_END){                      // gone — tracking empty sky, crowd tightening up
+      ballLocal = null;
+      headDip = -3.8 + Math.sin(T*2)*0.4;
+      lean = Math.sin(T*1.1)*0.9;
       pF=[5,0]; pK=[4.2,-10]; kF=[-5,0]; kK=[-4.2,-10];
       aL=[[-10,-28],[-13,-22]]; aR=[[10,-28],[13,-22]];
-    } else {                                              // the celebration
-      const k = Math.min(1, (T-CS_HC_HOLD_END)/(CS_HC_TOTAL-CS_HC_HOLD_END));
-      armsUp = true;
-      gy -= Math.max(0, Math.sin(Math.min(1,k*3)*Math.PI)) * 2.4;
-      aL=[[-10,-38],[-11.5,-45]]; aR=[[10,-38],[11.5,-45]];
-      pF=[4,0]; pK=[3.5,-10]; kF=[-4,0]; kK=[-3.5,-10];
+    } else if (T < CS_HC_CATCH){                          // back into view, falling straight for him
+      const k = (T-CS_HC_ANTIC_END)/(CS_HC_CATCH-CS_HC_ANTIC_END);
+      ballLocal = [ lerp(-1,0,k), lerp(-95,-34, k*(2-k)) ];
+      headDip = -3.8; lean = -1.3;
+      pF=[5,0]; pK=[4.2,-10]; kF=[-5,0]; kK=[-4.2,-10];
+      aL=[[-10,-28],[-13,-22]]; aR=[[10,-28],[13,-22]];
+    } else {                                              // BOOM — trapped dead, then he goes off
+      const k = Math.min(1, (T-CS_HC_CATCH)/(CS_HC_TOTAL-CS_HC_CATCH));
+      armsUp = k > 0.12;
+      if (armsUp){
+        gy -= Math.max(0, Math.sin(Math.min(1,(k-0.12)*3.2)*Math.PI)) * 2.4;
+        aL=[[-10,-38],[-11.5,-45]]; aR=[[10,-38],[11.5,-45]];
+        pF=[4,0]; pK=[3.5,-10]; kF=[-4,0]; kK=[-3.5,-10];
+      } else {
+        aL=[[-10,-28],[-13,-22]]; aR=[[10,-28],[13,-22]];
+        pF=[5,0]; pK=[4.2,-10]; kF=[-5,0]; kK=[-4.2,-10];
+      }
+      headDip = lerp(-3.8, 0, k);
       ballLocal = [ lerp(0,-5,k), lerp(-34,0,k) ];
     }
 
   } else if (cs.phase === 'SHOULDERS'){
     const T = cs.phaseT;
-    const SL=[-6,-31], SR=[6,-31];
+    const SL=[-6,-32], SR=[6,-32], PEAK=-58;             // arcs well above his head every bounce
     pF=[5,0]; pK=[4.2,-10]; kF=[-5,0]; kK=[-4.2,-10];
     aL=[[-9,-27],[-10,-20]]; aR=[[9,-27],[10,-20]];
     if (T < CS_SH_LIFT){
       const k = T/CS_SH_LIFT;
       ballLocal = lerp2([-5,0], SL, k);
+      headDip = -2.2*k;
     } else {
       const bt = T - CS_SH_LIFT, span = CS_SH_BOUNCES*CS_SH_BOUNCE_PERIOD;
       if (bt < span){
         const beatIdx = Math.floor(bt/CS_SH_BOUNCE_PERIOD);
         const beatT = (bt % CS_SH_BOUNCE_PERIOD) / CS_SH_BOUNCE_PERIOD;
         const from = beatIdx%2===0 ? SL : SR, to = beatIdx%2===0 ? SR : SL;
-        const peak = -37;
-        ballLocal = [ lerp(from[0],to[0],beatT), (1-beatT)*(1-beatT)*from[1] + 2*(1-beatT)*beatT*peak + beatT*beatT*to[1] ];
+        ballLocal = [ lerp(from[0],to[0],beatT), (1-beatT)*(1-beatT)*from[1] + 2*(1-beatT)*beatT*PEAK + beatT*beatT*to[1] ];
         const pop = Math.max(0, Math.sin(Math.min(1,beatT/0.3)*Math.PI));
         lean = (beatIdx%2===0 ? -1 : 1) * pop * 1.2;
-      } else {
-        const k = Math.min(1, (bt-span)/0.5);
+        headDip = -2.2 - Math.sin(beatT*Math.PI)*1.6;     // extra look-up as each bounce peaks
+      } else {                                            // settles up onto the crown of his head
+        const k = Math.min(1, (bt-span)/CS_SH_SETTLE);
         const last = (CS_SH_BOUNCES%2===0) ? SL : SR;
-        ballLocal = lerp2(last, [5,0], k);
+        ballLocal = lerp2(last, [0,-50], k);
+        headDip = lerp(-2.2, 0, k);
       }
+    }
+
+  } else if (cs.phase === 'HEAD_BALANCE'){
+    const T = cs.phaseT;
+    pF=[5,0]; pK=[4.2,-10]; kF=[-5,0]; kK=[-4.2,-10];
+    if (T < CS_HB_HOLD){                                  // a skilful, actively-corrected balance
+      const sway = Math.sin(T*1.8);
+      ballLocal = [ sway*2.6, -50 + Math.abs(sway)*0.4 ];
+      lean = -Math.sin(T*1.8 - 0.35) * 1.6;
+      aL=[[-13,-27],[-18,-24]]; aR=[[13,-27],[18,-24]];   // arms wide, tightrope-walker balance
+    } else {
+      const k = Math.min(1, (T-CS_HB_HOLD)/CS_HB_DROP);
+      ballLocal = [ lerp(0,-5,k), lerp(-50,0,k) ];
+      aL=[[-9,-27],[-10,-20]]; aR=[[9,-27],[10,-20]];
     }
   }
 
@@ -2480,10 +2579,6 @@ function drawCreatePreview(){
   if (ballLocal){
     const wob = (cs.phase==='JUGGLE') ? Math.sin(S.t*20)*0.4 : 0;
     drawBall(px(ballLocal[0])+wob, py(ballLocal[1]), 9);
-  }
-
-  if (cs.phase === 'HIGH_CATCH' && cs.phaseT >= CS_HC_HOLD_END){
-    drawRollingBanner('PERFECT!', cs.phaseT-CS_HC_HOLD_END, {baseY:56, fadeStart:0.8, cw:17, fontPx:15});
   }
 }
 
@@ -2535,6 +2630,8 @@ function drawCreate(){
   rect(40,by,W-80,22, Math.sin(S.t*5)>0?C.GOLD:C.GOLDDK);
   rect(41,by+1,W-82,20,'#241a06');
   txt('KICK OFF →', W/2, by+6, C.GOLD2, 10, 'center');
+
+  if (S.confetti.length) drawConfetti();
 }
 
 function drawTitle(){
@@ -2635,7 +2732,7 @@ function drawFrameTop(){
     const hh = 6 + ((i*7919)%9);
     const hash = ((i*2654435761)>>>0);
     const ph = (hash%628)/100;
-    const bob = Math.sin(S.t*(1.0+(hash%5)*0.14) + ph) * 0.7 + waveBoost(i, S.t)*6
+    const bob = Math.sin(S.t*(1.0+(hash%5)*0.14) + ph) * 0.7 + (waveBoost(i, S.t)+burstWaveBoost(i,S.t))*6
               + (hype > 0 ? Math.max(0, Math.sin(S.t*17 + i*0.4)) * hype * 5 : 0);
     ctx.fillStyle = hash%3===0 ? C.CROWD2 : C.CROWD1;
     ctx.fillRect(i, PAD_TOP-hh-bob, 3, hh+bob);
