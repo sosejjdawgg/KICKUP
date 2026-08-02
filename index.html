@@ -863,9 +863,10 @@ function beginKeepyups(cat){
     q:null, qPick:-1, qResolved:false, qWasRight:false, qRevealT:0,
     clock: KU_START_CLOCK, rank:0, best:0, answered:0,
     checkpoint5Used:false, checkpoint10Used:false, won:false,
-    cycleT:0, foot:0, trickIdx:0, tier:0, contactPop:0, contactType:'foot', celebWord:'', bike:null, bonusFlashT:0
+    cycleT:0, foot:0, trickIdx:0, tier:0, contactPop:0, contactType:'foot', celebWord:'', bike:null, bonusFlashT:0,
+    introChimed:0
   };
-  gotoScene('KU_READY');
+  gotoScene('KU_INTRO');
 }
 function pickKUAnswer(i){
   const ku = S.ku;
@@ -894,6 +895,19 @@ function endKeepyups(){
 
 function updateKeepyups(dt){
   const ku = S.ku;
+
+  if (S.scene === 'KU_INTRO'){
+    if (S.sceneT < KU_INTRO_SCROLL){
+      const e = kuIntroEase(Math.min(1, S.sceneT/KU_INTRO_SCROLL));
+      const frontier = kuIntroCenterRank(e);
+      while (ku.introChimed < frontier){ ku.introChimed++; kuIntroChime(ku.introChimed); }
+    } else if (ku.introChimed < 15){
+      while (ku.introChimed < 15){ ku.introChimed++; kuIntroChime(ku.introChimed); }
+    }
+    if (S.sceneT > KU_INTRO_SCROLL + KU_INTRO_HOLD) gotoScene('KU_READY');
+    return;
+  }
+
   const juggling = S.scene==='KU_READY' || S.scene==='KU_PLAY' || S.scene==='KU_HATTRICK' || S.scene==='KU_SAFETYNET';
   if (juggling){
     ku.cycleT += dt;
@@ -1276,6 +1290,7 @@ function tapAt(px, py){
     case 'RESOLVE': if (S.sceneT > 0.5) advance(); return;
     case 'MATCHEND': if (S.sceneT > 0.6){ SEED = (SEED*1664525+1013904223)>>>0; gotoScene('TITLE'); } return;
 
+    case 'KU_INTRO': gotoScene('KU_READY'); return;    // tap skips straight to the tap-to-start screen
     case 'KU_READY': SFX.whistleShort(); nextKUQuestion(); gotoScene('KU_PLAY'); return;
     case 'KU_PLAY': {
       if (S.ku.qResolved) return;
@@ -1378,11 +1393,6 @@ function drawConfetti(){
 
 function updateCreateShow(dt){
   const cs = S.createShow;
-
-  if (S.confetti.length){
-    for (const p of S.confetti){ p.y += p.vy*dt; p.x += Math.sin(S.t*2+p.ph)*p.sway*dt*14; }
-    S.confetti = S.confetti.filter(p => p.y < H+10);
-  }
 
   if (cs.phase === 'REST') return;
   const before = cs.phaseT;
@@ -1532,6 +1542,10 @@ function update(dt){
     const b = S.crowdBurst;
     if (S.t - b.startT > (b.count-1)*b.spacing + b.dur + 0.2) S.crowdBurst = null;
   }
+  if (S.confetti.length){
+    for (const p of S.confetti){ p.y += p.vy*dt; p.x += Math.sin(S.t*2+p.ph)*p.sway*dt*14; }
+    S.confetti = S.confetti.filter(p => p.y < H+10);
+  }
 
   if (S.scene === 'CREATE'){ updateCreateShow(dt); return; }
 
@@ -1558,7 +1572,7 @@ function update(dt){
     return;
   }
 
-  if (S.scene==='KU_READY' || S.scene==='KU_PLAY' || S.scene==='KU_HATTRICK' ||
+  if (S.scene==='KU_INTRO' || S.scene==='KU_READY' || S.scene==='KU_PLAY' || S.scene==='KU_HATTRICK' ||
       S.scene==='KU_SAFETYNET' || S.scene==='KU_BICYCLE' || S.scene==='KU_OVER'){
     updateKeepyups(dt);
     return;
@@ -1678,6 +1692,7 @@ function draw(){
   if (S.scene === 'CREATE'){ drawCreate(); finishDraw(); return; }
   if (S.scene === 'TITLE'){ drawTitle(); finishDraw(); return; }
   if (S.scene === 'MATCHEND'){ drawMatchEnd(); finishDraw(); return; }
+  if (S.scene === 'KU_INTRO'){ drawKUIntro(); finishDraw(); return; }
 
   if (S.scene==='KU_READY' || S.scene==='KU_PLAY' || S.scene==='KU_HATTRICK' ||
       S.scene==='KU_SAFETYNET' || S.scene==='KU_BICYCLE' || S.scene==='KU_OVER'){
@@ -2525,6 +2540,96 @@ function drawMoneyLadder(){
   }
 }
 
+/* ── the pre-match showcase — before you climb it, watch it. Scrolls the
+   full 15-rung ladder past a fixed viewport, bottom (£100) to top
+   (£1,000,000), chiming as each rung crosses the centre and making a real
+   moment of the two "2ND CHANCE" checkpoints and the diamond summit.     ── */
+const KU_INTRO_SCROLL = 4.6, KU_INTRO_HOLD = 1.8, KU_INTRO_ROW_H = 54;
+function kuIntroLayout(){
+  const viewportTop = 92, viewportBottom = 400;
+  const Hv = viewportBottom - viewportTop, contentH = 15*KU_INTRO_ROW_H;
+  return { viewportTop, viewportBottom, Hv, contentH, scrollRange: Math.max(0, contentH-Hv) };
+}
+function kuIntroEase(p){ return p<0.5 ? 4*p*p*p : 1-Math.pow(-2*p+2,3)/2; }
+function kuIntroScrollY(e){ return kuIntroLayout().scrollRange * (1-e); }
+function kuIntroCenterRank(e){
+  const L = kuIntroLayout();
+  const centerContentY = kuIntroScrollY(e) + L.Hv/2;
+  return Math.max(1, Math.min(15, 15 - Math.floor(centerContentY/KU_INTRO_ROW_H)));
+}
+function kuIntroChime(rank){
+  if (rank === 15){
+    SFX.boom(); SFX.crowdRoar(1); spawnConfetti(40);
+    S.flash = Math.max(S.flash, 0.35); S.shake = Math.max(S.shake, 3);
+  } else if (rank === 5 || rank === 10){
+    SFX.rankUp(); spawnConfetti(16); S.flash = Math.max(S.flash, 0.15);
+  } else if (AC){
+    tone(440 + rank*44, AC.currentTime, 0.002, 0.08, 0.08, 'square');
+  }
+}
+function drawKUIntro(){
+  const ku = S.ku;
+  const g = b.createRadialGradient(W/2,H*0.4,20, W/2,H*0.4,H*0.9);
+  g.addColorStop(0,'#111b34'); g.addColorStop(1,'#05070d');
+  b.fillStyle = g; b.fillRect(0,0,W,H);
+  for (let i=0;i<30;i++){
+    const hash = (i*2654435761)>>>0, sx = hash%W, sy = (hash>>>8)%H;
+    const tw = 0.35 + 0.55*Math.max(0, Math.sin(S.t*1.3 + (hash%100)*0.1));
+    b.save(); b.globalAlpha = tw; rect(sx, sy, 1, 1, '#cfe0ff'); b.restore();
+  }
+
+  txt(S.cat, W/2, 14, C.GOLD2, 8, 'center');
+  txt(t('solo_keepyups'), W/2, 26, C.WHITE, 13, 'center');
+
+  const { p, e } = (() => { const p = Math.min(1, S.sceneT/KU_INTRO_SCROLL); return { p, e: kuIntroEase(p) }; })();
+  const L = kuIntroLayout();
+  const scrollY = kuIntroScrollY(e);
+  const cx = W/2, r = 15;
+  const railL = cx-18, railR = cx+18;
+
+  b.save();
+  b.beginPath(); b.rect(0, L.viewportTop, W, L.Hv); b.clip();
+
+  line(railL, L.viewportTop-KU_INTRO_ROW_H, railL, L.viewportBottom+KU_INTRO_ROW_H, C.PANELED);
+  line(railR, L.viewportTop-KU_INTRO_ROW_H, railR, L.viewportBottom+KU_INTRO_ROW_H, C.PANELED);
+
+  for (let rank=1; rank<=15; rank++){
+    const contentY = (15-rank)*KU_INTRO_ROW_H + KU_INTRO_ROW_H/2;
+    const cy = L.viewportTop + (contentY - scrollY);
+    if (cy < L.viewportTop-30 || cy > L.viewportBottom+30) continue;
+
+    const isCheckpoint = rank===5 || rank===10, isFinal = rank===15;
+    const used = (rank===5 && ku.checkpoint5Used) || (rank===10 && ku.checkpoint10Used);
+    const style = isFinal ? 'diamond' : isCheckpoint ? (used?'blue':'gold') : 'plain';
+
+    // a soft spotlight band at the viewport centre — rungs pop as they pass it
+    const distFromCenter = Math.abs(cy - (L.viewportTop+L.Hv/2));
+    const focus = Math.max(0, 1 - distFromCenter/95);
+    const rr = r * (0.82 + focus*0.3);
+
+    line(railL, cy, railR, cy, C.PANELED);
+    if (focus > 0.05){ b.save(); b.globalAlpha = focus*0.5; ring(cx, cy, rr+5, C.GOLD2, 1.4); b.restore(); }
+    drawLadderBall(cx, cy, rr, style);
+
+    b.save(); b.globalAlpha = 0.5 + focus*0.5;
+    txt(MONEY_LABELS[rank-1], cx + rr + 12, cy-4, focus>0.3?C.WHITE:C.GREYDK, 9);
+    if (isCheckpoint) txt(t('second_chance'), cx + rr + 12, cy+6, used?C.BLUE:C.GOLD, 6);
+    b.restore();
+  }
+  b.restore();
+
+  // fade the viewport edges so rungs arrive/leave softly, not with a hard clip line
+  const fade = b.createLinearGradient(0,L.viewportTop,0,L.viewportTop+26);
+  fade.addColorStop(0,'#05070d'); fade.addColorStop(1,'rgba(5,7,13,0)');
+  b.fillStyle = fade; b.fillRect(0,L.viewportTop,W,26);
+  const fade2 = b.createLinearGradient(0,L.viewportBottom-26,0,L.viewportBottom);
+  fade2.addColorStop(0,'rgba(5,7,13,0)'); fade2.addColorStop(1,'#05070d');
+  b.fillStyle = fade2; b.fillRect(0,L.viewportBottom-26,W,26);
+
+  if (S.confetti.length) drawConfetti();
+  txt(t('tap_to_start'), W/2, 412, Math.sin(S.t*5)>0?C.GREYDK:'transparent', 8, 'center');
+}
+
 function drawKeepyups(){
   drawStadium();
   const showLadder = S.scene==='KU_READY' || S.scene==='KU_PLAY' || S.scene==='KU_HATTRICK' || S.scene==='KU_SAFETYNET';
@@ -2539,6 +2644,7 @@ function drawKeepyups(){
   if (S.safetyNet.active) drawRollingBanner(t('safety_net'), S.safetyNet.t, {baseY:148});
   if (S.scene === 'KU_BICYCLE' && S.ku.bike.t >= 1.25)
     drawRollingBanner(S.ku.celebWord, S.ku.bike.t-1.25, {baseY:112, fadeStart:0.85});
+  if (S.confetti.length) drawConfetti();
 }
 
 /* ── the three gauges ──────────────────────────────────────── */
