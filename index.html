@@ -2127,10 +2127,6 @@ function drawKUHUD(){
   txt('RANK '+ku.rank+'/15', W-4, 3, C.GREYDK, 7, 'right');
   txt(ku.rank>0 ? MONEY_LABELS[ku.rank-1] : '£0', W-4, 11, ku.rank>0?C.GOLD:C.GREY, 16, 'right');
   txt('BEST '+ku.best, W-4, 40, C.GREYDK, 7, 'right');
-
-  const pipCount = ku.rank===0 ? 0 : ((ku.rank-1)%5)+1;
-  streakPips(4, 30, pipCount, false, null);
-  txt('TO NEXT CHECKPOINT', 42, 30, C.GREYDK, 7);
 }
 
 function drawKUQuestion(){
@@ -2197,7 +2193,7 @@ function drawKUOver(){
   txt('TAP FOR TITLE', W/2, y+150, Math.sin(S.t*5)>0?C.WHITE:C.GREYDK, 10, 'center');
 }
 
-const LADDER_X = 4, LADDER_Y = 56, LADDER_W = 78, LADDER_ROW_H = 11.6;
+const LADDER_X = 4, LADDER_Y = 60, LADDER_W = 78, LADDER_ROW_H = 32, LADDER_GROUP = 5;
 
 /* a small ball icon for the ladder — plain/dim/gold/blue share one drawer,
    the rank-15 diamond gets its own shimmering shape. */
@@ -2227,46 +2223,52 @@ function drawLadderBall(cx, cy, r, style){
   }
 }
 
+/* Every ball is just the next question, not a fixed rank slot — we only ever
+   show the current group of 5 (ranks 1-5, 6-10, 11-15). The top ball of the
+   group is the one that matters: reach it and you rank up (a checkpoint, or
+   the final diamond at 15), and the group rolls over to a fresh empty one. */
 function drawMoneyLadder(){
   const ku = S.ku;
-  const current = ku.rank + 1;               // the rank currently being played for
   const football = S.ladderStyle === 'football';
+  const group = Math.min(2, Math.floor(ku.rank / LADDER_GROUP));
+  const groupStart = group * LADDER_GROUP;
 
-  for (let rank=1; rank<=15; rank++){
-    const rowFromTop = 15 - rank;             // rank 15 drawn at the top
-    const ry = LADDER_Y + rowFromTop*LADDER_ROW_H;
-    const isCheckpoint = rank===5 || rank===10;
+  for (let slot=1; slot<=LADDER_GROUP; slot++){
+    const rank = groupStart + slot;
+    const isTop = slot === LADDER_GROUP;         // the rank-up ball for this group
+    const isFinal = rank === 15;
     const used = (rank===5 && ku.checkpoint5Used) || (rank===10 && ku.checkpoint10Used);
     const secured = rank <= ku.rank;
-    const isCurrent = rank === current && current <= 15;
-    const isFinal = rank === 15;
+    const isCurrent = rank === ku.rank + 1;
+    const rowFromTop = LADDER_GROUP - slot;
+    const ry = LADDER_Y + rowFromTop*LADDER_ROW_H;
 
     if (football){
-      const cx = LADDER_X + 20, cy = ry + LADDER_ROW_H/2 - 1, r = 4;
-      const style = isFinal ? 'diamond' : isCheckpoint ? (used ? 'blue' : 'gold') : (secured ? 'plain' : 'dim');
+      const cx = LADDER_X + 26, cy = ry + LADDER_ROW_H/2 - 2, r = 7;
+      const style = isFinal ? 'diamond' : isTop ? (used ? 'blue' : 'gold') : (secured ? 'plain' : 'dim');
       if (isCurrent){
         const pulse = 0.35 + 0.35*Math.sin(S.t*6);
-        b.save(); b.globalAlpha = pulse; ring(cx, cy, r+3, C.GOLD2, 1.4); b.restore();
+        b.save(); b.globalAlpha = pulse; ring(cx, cy, r+4, C.GOLD2, 1.6); b.restore();
       }
       drawLadderBall(cx, cy, r, style);
       continue;
     }
 
     let bg = C.PANEL, bd = C.PANELED, fg = C.GREYDK;
-    if (isCheckpoint) bd = used ? C.BLUE : C.GOLD;
+    if (isTop) bd = used ? C.BLUE : C.GOLD;
     if (secured){ fg = C.WHITE; bg = '#101a12'; }
     if (isCurrent){
       const pulse = 0.5 + 0.5*Math.sin(S.t*6);
-      bg = isCheckpoint ? (used ? '#123a5c' : '#3a2c06') : '#123a5c';
+      bg = isTop ? (used ? '#123a5c' : '#3a2c06') : '#123a5c';
       fg = C.WHITE;
-      bd = isCheckpoint ? (used ? C.BLUE : C.GOLD) : C.GOLD2;
+      bd = isTop ? (used ? C.BLUE : C.GOLD) : C.GOLD2;
       b.save(); b.globalAlpha = 0.5 + pulse*0.5;
-      rect(LADDER_X-1, ry-1, LADDER_W+2, LADDER_ROW_H, bd);
+      rect(LADDER_X-1, ry-1, LADDER_W+2, LADDER_ROW_H-4, bd);
       b.restore();
     }
-    rect(LADDER_X, ry, LADDER_W, LADDER_ROW_H-1, bd);
-    rect(LADDER_X+1, ry+1, LADDER_W-2, LADDER_ROW_H-3, bg);
-    txt(MONEY_LABELS[rank-1], LADDER_X+LADDER_W/2, ry+2, fg, 8, 'center');
+    rect(LADDER_X, ry, LADDER_W, LADDER_ROW_H-6, bd);
+    rect(LADDER_X+1, ry+1, LADDER_W-2, LADDER_ROW_H-8, bg);
+    txt(MONEY_LABELS[rank-1], LADDER_X+LADDER_W/2, ry+9, fg, 8, 'center');
   }
 }
 
