@@ -607,6 +607,7 @@ const S = {
   settingsOpen:false, settingsConfirmQuit:false, saveFlashT:0,
   audioVolume:0.5, audioMuted:false,
   reduceMotion: !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches),
+  ladderStyle:'football',
   bestEverRank:0
 };
 
@@ -1256,6 +1257,7 @@ function saveGame(){
       audioVolume: S.audioVolume,
       audioMuted: S.audioMuted,
       reduceMotion: S.reduceMotion,
+      ladderStyle: S.ladderStyle,
       bestEverRank: S.bestEverRank
     }));
     return true;
@@ -1270,6 +1272,7 @@ function loadGame(){
     if (typeof d.audioVolume === 'number') S.audioVolume = d.audioVolume;
     if (typeof d.audioMuted === 'boolean') S.audioMuted = d.audioMuted;
     if (typeof d.reduceMotion === 'boolean') S.reduceMotion = d.reduceMotion;
+    if (d.ladderStyle === 'football' || d.ladderStyle === 'money') S.ladderStyle = d.ladderStyle;
     if (typeof d.bestEverRank === 'number') S.bestEverRank = d.bestEverRank;
     else if (typeof d.bestEverStreak === 'number') S.bestEverRank = Math.min(15, d.bestEverStreak); // migrate old saves
     S.hair = HAIRS[S.character.hairIdx];
@@ -2195,9 +2198,40 @@ function drawKUOver(){
 }
 
 const LADDER_X = 4, LADDER_Y = 56, LADDER_W = 78, LADDER_ROW_H = 11.6;
+
+/* a small ball icon for the ladder — plain/dim/gold/blue share one drawer,
+   the rank-15 diamond gets its own shimmering shape. */
+function drawLadderBall(cx, cy, r, style){
+  if (style === 'diamond'){
+    const shim = 0.5 + 0.5*Math.sin(S.t*5);
+    b.save(); b.globalAlpha = 0.28 + 0.28*shim; circ(cx, cy, r*2, '#bfe8ff'); b.restore();
+    b.fillStyle = '#eaf9ff';
+    b.beginPath(); b.moveTo(cx, cy-r*1.25); b.lineTo(cx+r*0.9, cy); b.lineTo(cx, cy+r*1.25); b.lineTo(cx-r*0.9, cy); b.closePath(); b.fill();
+    b.strokeStyle = '#7fd6ff'; b.lineWidth = 1; b.stroke();
+    b.save(); b.globalAlpha = 0.55 + 0.45*shim; b.fillStyle = '#ffffff';
+    b.beginPath(); b.moveTo(cx, cy-r*1.25); b.lineTo(cx+r*0.32, cy-r*0.05); b.lineTo(cx, cy+r*0.18); b.lineTo(cx-r*0.32, cy-r*0.05); b.closePath(); b.fill();
+    b.restore();
+    if (shim > 0.82){
+      b.save(); b.strokeStyle = 'rgba(255,255,255,0.9)'; b.lineWidth = 1;
+      b.beginPath(); b.moveTo(cx-r*1.7,cy); b.lineTo(cx+r*1.7,cy); b.moveTo(cx,cy-r*1.7); b.lineTo(cx,cy+r*1.7); b.stroke();
+      b.restore();
+    }
+    return;
+  }
+  const base = style==='gold' ? C.GOLD : style==='blue' ? C.BLUE : style==='dim' ? 'rgba(140,152,176,0.4)' : C.WHITE;
+  circ(cx, cy, r, base);
+  if (style !== 'dim'){
+    circ(cx - r*0.32, cy - r*0.34, r*0.28, 'rgba(255,255,255,0.85)');
+    circ(cx, cy + r*0.18, r*0.24, style==='gold' ? C.GOLDDK : style==='blue' ? C.BLUEDK : '#191d27');
+    ring(cx, cy, r, 'rgba(0,0,0,0.35)', 0.6);
+  }
+}
+
 function drawMoneyLadder(){
   const ku = S.ku;
   const current = ku.rank + 1;               // the rank currently being played for
+  const football = S.ladderStyle === 'football';
+
   for (let rank=1; rank<=15; rank++){
     const rowFromTop = 15 - rank;             // rank 15 drawn at the top
     const ry = LADDER_Y + rowFromTop*LADDER_ROW_H;
@@ -2205,6 +2239,18 @@ function drawMoneyLadder(){
     const used = (rank===5 && ku.checkpoint5Used) || (rank===10 && ku.checkpoint10Used);
     const secured = rank <= ku.rank;
     const isCurrent = rank === current && current <= 15;
+    const isFinal = rank === 15;
+
+    if (football){
+      const cx = LADDER_X + 20, cy = ry + LADDER_ROW_H/2 - 1, r = 4;
+      const style = isFinal ? 'diamond' : isCheckpoint ? (used ? 'blue' : 'gold') : (secured ? 'plain' : 'dim');
+      if (isCurrent){
+        const pulse = 0.35 + 0.35*Math.sin(S.t*6);
+        b.save(); b.globalAlpha = pulse; ring(cx, cy, r+3, C.GOLD2, 1.4); b.restore();
+      }
+      drawLadderBall(cx, cy, r, style);
+      continue;
+    }
 
     let bg = C.PANEL, bd = C.PANELED, fg = C.GREYDK;
     if (isCheckpoint) bd = used ? C.BLUE : C.GOLD;
@@ -2220,8 +2266,7 @@ function drawMoneyLadder(){
     }
     rect(LADDER_X, ry, LADDER_W, LADDER_ROW_H-1, bd);
     rect(LADDER_X+1, ry+1, LADDER_W-2, LADDER_ROW_H-3, bg);
-    txt(String(rank), LADDER_X+4, ry+2, isCheckpoint?(used?C.BLUE:C.GOLD):C.GREYDK, 7);
-    txt(MONEY_LABELS[rank-1], LADDER_X+LADDER_W-4, ry+2, fg, 8, 'right');
+    txt(MONEY_LABELS[rank-1], LADDER_X+LADDER_W/2, ry+2, fg, 8, 'center');
   }
 }
 
@@ -2861,6 +2906,7 @@ function handleSettingsTap(px,py){
   if (key === 'sound'){ S.audioMuted = !S.audioMuted; applyVolume(); SFX.tick(!S.audioMuted); }
   else if (key === 'vol'){ S.audioVolume = Math.max(0, Math.min(1, S.audioVolume + hit[5]*0.1)); applyVolume(); SFX.tick(true); }
   else if (key === 'motion'){ S.reduceMotion = !S.reduceMotion; }
+  else if (key === 'ladder'){ S.ladderStyle = S.ladderStyle==='football' ? 'money' : 'football'; }
   else if (key === 'save'){ const ok = saveGame(); S.saveFlashT = ok ? 1.4 : 0; SFX.correct(); }
   else if (key === 'quit'){
     if (S.settingsConfirmQuit){
@@ -2874,7 +2920,7 @@ function handleSettingsTap(px,py){
 function drawSettings(){
   b.save(); b.globalAlpha = 0.72; rect(0,0,W,H,C.INK); b.restore();
 
-  const px0=24, py0=100, pw=240, ph=210;
+  const px0=24, py0=88, pw=240, ph=236;
   SETTINGS_PANEL = [px0,py0,pw,ph];
   panel(px0,py0,pw,ph);
   txt('PAUSED', W/2, py0+10, C.GOLD, 15, 'center');
@@ -2902,6 +2948,12 @@ function drawSettings(){
   txt('REDUCE MOTION', rx+8, ry+7, C.GREYDK, 8);
   txt(S.reduceMotion?'ON':'OFF', rx+rw-30, ry+7, S.reduceMotion?C.GREEN:C.GREYDK, 9, 'center');
   SETTINGS_RECTS.push([rx, ry, rw, rh-4, 'motion']);
+  ry += rh;
+
+  rect(rx,ry,rw,rh-4, C.PANEL);
+  txt('LADDER', rx+8, ry+7, C.GREYDK, 8);
+  txt(S.ladderStyle==='football'?'BALLS':'MONEY', rx+rw-38, ry+7, C.GOLD2, 9, 'center');
+  SETTINGS_RECTS.push([rx, ry, rw, rh-4, 'ladder']);
   ry += rh + 6;
 
   SETTINGS_RECTS.push([rx, ry, rw, 22, 'save']);
