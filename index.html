@@ -584,6 +584,7 @@ const S = {
   hattrick:{active:false, t:0},
   // create-a-player
   character:{ teamIdx:0, bodyIdx:1, heightIdx:1, skinIdx:1, hairIdx:0, shirtIdx:0, sockIdx:2, shoeIdx:8 },
+  createShow:{ phase:'REST', phaseT:0, cycleT:0, foot:0, routineIdx:0, beatIdx:-1 },
   // settings + save
   settingsOpen:false, settingsConfirmQuit:false, saveFlashT:0,
   audioVolume:0.5, audioMuted:false,
@@ -976,7 +977,7 @@ function tapAt(px, py){
     }
     case 'TITLE':
       // edit player, mode toggle, then pick category by tapping the grid
-      if (editHit(px, py)){ SFX.lock(0, true); gotoScene('CREATE'); return; }
+      if (editHit(px, py)){ SFX.lock(0, true); resetCreateShow(); gotoScene('CREATE'); return; }
       { const m = modeHit(px, py); if (m){ S.menuMode = m; SFX.lock(0, true); return; } }
       { const pick = catHit(px, py); if (!pick) return;
         SFX.whistleShort();
@@ -1072,12 +1073,69 @@ function cycleCharacter(key, dir){
   else if (key==='shirt') c.shirtIdx = wrap(c.shirtIdx, PALETTE.length);
   else if (key==='socks') c.sockIdx = wrap(c.sockIdx, PALETTE.length);
   else if (key==='shoes') c.shoeIdx = wrap(c.shoeIdx, PALETTE.length);
+  if (S.createShow.phase === 'REST'){ S.createShow.phase = 'JUGGLE'; S.createShow.phaseT = 0; }
   SFX.tick(false);
 }
 function confirmCharacter(){
   S.hair = HAIRS[S.character.hairIdx];
   S.skin = SKINS[S.character.skinIdx];
   saveGame();
+}
+function resetCreateShow(){
+  S.createShow = { phase:'REST', phaseT:0, cycleT:0, foot:0, routineIdx:0, beatIdx:-1 };
+}
+
+/* ── create-a-player showcase — ball rests at his right foot until you
+   touch a control, then he starts juggling. After CS_TRICK_DELAY
+   seconds he breaks into one of Maradona's warm-up routines: a huge
+   flick tracked all the way up and trapped dead on the back of his
+   neck (with a celebration), or bouncing the ball shoulder to
+   shoulder. Routines alternate, then it's back to plain juggling.  */
+const CS_TRICK_DELAY = 15;
+const CS_HC_LAUNCH = 0.30, CS_HC_CATCH = 3.10, CS_HC_HOLD_END = 3.55, CS_HC_TOTAL = 4.6;
+const CS_SH_LIFT = 0.35, CS_SH_BOUNCE_PERIOD = 0.75, CS_SH_BOUNCES = 5;
+const CS_SH_TOTAL = CS_SH_LIFT + CS_SH_BOUNCES*CS_SH_BOUNCE_PERIOD + 0.5;
+
+function updateCreateShow(dt){
+  const cs = S.createShow;
+  if (cs.phase === 'REST') return;
+  const before = cs.phaseT;
+  cs.phaseT += dt;
+  const after = cs.phaseT;
+
+  if (cs.phase === 'JUGGLE'){
+    cs.cycleT += dt;
+    if (cs.cycleT >= 1){
+      cs.cycleT -= 1; cs.foot = 1-cs.foot;
+      SFX.juggleBop('foot', cs.foot===0);
+      S.shake = Math.max(S.shake, 0.6);
+    }
+    if (after >= CS_TRICK_DELAY){
+      cs.phase = cs.routineIdx===0 ? 'HIGH_CATCH' : 'SHOULDERS';
+      cs.phaseT = 0; cs.beatIdx = -1;
+    }
+    return;
+  }
+
+  if (cs.phase === 'HIGH_CATCH'){
+    if (before < CS_HC_CATCH && after >= CS_HC_CATCH){ SFX.boot(2); SFX.ring(3); S.flash = 0.3; S.shake = 3; }
+    if (before < CS_HC_HOLD_END && after >= CS_HC_HOLD_END){ SFX.crowdRoar(1); S.crowdHype = 1; SFX.perfectCue(); }
+    if (after >= CS_HC_TOTAL){ cs.phase='JUGGLE'; cs.phaseT=0; cs.cycleT=0; cs.routineIdx=1-cs.routineIdx; }
+    return;
+  }
+
+  if (cs.phase === 'SHOULDERS'){
+    if (after >= CS_SH_LIFT){
+      const bt = after - CS_SH_LIFT;
+      const span = CS_SH_BOUNCES * CS_SH_BOUNCE_PERIOD;
+      if (bt < span){
+        const beatIdx = Math.floor(bt / CS_SH_BOUNCE_PERIOD);
+        if (beatIdx !== cs.beatIdx){ cs.beatIdx = beatIdx; SFX.juggleBop('knee', beatIdx%2===0); S.shake = Math.max(S.shake,0.5); }
+      }
+    }
+    if (after >= CS_SH_TOTAL){ cs.phase='JUGGLE'; cs.phaseT=0; cs.cycleT=0; cs.routineIdx=1-cs.routineIdx; }
+    return;
+  }
 }
 
 /* ── save/load — character, settings, best-ever streak. Best-effort:
@@ -1157,6 +1215,8 @@ function update(dt){
   S.gloom = Math.max(0, S.gloom - dt*0.45);
   if (S.perfect.active){ S.perfect.t += dt; if (S.perfect.t > 1.5) S.perfect.active = false; }
   if (S.hattrick.active){ S.hattrick.t += dt; if (S.hattrick.t > 1.5) S.hattrick.active = false; }
+
+  if (S.scene === 'CREATE'){ updateCreateShow(dt); return; }
 
   for (const w of S.windParts){
     w.x += S.windDir * (S.wind*0.9 + 6) * w.s * dt;
@@ -2279,6 +2339,154 @@ function makeBackdrop(){
   for (let y=0;y<H;y++) for (let x=(y%3); x<W; x+=3) g.fillRect(x,y,1,1);
 }
 
+/* ── the create-a-player showcase animation ──────────────────── */
+function drawCreatePreview(){
+  const cs = S.createShow;
+  const kit = playerKit();
+  const { bodyW, hScale } = bodyMetrics();
+
+  let cx = W/2, gy = 150, s = 2.0;
+  if (cs.phase === 'HIGH_CATCH'){
+    // pull the camera back a touch so a huge flick has room to fly
+    const zoomIn = Math.min(1, cs.phaseT/CS_HC_LAUNCH);
+    const zoomOut = cs.phaseT > CS_HC_TOTAL-0.6 ? Math.max(0,(CS_HC_TOTAL-cs.phaseT)/0.6) : 1;
+    const zoomK = zoomIn * zoomOut;
+    gy = lerp(150, 174, zoomK); s = lerp(2.0, 1.5, zoomK);
+  }
+  gy += Math.sin(S.t*3)*0.5;
+
+  const px = x => cx + x*s*bodyW, py = y => gy + y*s*hScale;
+  function lm(x0,y0,x1,y1,w,c){ b.strokeStyle=c; b.lineWidth=Math.max(1.2,w*s*bodyW); b.lineCap='butt';
+    b.beginPath(); b.moveTo(px(x0),py(y0)); b.lineTo(px(x1),py(y1)); b.stroke(); }
+  function bx(x,y,w,h,c){ b.fillStyle=c;
+    b.fillRect(Math.round(px(x)), Math.round(py(y)), Math.max(1,Math.round(w*s*bodyW)), Math.max(1,Math.round(h*s*hScale))); }
+  function boot(x,y,flip){
+    bx(x-(flip?2.6:0.6), y-1.2, 3.2, 2.4, kit.shoe);
+    bx(x-(flip?2.6:0.6), y+0.6, 3.2, 0.8, '#f4f1e4');
+  }
+
+  let pK=[4.2,-10], pF=[5,0], kK=[-4.2,-10], kF=[-5,0];
+  let aL=[[-9,-27],[-10,-20]], aR=[[9,-27],[10,-20]];
+  let lean=0, headDip=0, armsUp=false;
+  let ballLocal = [-5,-1];   // resting beside his right foot (screen-left — we're behind him)
+
+  if (cs.phase === 'JUGGLE'){
+    const t = cs.cycleT, side = cs.foot;
+    const flick = Math.max(0, Math.cos(Math.min(1,t/0.35)*Math.PI*0.5));
+    const active=[lerp(-5,-2,flick), lerp(0,-14,flick)], activeKnee=[lerp(-4.2,-1,flick), lerp(-10,-17,flick)];
+    const rest=[5,0], restKnee=[4.2,-10];
+    if (side===0){ kF=active; kK=activeKnee; pF=rest; pK=restKnee; }
+    else { kF=[-rest[0],rest[1]]; kK=[-restKnee[0],restKnee[1]]; pF=[-active[0],active[1]]; pK=[-activeKnee[0],activeKnee[1]]; }
+    const armSwing = Math.sin(t*Math.PI*2)*2;
+    aL=[[-9-armSwing,-27],[-10-armSwing,-19]]; aR=[[9+armSwing,-27],[10+armSwing,-19]];
+    gy -= Math.sin(t*Math.PI)*1.1;
+    const fromX = side===0?-5:5, toX=-fromX;
+    ballLocal = [ lerp(fromX,toX,t), -Math.sin(Math.PI*t)*20-2 ];
+
+  } else if (cs.phase === 'HIGH_CATCH'){
+    const T = cs.phaseT;
+    if (T < CS_HC_LAUNCH){                              // a big committed flick
+      const k = T/CS_HC_LAUNCH;
+      kF=[lerp(-5,-2,k), lerp(0,-18,k)]; kK=[lerp(-4.2,-1,k), lerp(-10,-20,k)];
+      pF=[5,0]; pK=[4.2,-10];
+      aL=[[-11,-29],[-15,-24]]; aR=[[11,-29],[15,-24]];
+      ballLocal = [ lerp(-5,-4,k), lerp(0,-6,k) ];
+    } else if (T < CS_HC_CATCH){                         // rise, hang, fall — tracked all the way
+      const k = Math.min(1, (T-CS_HC_LAUNCH)/(CS_HC_CATCH-CS_HC_LAUNCH));
+      const x0=-4, y0=-6, x1=0, y1=-34, peak=-88;
+      ballLocal = [ lerp(x0,x1,k), (1-k)*(1-k)*y0 + 2*(1-k)*k*peak + k*k*y1 ];
+      const lookUp = Math.sin(Math.min(1,k*1.3)*Math.PI*0.5);
+      headDip = -lookUp*3.5; lean = -lookUp*1.5;
+      pF=[5,0]; pK=[4.2,-10]; kF=[-5,0]; kK=[-4.2,-10];
+      aL=[[-10,-28],[-13,-22]]; aR=[[10,-28],[13,-22]];
+    } else if (T < CS_HC_HOLD_END){                      // trapped dead on the back of his neck
+      ballLocal = [0,-34]; headDip=-3.5; lean=-1.5;
+      pF=[5,0]; pK=[4.2,-10]; kF=[-5,0]; kK=[-4.2,-10];
+      aL=[[-10,-28],[-13,-22]]; aR=[[10,-28],[13,-22]];
+    } else {                                              // the celebration
+      const k = Math.min(1, (T-CS_HC_HOLD_END)/(CS_HC_TOTAL-CS_HC_HOLD_END));
+      armsUp = true;
+      gy -= Math.max(0, Math.sin(Math.min(1,k*3)*Math.PI)) * 2.4;
+      aL=[[-10,-38],[-11.5,-45]]; aR=[[10,-38],[11.5,-45]];
+      pF=[4,0]; pK=[3.5,-10]; kF=[-4,0]; kK=[-3.5,-10];
+      ballLocal = [ lerp(0,-5,k), lerp(-34,0,k) ];
+    }
+
+  } else if (cs.phase === 'SHOULDERS'){
+    const T = cs.phaseT;
+    const SL=[-6,-31], SR=[6,-31];
+    pF=[5,0]; pK=[4.2,-10]; kF=[-5,0]; kK=[-4.2,-10];
+    aL=[[-9,-27],[-10,-20]]; aR=[[9,-27],[10,-20]];
+    if (T < CS_SH_LIFT){
+      const k = T/CS_SH_LIFT;
+      ballLocal = lerp2([-5,0], SL, k);
+    } else {
+      const bt = T - CS_SH_LIFT, span = CS_SH_BOUNCES*CS_SH_BOUNCE_PERIOD;
+      if (bt < span){
+        const beatIdx = Math.floor(bt/CS_SH_BOUNCE_PERIOD);
+        const beatT = (bt % CS_SH_BOUNCE_PERIOD) / CS_SH_BOUNCE_PERIOD;
+        const from = beatIdx%2===0 ? SL : SR, to = beatIdx%2===0 ? SR : SL;
+        const peak = -37;
+        ballLocal = [ lerp(from[0],to[0],beatT), (1-beatT)*(1-beatT)*from[1] + 2*(1-beatT)*beatT*peak + beatT*beatT*to[1] ];
+        const pop = Math.max(0, Math.sin(Math.min(1,beatT/0.3)*Math.PI));
+        lean = (beatIdx%2===0 ? -1 : 1) * pop * 1.2;
+      } else {
+        const k = Math.min(1, (bt-span)/0.5);
+        const last = (CS_SH_BOUNCES%2===0) ? SL : SR;
+        ballLocal = lerp2(last, [5,0], k);
+      }
+    }
+  }
+
+  // shadow
+  b.save(); b.globalAlpha=0.28; b.fillStyle='#04140b';
+  b.beginPath(); b.ellipse(px(0.5), py(0.8), 12*s, 3.4*s, 0,0,6.2832); b.fill(); b.restore();
+
+  lm(-3,-19, kK[0],kK[1], 4.8, kit.shorts);
+  lm(kK[0],kK[1], kF[0],kF[1], 3.8, S.skin);
+  bx(kF[0]-1.7, kF[1]-1, 3.6, 3.6, kit.socks);
+  boot(kF[0], kF[1]+2.2, true);
+
+  const tx = lean;
+  bx(tx-6.8,-33.5, 13.6, 15.5, kit.shirt);
+  bx(tx-6.8,-33.5, 13.6, 1.6, kit.trim);
+  bx(tx-6.8,-20.5, 13.6, 2, kit.trim);
+  bx(tx-7.7,-32.5, 1.2, 6, kit.trim);
+  bx(tx+6.5,-32.5, 1.2, 6, kit.trim);
+  b.fillStyle = kit.num;
+  b.font = 'bold '+Math.max(5, Math.round(8*s))+'px ui-monospace, Menlo, monospace';
+  b.textAlign='center'; b.textBaseline='middle';
+  b.fillText(String(S.shirtNum), px(tx), py(-27));
+  bx(tx-6.3,-21, 12.6, 8, kit.shorts);
+
+  lm(tx+3,-19, pK[0],pK[1], 5, kit.shorts);
+  lm(pK[0],pK[1], pF[0],pF[1], 4, S.skin);
+  bx(pF[0]-1.7, pF[1]-4.6, 3.6, 4.4, kit.socks);
+  boot(pF[0], pF[1], false);
+
+  lm(tx-6.8,-31.5, aL[0][0],aL[0][1], 3.5, kit.shirt);
+  lm(aL[0][0],aL[0][1], aL[1][0],aL[1][1], 2.9, S.skin);
+  lm(tx+6.8,-31.5, aR[0][0],aR[0][1], 3.5, kit.shirt);
+  lm(aR[0][0],aR[0][1], aR[1][0],aR[1][1], 2.9, S.skin);
+
+  const hy = -39 + headDip;
+  bx(tx-1.4,-35.5, 3, 2.4, S.skin);
+  bx(tx-3.8, hy-3.7, 7.6, 7.6, S.skin);
+  bx(tx-4.0, hy-4.3, 8.0, 3.7, S.hair);
+  bx(tx-1.15, hy-4.3, 0.6, 3.3, S.skin);
+  bx(tx-4.0, hy-1.2, 1.2, 2.4, S.hair);
+  bx(tx+2.8, hy-1.2, 1.2, 2.4, S.hair);
+
+  if (ballLocal){
+    const wob = (cs.phase==='JUGGLE') ? Math.sin(S.t*20)*0.4 : 0;
+    drawBall(px(ballLocal[0])+wob, py(ballLocal[1]), 9);
+  }
+
+  if (cs.phase === 'HIGH_CATCH' && cs.phaseT >= CS_HC_HOLD_END){
+    drawRollingBanner('PERFECT!', cs.phaseT-CS_HC_HOLD_END, {baseY:56, fadeStart:0.8, cw:17, fontPx:15});
+  }
+}
+
 /* ── create-a-player ──────────────────────────────────────────
    Tony Hawk-style: a big live preview up top, a stack of attribute
    rows with < > arrows below, same panel/arrow language as the rest
@@ -2289,7 +2497,7 @@ function drawCreate(){
   txt('CREATE YOUR PLAYER', W/2, 8, C.GOLD, 13, 'center');
   txt('TAP THE ARROWS TO CHANGE HIM', W/2, 22, C.GREYDK, 7, 'center');
 
-  drawJuggler({ x: W/2, y: 150, s: 2.0 });
+  drawCreatePreview();
 
   const c = S.character;
   const rows = [
@@ -2422,11 +2630,13 @@ function drawFrameTop(){
   const g = ctx.createLinearGradient(0,0,0,PAD_TOP);
   g.addColorStop(0, '#03040a'); g.addColorStop(1, C.STAND2);
   ctx.fillStyle = g; ctx.fillRect(0,0,FRAME_W,PAD_TOP);
+  const hype = S.crowdHype;
   for (let i=0;i<FRAME_W;i+=3){
     const hh = 6 + ((i*7919)%9);
     const hash = ((i*2654435761)>>>0);
     const ph = (hash%628)/100;
-    const bob = Math.sin(S.t*(1.0+(hash%5)*0.14) + ph) * 0.7 + waveBoost(i, S.t)*6;
+    const bob = Math.sin(S.t*(1.0+(hash%5)*0.14) + ph) * 0.7 + waveBoost(i, S.t)*6
+              + (hype > 0 ? Math.max(0, Math.sin(S.t*17 + i*0.4)) * hype * 5 : 0);
     ctx.fillStyle = hash%3===0 ? C.CROWD2 : C.CROWD1;
     ctx.fillRect(i, PAD_TOP-hh-bob, 3, hh+bob);
   }
