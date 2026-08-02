@@ -598,7 +598,7 @@ const S = {
   smokePuffs:[], windParts:[], trail:[],
   // solo keepy-ups mode
   mode:'SHOOTOUT', menuMode:'KEEPYUPS', ku:null,
-  hattrick:{active:false, t:0},
+  hattrick:{active:false, t:0}, safetyNet:{active:false, t:0},
   // create-a-player
   character:{ teamIdx:0, bodyIdx:1, heightIdx:1, skinIdx:1, hairIdx:0, shirtIdx:0, sockIdx:2, shoeIdx:8 },
   createShow:{ phase:'REST', phaseT:0, cycleT:0, foot:0, routineIdx:0, beatIdx:-1 },
@@ -607,7 +607,7 @@ const S = {
   settingsOpen:false, settingsConfirmQuit:false, saveFlashT:0,
   audioVolume:0.5, audioMuted:false,
   reduceMotion: !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches),
-  bestEverStreak:0
+  bestEverRank:0
 };
 
 function targetRadius(){ return 30 * (1 + 0.10*Math.min(S.streak,5)); }
@@ -642,6 +642,7 @@ function gotoScene(s){ S.scene = s; S.sceneT = 0; }
 const KU_START_CLOCK = 15, KU_BONUS = 5;
 const KU_REVEAL_END = 0.55;
 const JUG = { x: W/2, y: 215, s: 2.35 };   // closeup juggling anchor
+const KU_JUG = { x: 195, y: 215, s: 2.05 }; // shifted right to make room for the money ladder
 
 /* ── trick progression — the combo gets harder to watch as the streak
    grows. 0-5: plain foot-to-foot. 6-10: two touches then a header.
@@ -651,10 +652,18 @@ const TRICK_PATTERNS = [
   ['foot','foot','head'],
   ['knee','knee','knee','knee','head','knee']
 ];
-function trickTier(streak){ return streak>=11 ? 2 : streak>=6 ? 1 : 0; }
+function trickTier(rank){ return rank>=11 ? 2 : rank>=6 ? 1 : 0; }
 const CONTACT_Y     = { foot:0,  knee:-17, head:-40 };  // local-space contact height
 const CONTACT_REACH = { foot:14, knee:11,  head:9 };    // extra arc height above the peak
 function contactX(type, side){ return type==='head' ? 0 : (side===0 ? -5 : 5); }
+
+/* ── the money ladder — a WWTBAM-style safety-net climb. Rank 5 and
+   rank 10 are checkpoints: the first wrong answer past a checkpoint
+   drops you back to a fresh question at that rank instead of ending
+   the run, and spends that checkpoint's one-time save (gold→blue).
+   A second failure against a spent checkpoint, or any wrong answer
+   before rank 5 is secured, ends the run. Rank 15 is the win.       */
+const MONEY_LABELS = ['£100','£200','£300','£500','£1K','£2K','£4K','£8K','£16K','£32K','£64K','£125K','£250K','£500K','£1M'];
 
 function shuffledPool(cat){
   const pool = QUESTIONS[cat].slice();
@@ -679,7 +688,8 @@ function beginKeepyups(cat){
   S.ku = {
     pool: shuffledPool(cat),
     q:null, qPick:-1, qResolved:false, qWasRight:false, qRevealT:0,
-    clock: KU_START_CLOCK, streak:0, best:0, answered:0,
+    clock: KU_START_CLOCK, rank:0, best:0, answered:0,
+    checkpoint5Used:false, checkpoint10Used:false, won:false,
     cycleT:0, foot:0, trickIdx:0, tier:0, contactPop:0, contactType:'foot', celebWord:'', bike:null, bonusFlashT:0
   };
   gotoScene('KU_READY');
@@ -696,7 +706,13 @@ function startBicycle(){
   SFX.crowdBreath();
   gotoScene('KU_BICYCLE');
 }
+function startSafetyNet(){
+  SFX.rankUp();
+  S.safetyNet = { active:true, t:0 };
+  gotoScene('KU_SAFETYNET');
+}
 function endKeepyups(){
+  if (S.ku.won){ gotoScene('KU_OVER'); return; }
   SFX.miss(); SFX.crowdBoo();
   setTimeout(()=>{ if (audioOn && AC) SFX.sadSting(); }, 300);
   S.gloom = 1; S.hitstop = 0.10;
@@ -705,12 +721,12 @@ function endKeepyups(){
 
 function updateKeepyups(dt){
   const ku = S.ku;
-  const juggling = S.scene==='KU_READY' || S.scene==='KU_PLAY' || S.scene==='KU_HATTRICK';
+  const juggling = S.scene==='KU_READY' || S.scene==='KU_PLAY' || S.scene==='KU_HATTRICK' || S.scene==='KU_SAFETYNET';
   if (juggling){
     ku.cycleT += dt;
     if (ku.cycleT >= 1){
       ku.cycleT -= 1;
-      const tier = trickTier(ku.streak);
+      const tier = trickTier(ku.rank);
       if (tier !== ku.tier){ ku.tier = tier; ku.trickIdx = 0; }
       else { const pat = TRICK_PATTERNS[ku.tier]; ku.trickIdx = (ku.trickIdx+1) % pat.length; }
       ku.foot = 1-ku.foot;
@@ -732,14 +748,37 @@ function updateKeepyups(dt){
     } else {
       ku.qRevealT += dt;
       if (ku.qRevealT >= KU_REVEAL_END){
-        if (!ku.qWasRight){ endKeepyups(); return; }
+        if (!ku.qWasRight){
+          // the ladder: fail before rank 5 and there's no net yet; fail in
+          // 6-10 or 11-15 and the checkpoint behind you saves you exactly
+          // once, dropping you back to a fresh question at that checkpoint
+          const attempted = ku.rank + 1;
+          if (attempted <= 5){ endKeepyups(); return; }
+          else if (attempted <= 10){
+            if (!ku.checkpoint5Used){ ku.checkpoint5Used = true; ku.rank = 4; startSafetyNet(); return; }
+            else { endKeepyups(); return; }
+          } else {
+            if (!ku.checkpoint10Used){ ku.checkpoint10Used = true; ku.rank = 9; startSafetyNet(); return; }
+            else { endKeepyups(); return; }
+          }
+        }
         ku.clock = Math.min(60, ku.clock + KU_BONUS);
         ku.bonusFlashT = 1;
-        ku.streak++; ku.best = Math.max(ku.best, ku.streak); ku.answered++;
-        if (ku.streak > S.bestEverStreak){ S.bestEverStreak = ku.streak; saveGame(); }
-        if (ku.streak % 5 === 0){ ku.celebWord = ku.streak+' STREAK'; startBicycle(); }
-        else if (ku.streak % 3 === 0){ ku.celebWord = 'HAT-TRICK'; S.hattrick = {active:true, t:0}; gotoScene('KU_HATTRICK'); }
-        else { nextKUQuestion(); }
+        ku.rank++; ku.best = Math.max(ku.best, ku.rank); ku.answered++;
+        if (ku.rank > S.bestEverRank){ S.bestEverRank = ku.rank; saveGame(); }
+        if (ku.rank === 15){
+          ku.won = true; ku.celebWord = MONEY_LABELS[14]+'!!';
+          spawnConfetti(36); triggerCrowdBurst();
+          startBicycle();
+        } else if (ku.rank % 5 === 0){
+          ku.celebWord = MONEY_LABELS[ku.rank-1]+' SECURED!';
+          spawnConfetti(24); triggerCrowdBurst();
+          startBicycle();
+        } else if (ku.rank % 3 === 0){
+          ku.celebWord = 'HAT-TRICK'; S.hattrick = {active:true, t:0}; gotoScene('KU_HATTRICK');
+        } else {
+          nextKUQuestion();
+        }
       }
     }
     return;
@@ -747,6 +786,11 @@ function updateKeepyups(dt){
 
   if (S.scene === 'KU_HATTRICK'){
     if (S.sceneT > 1.3){ nextKUQuestion(); gotoScene('KU_PLAY'); }
+    return;
+  }
+
+  if (S.scene === 'KU_SAFETYNET'){
+    if (S.sceneT > 1.6){ nextKUQuestion(); gotoScene('KU_PLAY'); }
     return;
   }
 
@@ -760,7 +804,10 @@ function updateKeepyups(dt){
     if (before < 1.25 && bk.t >= 1.25){          // it sinks into the goal
       SFX.ring(3); SFX.crowdRoar(1); S.crowdHype = 1; S.flash = Math.max(S.flash,0.3);
     }
-    if (bk.t > 2.3){ nextKUQuestion(); gotoScene('KU_PLAY'); }
+    if (bk.t > 2.3){
+      if (ku.won){ endKeepyups(); }
+      else { nextKUQuestion(); gotoScene('KU_PLAY'); }
+    }
     return;
   }
   // KU_READY / KU_OVER: nothing else to simulate
@@ -1209,7 +1256,7 @@ function saveGame(){
       audioVolume: S.audioVolume,
       audioMuted: S.audioMuted,
       reduceMotion: S.reduceMotion,
-      bestEverStreak: S.bestEverStreak
+      bestEverRank: S.bestEverRank
     }));
     return true;
   } catch(e){ return false; }
@@ -1223,7 +1270,8 @@ function loadGame(){
     if (typeof d.audioVolume === 'number') S.audioVolume = d.audioVolume;
     if (typeof d.audioMuted === 'boolean') S.audioMuted = d.audioMuted;
     if (typeof d.reduceMotion === 'boolean') S.reduceMotion = d.reduceMotion;
-    if (typeof d.bestEverStreak === 'number') S.bestEverStreak = d.bestEverStreak;
+    if (typeof d.bestEverRank === 'number') S.bestEverRank = d.bestEverRank;
+    else if (typeof d.bestEverStreak === 'number') S.bestEverRank = Math.min(15, d.bestEverStreak); // migrate old saves
     S.hair = HAIRS[S.character.hairIdx];
     S.skin = SKINS[S.character.skinIdx];
   } catch(e){ /* storage unavailable — start fresh */ }
@@ -1275,6 +1323,7 @@ function update(dt){
   S.gloom = Math.max(0, S.gloom - dt*0.45);
   if (S.perfect.active){ S.perfect.t += dt; if (S.perfect.t > 1.5) S.perfect.active = false; }
   if (S.hattrick.active){ S.hattrick.t += dt; if (S.hattrick.t > 1.5) S.hattrick.active = false; }
+  if (S.safetyNet.active){ S.safetyNet.t += dt; if (S.safetyNet.t > 1.5) S.safetyNet.active = false; }
   if (S.crowdBurst){
     const b = S.crowdBurst;
     if (S.t - b.startT > (b.count-1)*b.spacing + b.dur + 0.2) S.crowdBurst = null;
@@ -1306,7 +1355,7 @@ function update(dt){
   }
 
   if (S.scene==='KU_READY' || S.scene==='KU_PLAY' || S.scene==='KU_HATTRICK' ||
-      S.scene==='KU_BICYCLE' || S.scene==='KU_OVER'){
+      S.scene==='KU_SAFETYNET' || S.scene==='KU_BICYCLE' || S.scene==='KU_OVER'){
     updateKeepyups(dt);
     return;
   }
@@ -1417,7 +1466,7 @@ function draw(){
   if (S.scene === 'MATCHEND'){ drawMatchEnd(); finishDraw(); return; }
 
   if (S.scene==='KU_READY' || S.scene==='KU_PLAY' || S.scene==='KU_HATTRICK' ||
-      S.scene==='KU_BICYCLE' || S.scene==='KU_OVER'){
+      S.scene==='KU_SAFETYNET' || S.scene==='KU_BICYCLE' || S.scene==='KU_OVER'){
     drawKeepyups(); finishDraw(); return;
   }
 
@@ -2072,13 +2121,13 @@ function drawKUHUD(){
     b.restore();
   }
 
-  txt('STREAK', W-4, 3, C.GREYDK, 7, 'right');
-  txt(String(ku.streak), W-4, 11, ku.streak>0?C.GOLD:C.GREY, 16, 'right');
+  txt('RANK '+ku.rank+'/15', W-4, 3, C.GREYDK, 7, 'right');
+  txt(ku.rank>0 ? MONEY_LABELS[ku.rank-1] : '£0', W-4, 11, ku.rank>0?C.GOLD:C.GREY, 16, 'right');
   txt('BEST '+ku.best, W-4, 40, C.GREYDK, 7, 'right');
 
-  const pipCount = ku.streak===0 ? 0 : ((ku.streak-1)%5)+1;
+  const pipCount = ku.rank===0 ? 0 : ((ku.rank-1)%5)+1;
   streakPips(4, 30, pipCount, false, null);
-  txt('TO NEXT STREAK', 42, 30, C.GREYDK, 7);
+  txt('TO NEXT CHECKPOINT', 42, 30, C.GREYDK, 7);
 }
 
 function drawKUQuestion(){
@@ -2109,7 +2158,7 @@ function drawKUQuestion(){
   });
 
   if (ku.qResolved){
-    const msg = ku.qWasRight ? ('+'+KU_BONUS+'s · STREAK '+ku.streak) : 'WRONG';
+    const msg = ku.qWasRight ? ('+'+KU_BONUS+'s · '+MONEY_LABELS[ku.rank-1]) : 'WRONG';
     txt(msg, W/2, oy+ku.q.opts.length*29+6, ku.qWasRight?C.GOLD:C.RED, 10, 'center');
   }
 }
@@ -2120,8 +2169,8 @@ function drawKUReady(){
   const y = 150;
   panel(20, y, W-40, 132);
   txt('SOLO KEEPY-UPS', W/2, y+12, C.GOLD, 15, 'center');
-  txt(S.cat + (S.bestEverStreak>0 ? '  ·  YOUR BEST '+S.bestEverStreak : ''), W/2, y+32, C.GREYDK, 9, 'center');
-  wrapText('Answer fast — every correct answer buys '+KU_BONUS+' more seconds. Any wrong answer, or an empty clock, ends the run.', W-64)
+  txt(S.cat + (S.bestEverRank>0 ? '  ·  YOUR BEST '+MONEY_LABELS[S.bestEverRank-1] : ''), W/2, y+32, C.GREYDK, 9, 'center');
+  wrapText('Answer fast — every correct answer buys '+KU_BONUS+' more seconds. Ranks 5 and 10 are safety nets — one wrong answer past them sends you back, not out.', W-64)
     .forEach((l,i)=> txt(l, W/2, y+52+i*11, C.GREY, 8, 'center'));
   txt('TAP TO START', W/2, y+114, Math.sin(S.t*5)>0?C.WHITE:C.GREYDK, 10, 'center');
 }
@@ -2132,23 +2181,62 @@ function drawKUOver(){
   const ku = S.ku;
   const y = 130;
   panel(20, y, W-40, 170);
-  txt('RUN OVER', W/2, y+14, C.RED, 20, 'center');
-  txt(S.cat, W/2, y+40, C.GREYDK, 9, 'center');
-  txt('BEST STREAK', W/2, y+66, C.GREYDK, 8, 'center');
-  txt(String(ku.best), W/2, y+78, C.GOLD, 26, 'center');
+  if (ku.won){
+    txt('LADDER COMPLETE!', W/2, y+14, C.GOLD, 18, 'center');
+    txt(MONEY_LABELS[14]+'!', W/2, y+38, C.GOLD2, 16, 'center');
+  } else {
+    txt('RUN OVER', W/2, y+14, C.RED, 20, 'center');
+    txt(S.cat, W/2, y+40, C.GREYDK, 9, 'center');
+  }
+  txt('RANK REACHED', W/2, y+66, C.GREYDK, 8, 'center');
+  txt(String(ku.best)+'/15', W/2, y+78, C.GOLD, 26, 'center');
   txt('ANSWERED '+ku.answered, W/2, y+118, C.GREY, 9, 'center');
   txt('TAP FOR TITLE', W/2, y+150, Math.sin(S.t*5)>0?C.WHITE:C.GREYDK, 10, 'center');
 }
 
+const LADDER_X = 4, LADDER_Y = 56, LADDER_W = 78, LADDER_ROW_H = 11.6;
+function drawMoneyLadder(){
+  const ku = S.ku;
+  const current = ku.rank + 1;               // the rank currently being played for
+  for (let rank=1; rank<=15; rank++){
+    const rowFromTop = 15 - rank;             // rank 15 drawn at the top
+    const ry = LADDER_Y + rowFromTop*LADDER_ROW_H;
+    const isCheckpoint = rank===5 || rank===10;
+    const used = (rank===5 && ku.checkpoint5Used) || (rank===10 && ku.checkpoint10Used);
+    const secured = rank <= ku.rank;
+    const isCurrent = rank === current && current <= 15;
+
+    let bg = C.PANEL, bd = C.PANELED, fg = C.GREYDK;
+    if (isCheckpoint) bd = used ? C.BLUE : C.GOLD;
+    if (secured){ fg = C.WHITE; bg = '#101a12'; }
+    if (isCurrent){
+      const pulse = 0.5 + 0.5*Math.sin(S.t*6);
+      bg = isCheckpoint ? (used ? '#123a5c' : '#3a2c06') : '#123a5c';
+      fg = C.WHITE;
+      bd = isCheckpoint ? (used ? C.BLUE : C.GOLD) : C.GOLD2;
+      b.save(); b.globalAlpha = 0.5 + pulse*0.5;
+      rect(LADDER_X-1, ry-1, LADDER_W+2, LADDER_ROW_H, bd);
+      b.restore();
+    }
+    rect(LADDER_X, ry, LADDER_W, LADDER_ROW_H-1, bd);
+    rect(LADDER_X+1, ry+1, LADDER_W-2, LADDER_ROW_H-3, bg);
+    txt(String(rank), LADDER_X+4, ry+2, isCheckpoint?(used?C.BLUE:C.GOLD):C.GREYDK, 7);
+    txt(MONEY_LABELS[rank-1], LADDER_X+LADDER_W-4, ry+2, fg, 8, 'right');
+  }
+}
+
 function drawKeepyups(){
   drawStadium();
+  const showLadder = S.scene==='KU_READY' || S.scene==='KU_PLAY' || S.scene==='KU_HATTRICK' || S.scene==='KU_SAFETYNET';
   if (S.scene === 'KU_BICYCLE') drawBicycleScene();
-  else drawJuggler();
+  else drawJuggler(showLadder ? KU_JUG : JUG);
+  if (showLadder) drawMoneyLadder();
   drawKUHUD();
   if (S.scene === 'KU_READY') drawKUReady();
   if (S.scene === 'KU_PLAY') drawKUQuestion();
   if (S.scene === 'KU_OVER') drawKUOver();
   if (S.hattrick.active) drawRollingBanner('HAT-TRICK', S.hattrick.t, {baseY:148});
+  if (S.safetyNet.active) drawRollingBanner('SAFETY NET!', S.safetyNet.t, {baseY:148});
   if (S.scene === 'KU_BICYCLE' && S.ku.bike.t >= 1.25)
     drawRollingBanner(S.ku.celebWord, S.ku.bike.t-1.25, {baseY:112, fadeStart:0.85});
 }
