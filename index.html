@@ -21,11 +21,18 @@
     border:1px solid #1d2942;border-radius:2px;padding:6px 9px;cursor:pointer;
     -webkit-tap-highlight-color:transparent;user-select:none}
   #menuBtn:active{background:#1d2942;color:#ffe89a}
+  #devBtn{position:fixed;bottom:8px;right:8px;z-index:5;
+    font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    font-size:14px;color:#3d4a63;background:#0e1526;
+    border:1px solid #1d2942;border-radius:50%;width:26px;height:26px;line-height:24px;
+    text-align:center;cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none;opacity:0.55}
+  #devBtn:active{background:#1d2942;color:#ffe89a;opacity:1}
 </style>
 </head>
 <body>
 <div id="wrap"><canvas id="cv"></canvas></div>
 <button id="menuBtn" type="button">≡ MENU</button>
+<button id="devBtn" type="button">⚙</button>
 <div id="hint">tap / click / space &nbsp;·&nbsp; aim it, power it, place it</div>
 
 <script>
@@ -830,7 +837,10 @@ const S = {
   audioVolume:0.5, audioMuted:false,
   reduceMotion: !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches),
   ladderStyle:'football',
-  bestEverRank:0
+  bestEverRank:0,
+  // dev / cheat menu — gear icon, bottom right, code 1234
+  devPinOpen:false, devMenuOpen:false, devUnlocked:false, devPin:'', devPinShakeT:0, discoTimer:0,
+  cheats:{ nolose:false, megabucks:false, timefreeze:false, hotshot:false, nowind:false, bighead:false, discomode:false, turbotouch:false }
 };
 
 function targetRadius(){ return 30 * (1 + 0.10*Math.min(S.streak,5)); }
@@ -916,6 +926,7 @@ function beginKeepyups(cat){
     cycleT:0, foot:0, trickIdx:0, tier:0, contactPop:0, contactType:'foot', celebWord:'', bike:null, bonusFlashT:0,
     introChimed:0
   };
+  if (S.cheats.megabucks){ S.ku.rank = 10; S.ku.best = 10; }   // cheat: start already banked
   gotoScene('KU_INTRO');
 }
 function pickKUAnswer(i){
@@ -960,7 +971,7 @@ function updateKeepyups(dt){
 
   const juggling = S.scene==='KU_READY' || S.scene==='KU_PLAY' || S.scene==='KU_HATTRICK' || S.scene==='KU_SAFETYNET';
   if (juggling){
-    ku.cycleT += dt;
+    ku.cycleT += dt * (S.cheats.turbotouch ? 2.2 : 1);   // cheat: double-time tricks
     if (ku.cycleT >= 1){
       ku.cycleT -= 1;
       const tier = trickTier(ku.rank);
@@ -978,7 +989,7 @@ function updateKeepyups(dt){
 
   if (S.scene === 'KU_PLAY'){
     if (!ku.qResolved){
-      ku.clock -= dt;
+      if (!S.cheats.timefreeze) ku.clock -= dt;    // cheat: clock never runs down
       if (ku.clock < 3 && S.t - lastTickSound > 0.25){ SFX.tick(true); lastTickSound = S.t; }
       else if (ku.clock >= 3 && S.t - lastTickSound > 0.5){ SFX.tick(false); lastTickSound = S.t; }
       if (ku.clock <= 0){ ku.clock = 0; endKeepyups(); return; }
@@ -986,6 +997,7 @@ function updateKeepyups(dt){
       ku.qRevealT += dt;
       if (ku.qRevealT >= KU_REVEAL_END){
         if (!ku.qWasRight){
+          if (S.cheats.nolose){ nextKUQuestion(); return; }   // cheat: wrong answers just don't count
           // the ladder: fail before rank 5 and there's no net yet; fail in
           // 6-10 or 11-15 and the checkpoint behind you saves you exactly
           // once, dropping you back to a fresh question at that checkpoint
@@ -1054,7 +1066,7 @@ function updateKeepyups(dt){
 function prepShot(){
   const ci = ROUND_CONDS[S.round][S.shot];
   S.cond = CONDS[ci];
-  S.wind = rrange(S.cond.wind[0], S.cond.wind[1]);
+  S.wind = S.cheats.nowind ? 0 : rrange(S.cond.wind[0], S.cond.wind[1]);   // cheat: dead calm
   S.windDir = rnd() < 0.5 ? -1 : 1;
   S.clock = 10;
   S.gauge = 0; S.gaugeDir = 1;
@@ -1269,6 +1281,8 @@ function advance(){
 function tapAt(px, py){
   initAudio();
   if (S.settingsOpen){ handleSettingsTap(px, py); return; }
+  if (S.devPinOpen){ handleDevPinTap(px, py); return; }
+  if (S.devMenuOpen){ handleDevMenuTap(px, py); return; }
   switch (S.scene){
     case 'LANGUAGE': {
       const code = langHit(px, py);
@@ -1325,13 +1339,13 @@ function tapAt(px, py){
       gotoScene('P_POWER'); return;
     }
     case 'P_POWER':
-      S.lockP = S.gauge;
+      S.lockP = S.cheats.hotshot ? 0.70 : S.gauge;    // cheat: always dead in the gold core
       { const c = CARDS[S.round];
         S.pureFlags[0] = Math.abs(S.lockP-0.70) <= c.core/2;
         SFX.lock(1, Math.abs(S.lockP-0.70) <= c.band/2); SFX.crowdBreath(); }
       S.gauge = 0; S.gaugeDir = 1; gotoScene('P_ACCURACY'); return;
     case 'P_ACCURACY': {
-      S.lockA = S.gauge; S.curlDir = S.gaugeDir; S.clockAtLock = S.clock;
+      S.lockA = S.cheats.hotshot ? 0.5 : S.gauge; S.curlDir = S.gaugeDir; S.clockAtLock = S.clock;
       const c = CARDS[S.round];
       S.pureFlags[1] = Math.abs(S.lockA-0.5) <= c.core/2;
       SFX.lock(2, true);
@@ -1551,8 +1565,18 @@ cv.addEventListener('pointerdown', e=>{ e.preventDefault(); const [x,y]=toBuf(e)
 document.getElementById('menuBtn').addEventListener('click', e=>{
   e.preventDefault(); e.stopPropagation();
   initAudio();
+  S.devPinOpen = false; S.devMenuOpen = false;
   S.settingsOpen = !S.settingsOpen;
   S.settingsConfirmQuit = false;
+});
+document.getElementById('devBtn').addEventListener('click', e=>{
+  e.preventDefault(); e.stopPropagation();
+  initAudio();
+  S.settingsOpen = false; S.settingsConfirmQuit = false;
+  if (S.devMenuOpen){ S.devMenuOpen = false; return; }
+  if (S.devUnlocked){ S.devMenuOpen = true; return; }
+  S.devPinOpen = !S.devPinOpen;
+  S.devPin = '';
 });
 window.addEventListener('keydown', e=>{
   if (e.code==='Escape'){ e.preventDefault(); S.settingsOpen = !S.settingsOpen; S.settingsConfirmQuit = false; return; }
@@ -1577,6 +1601,7 @@ let tickAcc = 0, lastTickSound = 0;
 
 function update(dt){
   if (S.settingsOpen){ S.saveFlashT = Math.max(0, S.saveFlashT - dt*0.8); return; }
+  if (S.devPinOpen || S.devMenuOpen){ S.devPinShakeT = Math.max(0, S.devPinShakeT - dt*2.5); return; }
   S.t += dt; S.sceneT += dt;
   S.shake = Math.max(0, S.shake - dt*14);
   S.flash = Math.max(0, S.flash - dt*2.4);
@@ -1591,6 +1616,11 @@ function update(dt){
   if (S.crowdBurst){
     const b = S.crowdBurst;
     if (S.t - b.startT > (b.count-1)*b.spacing + b.dur + 0.2) S.crowdBurst = null;
+  }
+  if (S.cheats.discomode){                              // cheat: the party never stops
+    S.crowdHype = Math.max(S.crowdHype, 0.75);
+    S.discoTimer -= dt;
+    if (S.discoTimer <= 0){ S.discoTimer = 1.3; spawnConfetti(12); triggerCrowdBurst(); }
   }
   if (S.confetti.length){
     for (const p of S.confetti){ p.y += p.vy*dt; p.x += Math.sin(S.t*2+p.ph)*p.sway*dt*14; }
@@ -2160,12 +2190,18 @@ function drawShooter(){
   /* ── head, from behind ───────────────────────────────────── */
   const hy = -39 + headDip;
   bx(tx-1.4, -35.5, 3, 2.4, S.skin);                   // neck
+  b.save();
+  if (S.cheats.bighead){                               // cheat: comically oversized head
+    const pvX = px(tx), pvY = py(hy-1);
+    b.translate(pvX, pvY); b.scale(1.9, 1.9); b.translate(-pvX, -pvY);
+  }
   bx(tx-3.6, hy-3.6, 7.2, 7.4, S.skin);
   bx(tx-3.8, hy-4.2, 7.6, 3.6, S.hair);                // hair, back of the head
   bx(tx-1.1, hy-4.2, 0.6, 3.2, S.skin);                // hard side parting — '60s comb
   bx(tx-3.8, hy-1.2, 1.2, 2.4, S.hair);
   bx(tx+2.6, hy-1.2, 1.2, 2.4, S.hair);
   bx(tx-2.6, hy+3.2, 5.2, 1, '#00000030');
+  b.restore();
 
   /* ── contact spark ───────────────────────────────────────── */
   if (phase==='STRIKE' && S.sceneT/STRIKE_DUR > 0.82){
@@ -2308,11 +2344,17 @@ function drawJuggler(anchor){
   // head, from behind — same period side-parting as the shooter
   const hy = -39 + headDip;
   bx(tx-1.4,-35.5, 3, 2.4, S.skin);
+  b.save();
+  if (S.cheats.bighead){                               // cheat: comically oversized head
+    const pvX = px(tx), pvY = py(hy-1);
+    b.translate(pvX, pvY); b.scale(1.9, 1.9); b.translate(-pvX, -pvY);
+  }
   bx(tx-3.8, hy-3.7, 7.6, 7.6, S.skin);
   bx(tx-4.0, hy-4.3, 8.0, 3.7, S.hair);
   bx(tx-1.15, hy-4.3, 0.6, 3.3, S.skin);
   bx(tx-4.0, hy-1.2, 1.2, 2.4, S.hair);
   bx(tx+2.8, hy-1.2, 1.2, 2.4, S.hair);
+  b.restore();
 
   // contact feedback — dust off the foot/knee, a soft ring off the head
   if (!inBike && ku && ku.contactPop > 0){
@@ -3579,8 +3621,125 @@ function drawSettings(){
   rect(rx,ry,rw,22, C.GOLDDK); rect(rx+1,ry+1,rw-2,20, '#241a06');
   txt(t('resume'), W/2, ry+6, C.GOLD2, 9, 'center');
 }
+
+/* ── the dev menu — gear icon, bottom right, code 1234. GameShark-style
+   toggles that mess with the experience for fun / testing.            ── */
+const CHEATS = [
+  { key:'nolose',     name:'NOLOSE',     desc:"Wrong answers can't end your run — the net always catches you." },
+  { key:'megabucks',  name:'MEGABUCKS',  desc:'Every climb starts already banked at £32,000.' },
+  { key:'timefreeze', name:'TIMEFREEZE', desc:'The clock stops ticking. Answer at your leisure.' },
+  { key:'hotshot',    name:'HOTSHOT',    desc:'Every strike lands dead in the gold core. Auto PERFECT SHOT.' },
+  { key:'nowind',     name:'NOWIND',     desc:'Dead calm. The ball goes exactly where you send it.' },
+  { key:'bighead',    name:'BIGHEAD',    desc:"Classic. Your player's head is now enormous." },
+  { key:'discomode',  name:'DISCOMODE',  desc:'The crowd never calms down. Confetti nonstop.' },
+  { key:'turbotouch', name:'TURBOTOUCH', desc:'Juggling tricks cycle twice as fast. Show off.' },
+];
+
+let DEVPIN_RECTS = [], DEVPIN_PANEL = [0,0,0,0];
+function handleDevPinTap(px,py){
+  const p = DEVPIN_PANEL;
+  const inPanel = px>=p[0]&&px<=p[0]+p[2]&&py>=p[1]&&py<=p[1]+p[3];
+  const hit = DEVPIN_RECTS.find(r=>px>=r[1]&&px<=r[1]+r[3]&&py>=r[2]&&py<=r[2]+r[4]);
+  if (!hit){ if (!inPanel) S.devPinOpen = false; return; }
+  const k = hit[0];
+  if (k === '⌫'){ S.devPin = S.devPin.slice(0,-1); SFX.tick(true); return; }
+  if (S.devPin.length >= 4) return;
+  S.devPin += k; SFX.tick(true);
+  if (S.devPin.length === 4){
+    if (S.devPin === '1234'){
+      S.devUnlocked = true; S.devPinOpen = false; S.devMenuOpen = true; SFX.correct();
+    } else {
+      S.devPinShakeT = 0.4; SFX.wrong(); S.devPin = '';
+    }
+  }
+}
+function drawDevPin(){
+  b.save(); b.globalAlpha = 0.78; rect(0,0,W,H,C.INK); b.restore();
+  const shakeX = S.devPinShakeT > 0 ? Math.sin(S.devPinShakeT*60)*4 : 0;
+  const px0 = 44, py0 = 110, pw = 200, ph = 232;
+  DEVPIN_PANEL = [px0, py0, pw, ph];
+  b.save(); b.translate(shakeX, 0);
+  panel(px0, py0, pw, ph);
+  txt('DEV ACCESS', px0+pw/2, py0+12, C.GOLD, 13, 'center');
+  txt('ENTER CODE', px0+pw/2, py0+28, C.GREYDK, 8, 'center');
+
+  const dotY = py0+48;
+  for (let i=0;i<4;i++){
+    const dx = px0+pw/2-33+i*22;
+    const filled = i < S.devPin.length;
+    circ(dx, dotY, filled?4:3, filled?C.GOLD2:C.PANELED);
+    if (!filled) ring(dx, dotY, 3, C.GREYDK, 1);
+  }
+  b.restore();
+
+  DEVPIN_RECTS = [];
+  const keys = ['1','2','3','4','5','6','7','8','9','','0','⌫'];
+  const kw = (pw-24)/3, kh = 32, kx0 = px0+12+shakeX, ky0 = py0+66;
+  keys.forEach((k,i)=>{
+    if (!k) return;
+    const col = i%3, row = Math.floor(i/3);
+    const x = kx0+col*kw, y = ky0+row*(kh+6);
+    DEVPIN_RECTS.push([k,x,y,kw-6,kh]);
+    rect(x,y,kw-6,kh,C.PANELED); rect(x+1,y+1,kw-8,kh-2,C.PANEL);
+    txt(k, x+(kw-6)/2, y+kh/2-5, C.WHITE, 12, 'center');
+  });
+}
+
+let DEVMENU_RECTS = [], DEVMENU_PANEL = [0,0,0,0];
+function handleDevMenuTap(px,py){
+  const p = DEVMENU_PANEL;
+  const inPanel = px>=p[0]&&px<=p[0]+p[2]&&py>=p[1]&&py<=p[1]+p[3];
+  const hit = DEVMENU_RECTS.find(r=>px>=r[0]&&px<=r[0]+r[2]&&py>=r[1]&&py<=r[1]+r[3]);
+  if (!hit){ if (!inPanel) S.devMenuOpen = false; return; }
+  const key = hit[4];
+  if (key === 'CLOSE'){ S.devMenuOpen = false; SFX.lock(0, true); return; }
+  if (key === 'ALL'){
+    const allOn = CHEATS.every(c => S.cheats[c.key]);
+    CHEATS.forEach(c => { S.cheats[c.key] = !allOn; });
+    SFX.rankUp();
+    return;
+  }
+  S.cheats[key] = !S.cheats[key];
+  SFX.lock(0, S.cheats[key]);
+}
+function drawDevMenu(){
+  b.save(); b.globalAlpha = 0.78; rect(0,0,W,H,C.INK); b.restore();
+  const px0 = 16, py0 = 36, pw = 256, ph = 364;
+  DEVMENU_PANEL = [px0,py0,pw,ph];
+  panel(px0,py0,pw,ph);
+  txt('DEV MENU', W/2, py0+10, C.GOLD, 14, 'center');
+  txt('CHEEKY CHEATS — USE RESPONSIBLY', W/2, py0+24, C.GREYDK, 7, 'center');
+
+  DEVMENU_RECTS = [];
+  const rx = px0+10, rw = pw-20, rh = 32;
+  let ry = py0+40;
+
+  const allOn = CHEATS.every(c => S.cheats[c.key]);
+  DEVMENU_RECTS.push([rx,ry,rw,22,'ALL']);
+  rect(rx,ry,rw,22, allOn?C.GOLD:C.PANELED); rect(rx+1,ry+1,rw-2,20, allOn?'#3a2c06':C.PANEL);
+  txt(allOn?'ALL CHEATS ON':'ENABLE ALL CHEATS', W/2, ry+6, allOn?C.GOLD2:C.WHITE, 9, 'center');
+  ry += 28;
+
+  CHEATS.forEach(c=>{
+    const on = S.cheats[c.key];
+    DEVMENU_RECTS.push([rx,ry,rw,rh-4,c.key]);
+    rect(rx,ry,rw,rh-4, on?C.GOLDDK:C.PANELED); rect(rx+1,ry+1,rw-2,rh-6, on?'#241a06':C.PANEL);
+    txt(c.name, rx+8, ry+4, on?C.GOLD2:C.WHITE, 9);
+    txtFit(c.desc, rx+8, ry+15, C.GREYDK, 6, rw-52);
+    txt(on?'ON':'OFF', rx+rw-22, ry+9, on?C.GREEN:C.GREYDK, 8, 'center');
+    ry += rh;
+  });
+
+  ry += 4;
+  DEVMENU_RECTS.push([rx,ry,rw,22,'CLOSE']);
+  rect(rx,ry,rw,22, C.PANELED); rect(rx+1,ry+1,rw-2,20, C.PANEL);
+  txt('CLOSE', W/2, ry+6, C.WHITE, 9, 'center');
+}
+
 function finishDraw(){
   if (S.settingsOpen) drawSettings();
+  if (S.devPinOpen) drawDevPin();
+  if (S.devMenuOpen) drawDevMenu();
   post();
 }
 
