@@ -2,8 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>KICKUP — three-tap prototype</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>KICKUP</title>
+<meta name="description" content="Three taps. Ten seconds. One goal. A football trivia climb from £100 to £1,000,000.">
+<meta name="theme-color" content="#05070d">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="KICKUP">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%2305070d'/%3E%3Ccircle cx='32' cy='32' r='19' fill='%231d5fa8'/%3E%3Ccircle cx='32' cy='32' r='13' fill='%23e8402c'/%3E%3Ccircle cx='32' cy='32' r='7' fill='%23f0efe4'/%3E%3Ccircle cx='32' cy='32' r='3' fill='%23ffc93c'/%3E%3C/svg%3E">
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
   html,body{height:100%;background:#05070d;overflow:hidden;
@@ -34,6 +41,26 @@
 <button id="menuBtn" type="button">≡ MENU</button>
 <button id="devBtn" type="button">⚙</button>
 <div id="hint">tap / click / space &nbsp;·&nbsp; aim it, power it, place it</div>
+<script>
+/* Installable without a second file: the manifest is generated at run time
+   and handed to the browser as a blob URL. Keeps the whole game one file. */
+(function(){
+  try {
+    const icon = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%2305070d'/%3E%3Ccircle cx='256' cy='256' r='152' fill='%231d5fa8'/%3E%3Ccircle cx='256' cy='256' r='104' fill='%23e8402c'/%3E%3Ccircle cx='256' cy='256' r='56' fill='%23f0efe4'/%3E%3Ccircle cx='256' cy='256' r='24' fill='%23ffc93c'/%3E%3C/svg%3E";
+    const manifest = {
+      name:'KICKUP', short_name:'KICKUP',
+      description:'Three taps. Ten seconds. One goal.',
+      start_url:'.', display:'fullscreen', orientation:'portrait',
+      background_color:'#05070d', theme_color:'#05070d',
+      icons:[{ src:icon, sizes:'512x512', type:'image/svg+xml', purpose:'any maskable' }]
+    };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(manifest)], {type:'application/manifest+json'}));
+    const link = document.createElement('link');
+    link.rel = 'manifest'; link.href = url;
+    document.head.appendChild(link);
+  } catch(e){ /* manifest is a nicety — never let it break the game */ }
+})();
+</script>
 
 <script>
 "use strict";
@@ -113,8 +140,38 @@ function initAudio(){
   if (!Ctor) { audioOn = false; return; }
   AC = new Ctor();
   master = AC.createGain(); master.gain.value = S.audioMuted ? 0 : S.audioVolume; master.connect(AC.destination);
+  startAmbience();
 }
 function applyVolume(){ if (master) master.gain.value = S.audioMuted ? 0 : S.audioVolume; }
+
+/* ── the stadium never goes silent ────────────────────────────
+   A permanently-running filtered noise bed, whose gain follows the
+   crowd's excitement. Costs one buffer source for the whole session
+   and does more for "you are in a stadium" than any one-shot.   ── */
+let ambBed = null, ambGain = null, ambFilter = null;
+function startAmbience(){
+  if (!AC || ambBed) return;
+  try {
+    ambBed = AC.createBufferSource(); ambBed.buffer = getNoise(); ambBed.loop = true;
+    ambFilter = AC.createBiquadFilter(); ambFilter.type = 'bandpass';
+    ambFilter.frequency.value = 480; ambFilter.Q.value = 0.55;
+    const hp = AC.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 180;
+    ambGain = AC.createGain(); ambGain.gain.value = 0.0001;
+    ambBed.connect(ambFilter); ambFilter.connect(hp); hp.connect(ambGain); ambGain.connect(master);
+    ambBed.start();
+  } catch(e){ ambBed = null; }
+}
+function updateAmbience(){
+  if (!ambGain || !AC) return;
+  // louder and brighter the more the crowd is going; near-silent on menus
+  const inPlay = S.scene && S.scene.indexOf('KU_') === 0 ||
+                 ['ROUNDCARD','QUESTION','READY','AIM','P_POWER','P_ACCURACY','STRIKE','FLIGHT','RESOLVE'].indexOf(S.scene) >= 0;
+  const target = (inPlay ? 0.022 : 0.006) + S.crowdHype * 0.05;
+  try {
+    ambGain.gain.setTargetAtTime(Math.max(0.0001, target), AC.currentTime, 0.5);
+    ambFilter.frequency.setTargetAtTime(430 + S.crowdHype*760, AC.currentTime, 0.6);
+  } catch(e){}
+}
 function env(node, t, a, d, peak){
   const g = AC.createGain();
   g.gain.setValueAtTime(0.0001, t);
@@ -840,7 +897,15 @@ const S = {
   bestEverRank:0,
   // dev / cheat menu — gear icon, bottom right, code 1234
   devPinOpen:false, devMenuOpen:false, devUnlocked:false, devPin:'', devPinShakeT:0, discoTimer:0,
-  cheats:{ nolose:false, megabucks:false, timefreeze:false, hotshot:false, nowind:false, bighead:false, discomode:false, turbotouch:false }
+  cheats:{ nolose:false, megabucks:false, timefreeze:false, hotshot:false, nowind:false, bighead:false, discomode:false, turbotouch:false },
+  // career — persisted between sessions
+  profile:null,
+  achQueue:[],                 // achievements waiting to slide in as toasts
+  isDaily:false,               // is the current run the date-seeded daily?
+  runSummary:null,             // xp breakdown for the results screen
+  profileScroll:0,
+  transition:{ t:0, dur:0, pending:null },
+  shareFlashT:0
 };
 
 function targetRadius(){ return 30 * (1 + 0.10*Math.min(S.streak,5)); }
@@ -865,6 +930,26 @@ function beginMatch(cat){
 }
 
 function gotoScene(s){ S.scene = s; S.sceneT = 0; }
+/* Wipe out, run the scene change at the midpoint, wipe back in — so
+   big context switches land as a cut with intent behind it. */
+function transitionTo(fn, dur){
+  if (S.reduceMotion){ fn(); return; }
+  S.transition = { t:0, dur: dur || 0.44, pending: fn };
+}
+function drawTransition(){
+  const tr = S.transition;
+  if (tr.dur <= 0) return;
+  const p = Math.min(1, tr.t/tr.dur);
+  // 0 → 1 → 0: closes over the screen, then peels back off it
+  const cover = p < 0.5 ? (p/0.5) : (1-(p-0.5)/0.5);
+  const e = cover*cover*(3-2*cover);
+  const h = Math.ceil(H*0.5*e)+1;
+  rect(0, 0, W, h, C.INK);
+  rect(0, H-h, W, h, C.INK);
+  b.save(); b.globalAlpha = Math.min(1, e*1.4);
+  rect(0, h-1, W, 1, C.GOLDDK); rect(0, H-h, W, 1, C.GOLDDK);
+  b.restore();
+}
 
 /* ═══════════════════════════════════════════════════════════
    SOLO KEEPY-UPS — a trivia survival mode. World Cup teams only
@@ -911,6 +996,7 @@ function nextKUQuestion(){
   for (let j=opts.length-1;j>0;j--){ const k=Math.floor(rnd()*(j+1)); [opts[j],opts[k]]=[opts[k],opts[j]]; }
   ku.q = { text:q[0], opts };
   ku.qPick = -1; ku.qResolved = false; ku.qWasRight = false; ku.qRevealT = 0;
+  ku.qShownClock = ku.clock;          // baseline for the "answered fast" badge
 }
 function beginKeepyups(cat){
   srand(SEED);
@@ -921,7 +1007,7 @@ function beginKeepyups(cat){
   S.ku = {
     pool: shuffledPool(cat),
     q:null, qPick:-1, qResolved:false, qWasRight:false, qRevealT:0,
-    clock: KU_START_CLOCK, rank:0, best:0, answered:0,
+    clock: KU_START_CLOCK, rank:0, best:0, answered:0, asked:0, qShownClock:KU_START_CLOCK,
     checkpoint5Used:false, checkpoint10Used:false, won:false,
     cycleT:0, foot:0, trickIdx:0, tier:0, contactPop:0, contactType:'foot', celebWord:'', bike:null, bonusFlashT:0,
     introChimed:0
@@ -929,12 +1015,27 @@ function beginKeepyups(cat){
   if (S.cheats.megabucks){ S.ku.rank = 10; S.ku.best = 10; }   // cheat: start already banked
   gotoScene('KU_INTRO');
 }
+/* The daily is the same run for everybody on a given date: the seed,
+   and therefore the pool order and every option shuffle, comes from
+   the calendar rather than from Math.random(). */
+function beginDaily(){
+  SEED = dailySeed();
+  S.isDaily = true;
+  beginKeepyups(dailyCat());
+}
 function pickKUAnswer(i){
   const ku = S.ku;
   if (ku.qResolved) return;
+  const spent = ku.qShownClock - ku.clock;      // how long this answer took
   ku.qPick = i; ku.qResolved = true; ku.qRevealT = 0;
   ku.qWasRight = i>=0 && ku.q.opts[i].correct;
-  if (ku.qWasRight) SFX.correct(); else SFX.wrong();
+  ku.asked = (ku.asked||0) + 1;
+  if (ku.qWasRight){
+    SFX.correct(); buzz(18);
+    unlockAch('on_the_board');
+    if (spent < 2) unlockAch('quickdraw');
+    if (ku.clock < 2) unlockAch('clutch');
+  } else { SFX.wrong(); buzz([30,40,30]); }
 }
 function startBicycle(){
   S.ku.bike = { t:0 };
@@ -946,11 +1047,51 @@ function startSafetyNet(){
   S.safetyNet = { active:true, t:0 };
   gotoScene('KU_SAFETYNET');
 }
+/* Bank the run into the career: xp, lifetime counters, the daily
+   streak, and every badge the run just earned. Builds the summary
+   the results screen animates. Called exactly once per run. */
+function finishRun(){
+  const ku = S.ku, p = S.profile;
+  const levelBefore = levelFromXp(p.xp).level;
+
+  const xpRank    = ku.best * 25;
+  const xpCorrect = ku.answered * 8;
+  const xpWin     = ku.won ? 400 : 0;
+  const base      = xpRank + xpCorrect + xpWin;
+  const xpDaily   = S.isDaily ? Math.round(base * 0.5) : 0;
+  const total     = base + xpDaily;
+
+  p.xp += total;
+  p.runs++;
+  p.answered += (ku.asked || 0);
+  p.correct  += ku.answered;
+  p.bestRank = Math.max(p.bestRank, ku.best);
+  if (ku.won) p.ladderCompletes++;
+  if (ku.best > S.bestEverRank) S.bestEverRank = ku.best;
+  noteTeamPlayed(S.cat);
+  if (S.isDaily) recordDailyResult(ku.best);
+
+  const before = Object.keys(p.achievements).length;
+  if (ku.won && !ku.checkpoint5Used && !ku.checkpoint10Used) unlockAch('no_net');
+  if (ku.checkpoint5Used && ku.checkpoint10Used) unlockAch('both_nets');
+  checkMilestoneAch();
+
+  const levelAfter = levelFromXp(p.xp).level;
+  S.runSummary = {
+    xpRank, xpCorrect, xpWin, xpDaily, total,
+    levelBefore, levelAfter,
+    xpAtStart: p.xp - total,
+    anim: 0,
+    newAchs: Object.keys(p.achievements).length - before
+  };
+  saveGame();
+}
 function endKeepyups(){
+  finishRun();
   if (S.ku.won){ gotoScene('KU_OVER'); return; }
   SFX.miss(); SFX.crowdBoo();
   setTimeout(()=>{ if (audioOn && AC) SFX.sadSting(); }, 300);
-  S.gloom = 1; S.hitstop = 0.10;
+  S.gloom = 1; S.hitstop = 0.10; buzz([40,60,90]);
   gotoScene('KU_OVER');
 }
 
@@ -1015,6 +1156,9 @@ function updateKeepyups(dt){
         ku.bonusFlashT = 1;
         ku.rank++; ku.best = Math.max(ku.best, ku.rank); ku.answered++;
         if (ku.rank > S.bestEverRank){ S.bestEverRank = ku.rank; saveGame(); }
+        if (ku.rank >= 5)  unlockAch('pocket_change');
+        if (ku.rank >= 10) unlockAch('tidy_sum');
+        if (ku.rank >= 11) unlockAch('showboat');
         if (ku.rank === 15){
           ku.won = true; ku.celebWord = MONEY_LABELS[14]+'!!';
           spawnConfetti(36); triggerCrowdBurst();
@@ -1024,7 +1168,8 @@ function updateKeepyups(dt){
           spawnConfetti(24); triggerCrowdBurst();
           startBicycle();
         } else if (ku.rank % 3 === 0){
-          ku.celebWord = t('hat_trick'); S.hattrick = {active:true, t:0}; gotoScene('KU_HATTRICK');
+          ku.celebWord = t('hat_trick'); S.hattrick = {active:true, t:0};
+          unlockAch('hattrick'); gotoScene('KU_HATTRICK');
         } else {
           nextKUQuestion();
         }
@@ -1040,6 +1185,13 @@ function updateKeepyups(dt){
 
   if (S.scene === 'KU_SAFETYNET'){
     if (S.sceneT > 1.6){ nextKUQuestion(); gotoScene('KU_PLAY'); }
+    return;
+  }
+
+  if (S.scene === 'KU_OVER'){
+    if (S.runSummary && S.runSummary.anim < 1){
+      S.runSummary.anim = Math.min(1, S.runSummary.anim + dt*0.75);
+    }
     return;
   }
 
@@ -1238,7 +1390,9 @@ function applyResult(){
   S.score += r.pts;
   S.grades.push(r.grade);
   if (r.pts > S.bestShot) S.bestShot = r.pts;
-  if (r.ring === 3) S.bullseyes++;
+  if (r.ring === 3){ S.bullseyes++; unlockAch('sharpshooter'); }
+  if (r.pure) unlockAch('pure_strike');
+  if (r.ring >= 0) buzz(r.ring === 3 ? 45 : 20);
 
   // opponent ghost (doc §4.3 — a stored human replay in the real build)
   const opp = Math.round(rrange(140, 780) * (1 + 0.09*S.opp.streak)
@@ -1269,7 +1423,15 @@ function advance(){
   S.shot++;
   if (S.shot >= 3){
     S.shot = 0; S.round++;
-    if (S.round >= 3){ SFX.whistleLong(); gotoScene('MATCHEND'); return; }
+    if (S.round >= 3){
+      SFX.whistleLong();
+      const p = S.profile;
+      p.matches++;
+      if (S.score > S.oppScore){ p.matchWins++; unlockAch('match_winner'); }
+      p.xp += Math.round(S.score/12) + (S.score > S.oppScore ? 200 : 0);
+      noteTeamPlayed(S.cat); checkMilestoneAch(); saveGame();
+      gotoScene('MATCHEND'); return;
+    }
     gotoScene('ROUNDCARD'); return;
   }
   prepShot();
@@ -1280,6 +1442,9 @@ function advance(){
    ═══════════════════════════════════════════════════════════ */
 function tapAt(px, py){
   initAudio();
+  // a wipe is mid-flight and about to swap scenes — swallow taps until it
+  // lands, so an eager double-tap can't start two runs at once
+  if (S.transition.pending) return;
   if (S.settingsOpen){ handleSettingsTap(px, py); return; }
   if (S.devPinOpen){ handleDevPinTap(px, py); return; }
   if (S.devMenuOpen){ handleDevMenuTap(px, py); return; }
@@ -1314,12 +1479,27 @@ function tapAt(px, py){
       else cycleCharacter(hit[4], hit[5]);
       return;
     }
+    case 'PROFILE':
+      if (PROFILE_BACK && px>=PROFILE_BACK[0] && px<=PROFILE_BACK[0]+PROFILE_BACK[2] &&
+          py>=PROFILE_BACK[1] && py<=PROFILE_BACK[1]+PROFILE_BACK[3]){
+        SFX.lock(0,true); gotoScene('TITLE');
+      }
+      return;
     case 'TITLE':
-      // edit player, mode toggle, then pick category by tapping the grid
+      // edit player, career card, daily, mode toggle, then category grid
       if (editHit(px, py)){ SFX.lock(0, true); resetCreateShow(); gotoScene('CREATE'); return; }
+      if (PROFILE_RECT && px>=PROFILE_RECT[0] && px<=PROFILE_RECT[0]+PROFILE_RECT[2] &&
+          py>=PROFILE_RECT[1] && py<=PROFILE_RECT[1]+PROFILE_RECT[3]){
+        SFX.lock(0,true); S.profileScroll = 0; gotoScene('PROFILE'); return;
+      }
+      if (DAILY_RECT && px>=DAILY_RECT[0] && px<=DAILY_RECT[0]+DAILY_RECT[2] &&
+          py>=DAILY_RECT[1] && py<=DAILY_RECT[1]+DAILY_RECT[3]){
+        SFX.whistleShort(); buzz(20); transitionTo(()=> beginDaily()); return;
+      }
       { const m = modeHit(px, py); if (m){ S.menuMode = m; SFX.lock(0, true); return; } }
       { const pick = catHit(px, py); if (!pick) return;
         SFX.whistleShort();
+        S.isDaily = false;
         if (S.menuMode === 'KEEPYUPS') beginKeepyups(pick); else beginMatch(pick);
       }
       return;
@@ -1363,9 +1543,26 @@ function tapAt(px, py){
       return;
     }
     case 'KU_HATTRICK': case 'KU_BICYCLE': return;   // these play out on their own
-    case 'KU_OVER':
-      if (S.sceneT > 0.5){ SEED = (SEED*1664525+1013904223)>>>0; gotoScene('TITLE'); }
+    case 'KU_OVER': {
+      if (S.sceneT < 0.4) return;
+      // let an impatient tap fast-forward the xp count-up before it acts
+      if (S.runSummary && S.runSummary.anim < 1){ S.runSummary.anim = 1; return; }
+      const hit = KUOVER_RECTS.find(r=>px>=r[0]&&px<=r[0]+r[2]&&py>=r[1]&&py<=r[1]+r[3]);
+      const key = hit ? hit[4] : 'title';
+      if (key === 'share'){ doShare(); return; }
+      if (key === 'again'){
+        SFX.whistleShort();
+        const cat = S.cat;
+        SEED = (SEED*1664525+1013904223)>>>0;
+        // the daily is one attempt a day — a replay is an ordinary run
+        S.isDaily = false;
+        transitionTo(()=> beginKeepyups(cat));
+        return;
+      }
+      SEED = (SEED*1664525+1013904223)>>>0;
+      transitionTo(()=> gotoScene('TITLE'));
       return;
+    }
   }
 }
 /* Shared-question flow, QuizUp-style:
@@ -1518,6 +1715,152 @@ function updateCreateShow(dt){
 /* ── save/load — character, settings, best-ever streak. Best-effort:
    some contexts (private browsing, sandboxed file://) block storage
    entirely, so every call is guarded and failure is silent.       ── */
+/* ═══════════════════════════════════════════════════════════
+   CAREER — the reason to come back tomorrow.
+
+   Everything above this line is a single session. This is what
+   survives it: experience, a level with a title attached to it,
+   lifetime counters, badges, and a daily streak that punishes
+   you for skipping a day. Cheap to compute, all of it derived
+   from a handful of integers so the save stays tiny.
+   ═══════════════════════════════════════════════════════════ */
+const RANK_TITLES = [
+  [1,  'SUNDAY LEAGUE'], [4,  'ACADEMY'],    [8,  'SEMI-PRO'],
+  [12, 'PROFESSIONAL'],  [17, 'INTERNATIONAL'], [23, 'WORLD CLASS'],
+  [30, 'LEGEND'],        [40, 'ICON']
+];
+function xpForLevel(n){ return 180 + (n-1)*130; }         // xp needed to clear level n
+function levelFromXp(xp){
+  let lvl = 1, rem = xp;
+  while (lvl < 99 && rem >= xpForLevel(lvl)){ rem -= xpForLevel(lvl); lvl++; }
+  return { level: lvl, into: rem, need: xpForLevel(lvl) };
+}
+function rankTitle(level){
+  let title = RANK_TITLES[0][1];
+  for (const [min, name] of RANK_TITLES) if (level >= min) title = name;
+  return title;
+}
+
+function freshProfile(){
+  return {
+    xp:0, runs:0, matches:0, matchWins:0,
+    answered:0, correct:0, bestRank:0, ladderCompletes:0,
+    teamsPlayed:[], langsUsed:[],
+    dailyStreak:0, dailyBest:0, lastDaily:'', dailyBestRank:0,
+    achievements:{}
+  };
+}
+
+/* ── achievements ─────────────────────────────────────────────
+   Ordered roughly by when you'd expect to see them, so the
+   profile grid reads as a journey rather than a checklist.   ── */
+const ACHIEVEMENTS = [
+  { id:'first_touch',  name:'FIRST TOUCH',    desc:'Finish your first run',                icon:'ball' },
+  { id:'on_the_board', name:'ON THE BOARD',   desc:'Answer your first question right',     icon:'ball' },
+  { id:'pocket_change',name:'POCKET CHANGE',  desc:'Bank £1,000',                          icon:'coin' },
+  { id:'quickdraw',    name:'QUICK DRAW',     desc:'Answer right in under 2 seconds',      icon:'bolt' },
+  { id:'hattrick',     name:'HAT-TRICK',      desc:'Land a hat-trick',                     icon:'ball' },
+  { id:'clutch',       name:'CLUTCH',         desc:'Answer right with under 2s left',      icon:'bolt' },
+  { id:'regular',      name:'REGULAR',        desc:'Play 10 runs',                         icon:'boot' },
+  { id:'tidy_sum',     name:'TIDY SUM',       desc:'Bank £32,000',                         icon:'coin' },
+  { id:'showboat',     name:'SHOWBOAT',       desc:'Reach rank 11 — knee-juggle tier',     icon:'boot' },
+  { id:'both_nets',    name:'BOTH NETS',      desc:'Spend both safety nets in one run',    icon:'shield' },
+  { id:'marathon',     name:'MARATHON',       desc:'Answer 50 questions',                  icon:'boot' },
+  { id:'sharpshooter', name:'SHARPSHOOTER',   desc:'Hit a bullseye',                       icon:'target' },
+  { id:'pure_strike',  name:'PURE STRIKE',    desc:'Land a PERFECT SHOT',                  icon:'target' },
+  { id:'match_winner', name:'MATCH WINNER',   desc:'Win a shootout',                       icon:'trophy' },
+  { id:'night_shift',  name:'NIGHT SHIFT',    desc:'Play between midnight and 5am',        icon:'moon' },
+  { id:'globetrotter', name:'GLOBETROTTER',   desc:'Play all six teams',                   icon:'globe' },
+  { id:'polyglot',     name:'POLYGLOT',       desc:'Play in three languages',              icon:'globe' },
+  { id:'dedicated',    name:'DEDICATED',      desc:'Reach a 3-day daily streak',           icon:'flame' },
+  { id:'centurion',    name:'CENTURION',      desc:'Answer 100 questions',                 icon:'boot' },
+  { id:'millionaire',  name:'MILLIONAIRE',    desc:'Complete the ladder',                  icon:'diamond' },
+  { id:'unstoppable',  name:'UNSTOPPABLE',    desc:'Reach a 7-day daily streak',           icon:'flame' },
+  { id:'scholar',      name:'SCHOLAR',        desc:'Get 250 answers right',                icon:'boot' },
+  { id:'veteran',      name:'VETERAN',        desc:'Play 50 runs',                         icon:'trophy' },
+  { id:'no_net',       name:'NERVES OF STEEL',desc:'Complete the ladder with no net spent',icon:'diamond' },
+];
+const ACH_BY_ID = {};
+ACHIEVEMENTS.forEach(a => ACH_BY_ID[a.id] = a);
+
+function unlockAch(id){
+  const p = S.profile;
+  if (!p || p.achievements[id]) return false;
+  if (!ACH_BY_ID[id]) return false;
+  p.achievements[id] = Date.now();
+  S.achQueue.push({ id, t:0 });
+  SFX.rankUp(); buzz(28);
+  saveGame();
+  return true;
+}
+/* Counter-driven badges live in one place so no call site has to
+   remember the thresholds — just bump the counters and call this. */
+function checkMilestoneAch(){
+  const p = S.profile;
+  if (p.runs >= 1)   unlockAch('first_touch');
+  if (p.runs >= 10)  unlockAch('regular');
+  if (p.runs >= 50)  unlockAch('veteran');
+  if (p.answered >= 50)  unlockAch('marathon');
+  if (p.answered >= 100) unlockAch('centurion');
+  if (p.correct >= 250)  unlockAch('scholar');
+  if (p.teamsPlayed.length >= CATS.length) unlockAch('globetrotter');
+  if (p.langsUsed.length >= 3) unlockAch('polyglot');
+  if (p.dailyStreak >= 3) unlockAch('dedicated');
+  if (p.dailyStreak >= 7) unlockAch('unstoppable');
+  if (p.ladderCompletes >= 1) unlockAch('millionaire');
+  const h = new Date().getHours();
+  if (h >= 0 && h < 5) unlockAch('night_shift');
+}
+function noteTeamPlayed(cat){
+  const p = S.profile;
+  if (p.teamsPlayed.indexOf(cat) < 0) p.teamsPlayed.push(cat);
+  if (p.langsUsed.indexOf(S.language) < 0) p.langsUsed.push(S.language);
+}
+
+/* ── daily challenge ──────────────────────────────────────────
+   The seed is the date itself, so every player in the world gets
+   the identical run and can compare without a server.         ── */
+function todayKey(d){
+  const x = d || new Date();
+  return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0');
+}
+function yesterdayKey(){
+  const x = new Date(); x.setDate(x.getDate()-1);
+  return todayKey(x);
+}
+function dailySeed(){
+  const k = todayKey();
+  let h = 2166136261;
+  for (let i=0;i<k.length;i++){ h ^= k.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h>>>0;
+}
+function dailyDone(){ return S.profile.lastDaily === todayKey(); }
+/* The team for the day is also derived from the date, so the daily
+   is a genuinely fixed challenge rather than a player choice. */
+function dailyCat(){ return CATS[dailySeed() % CATS.length]; }
+function recordDailyResult(rank){
+  const p = S.profile, today = todayKey();
+  if (p.lastDaily === today) return;
+  p.dailyStreak = (p.lastDaily === yesterdayKey()) ? p.dailyStreak + 1 : 1;
+  p.dailyBest = Math.max(p.dailyBest, p.dailyStreak);
+  p.lastDaily = today;
+  p.dailyBestRank = rank;
+}
+/* A streak the player has already broken should read as broken on
+   the title screen, not linger at its old value until they play. */
+function effectiveDailyStreak(){
+  const p = S.profile;
+  if (!p.lastDaily) return 0;
+  if (p.lastDaily === todayKey() || p.lastDaily === yesterdayKey()) return p.dailyStreak;
+  return 0;
+}
+
+/* ── haptics — a tiny but disproportionate chunk of "feel" ──── */
+function buzz(ms){
+  if (S.reduceMotion || S.audioMuted) return;
+  try { if (navigator.vibrate) navigator.vibrate(ms); } catch(e){}
+}
+
 const SAVE_KEY = 'kickup_save_v1';
 function saveGame(){
   try{
@@ -1530,16 +1873,30 @@ function saveGame(){
       bestEverRank: S.bestEverRank,
       language: S.language,
       playerName: S.playerName,
-      playerNumber: S.playerNumber
+      playerNumber: S.playerNumber,
+      profile: S.profile
     }));
     return true;
   } catch(e){ return false; }
 }
 function loadGame(){
+  S.profile = freshProfile();
   try{
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return;
     const d = JSON.parse(raw);
+    // merge rather than replace, so a save written by an older build
+    // still gains any fields added since without wiping what it had
+    if (d.profile && typeof d.profile === 'object'){
+      const p = S.profile;
+      for (const k in p){
+        const v = d.profile[k];
+        if (v === undefined || v === null) continue;
+        if (Array.isArray(p[k])){ if (Array.isArray(v)) p[k] = v.slice(); }
+        else if (typeof p[k] === 'object'){ if (typeof v === 'object') Object.assign(p[k], v); }
+        else if (typeof v === typeof p[k]) p[k] = v;
+      }
+    }
     if (d.character) Object.assign(S.character, d.character);
     if (typeof d.audioVolume === 'number') S.audioVolume = d.audioVolume;
     if (typeof d.audioMuted === 'boolean') S.audioMuted = d.audioMuted;
@@ -1562,6 +1919,22 @@ function toBuf(e){
   return [ cx * (FRAME_W/rect.width), cy * (FRAME_H/rect.height) - PAD_TOP ];
 }
 cv.addEventListener('pointerdown', e=>{ e.preventDefault(); const [x,y]=toBuf(e); tapAt(x,y); }, {passive:false});
+/* Drag-to-scroll for the badge grid. Only the career screen scrolls,
+   so a drag anywhere else stays a plain tap and nothing else changes. */
+let dragY = null, dragMoved = 0;
+cv.addEventListener('pointerdown', e=>{ if (S.scene==='PROFILE'){ dragY = toBuf(e)[1]; dragMoved = 0; } });
+cv.addEventListener('pointermove', e=>{
+  if (S.scene!=='PROFILE' || dragY===null) return;
+  e.preventDefault();
+  const y = toBuf(e)[1];
+  S.profileScroll -= (y - dragY); dragMoved += Math.abs(y-dragY); dragY = y;
+}, {passive:false});
+['pointerup','pointercancel','pointerleave'].forEach(ev =>
+  cv.addEventListener(ev, ()=>{ dragY = null; }));
+cv.addEventListener('wheel', e=>{
+  if (S.scene!=='PROFILE') return;
+  e.preventDefault(); S.profileScroll += e.deltaY*0.5;
+}, {passive:false});
 document.getElementById('menuBtn').addEventListener('click', e=>{
   e.preventDefault(); e.stopPropagation();
   initAudio();
@@ -1603,6 +1976,16 @@ function update(dt){
   if (S.settingsOpen){ S.saveFlashT = Math.max(0, S.saveFlashT - dt*0.8); return; }
   if (S.devPinOpen || S.devMenuOpen){ S.devPinShakeT = Math.max(0, S.devPinShakeT - dt*2.5); return; }
   S.t += dt; S.sceneT += dt;
+  updateAchToasts(dt);
+  S.shareFlashT = Math.max(0, S.shareFlashT - dt*0.7);
+  if (S.transition.dur > 0){
+    S.transition.t += dt;
+    const half = S.transition.dur/2;
+    if (S.transition.pending && S.transition.t >= half){
+      const nxt = S.transition.pending; S.transition.pending = null; nxt();
+    }
+    if (S.transition.t >= S.transition.dur){ S.transition.dur = 0; S.transition.t = 0; }
+  }
   S.shake = Math.max(0, S.shake - dt*14);
   S.flash = Math.max(0, S.flash - dt*2.4);
   S.aberr = Math.max(0, S.aberr - dt*1.4);
@@ -1742,6 +2125,17 @@ function txt(s,x,y,c,size,align,weight){
 }
 // like txt(), but shrinks the font until it fits maxWidth — some translations
 // run longer than English and this file has several fixed single-line labels
+// hard-truncate with an ellipsis — for grid cells where shrinking the
+// font isn't enough and the text must simply not leave its box
+function txtClip(s,x,y,c,size,maxWidth,align,weight){
+  b.font=(weight||'bold')+' '+size+'px ui-monospace, Menlo, Consolas, monospace';
+  let out = s;
+  if (b.measureText(out).width > maxWidth){
+    while (out.length > 1 && b.measureText(out+'…').width > maxWidth) out = out.slice(0,-1);
+    out += '…';
+  }
+  txt(out,x,y,c,size,align,weight);
+}
 function txtFit(s,x,y,c,maxSize,maxWidth,align,weight){
   let size = maxSize;
   b.font=(weight||'bold')+' '+size+'px ui-monospace, Menlo, Consolas, monospace';
@@ -1769,6 +2163,7 @@ function draw(){
 
   if (S.scene === 'LANGUAGE'){ drawLanguage(); finishDraw(); return; }
   if (S.scene === 'NAME'){ drawNameEntry(); finishDraw(); return; }
+  if (S.scene === 'PROFILE'){ drawProfile(); finishDraw(); return; }
   if (S.scene === 'CREATE'){ drawCreate(); finishDraw(); return; }
   if (S.scene === 'TITLE'){ drawTitle(); finishDraw(); return; }
   if (S.scene === 'MATCHEND'){ drawMatchEnd(); finishDraw(); return; }
@@ -2492,23 +2887,124 @@ function drawKUReady(){
   txt(t('tap_to_start'), W/2, y+114, Math.sin(S.t*5)>0?C.WHITE:C.GREYDK, 10, 'center');
 }
 
+/* A Wordle-style spoiler-free result — ladder rungs as blocks, so it
+   pastes into any chat and still reads as a scoreboard. */
+function buildShareText(){
+  const ku = S.ku;
+  const cell = r => r===15 ? (r<=ku.best?'💎':'⬛')
+              : (r===5||r===10) ? (r<=ku.best?'🟨':'⬛')
+              : (r<=ku.best?'⚪':'⬛');
+  // rows ascend left→right, and the rows themselves stack highest-first,
+  // so the block reads the same way the ladder does on screen
+  const rows = [];
+  for (let base=1; base<=15; base+=5){
+    let row = '';
+    for (let r=base; r<base+5; r++) row += cell(r);
+    rows.unshift(row);
+  }
+  const grid = rows.join('\n');
+  const head = 'KICKUP' + (S.isDaily ? ' DAILY ' + todayKey() : '') +
+               '  ' + MONEY_LABELS[Math.max(0,ku.best-1)] + (ku.best?'':'—') +
+               '  ' + ku.best + '/15';
+  return head + '\n' + grid.trim();
+}
+function doShare(){
+  const text = buildShareText();
+  const done = ()=>{ S.shareFlashT = 1.4; SFX.correct(); buzz(20); };
+  try {
+    if (navigator.share){ navigator.share({ text }).then(done).catch(()=>{}); return; }
+    if (navigator.clipboard){ navigator.clipboard.writeText(text).then(done).catch(()=>{}); return; }
+  } catch(e){}
+  try {                                    // last resort for file:// and old browsers
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+    document.body.removeChild(ta); done();
+  } catch(e){}
+}
+
+let KUOVER_RECTS = [];
 function drawKUOver(){
   const a = Math.min(1, S.sceneT*4);
-  b.save(); b.globalAlpha = 0.55*a; rect(0,54,W,H-54,C.INK); b.restore();
-  const ku = S.ku;
-  const y = 130;
-  panel(20, y, W-40, 170);
+  b.save(); b.globalAlpha = 0.62*a; rect(0,0,W,H,C.INK); b.restore();
+  const ku = S.ku, sum = S.runSummary;
+  const y = 66;
+  panel(14, y, W-28, 330);
+
   if (ku.won){
-    txt(t('ladder_complete'), W/2, y+14, C.GOLD, 18, 'center');
-    txt(MONEY_LABELS[14]+'!', W/2, y+38, C.GOLD2, 16, 'center');
+    txt(t('ladder_complete'), W/2, y+12, C.GOLD, 16, 'center');
+    txt(MONEY_LABELS[14]+'!', W/2, y+32, C.GOLD2, 14, 'center');
   } else {
-    txt(t('run_over'), W/2, y+14, C.RED, 20, 'center');
-    txt(S.cat, W/2, y+40, C.GREYDK, 9, 'center');
+    txt(t('run_over'), W/2, y+12, C.RED, 18, 'center');
+    txt(S.cat + (S.isDaily ? '  ·  DAILY' : ''), W/2, y+34, C.GREYDK, 8, 'center');
   }
-  txt(t('rank_reached'), W/2, y+66, C.GREYDK, 8, 'center');
-  txt(String(ku.best)+'/15', W/2, y+78, C.GOLD, 26, 'center');
-  txt(t('answered_prefix')+' '+ku.answered, W/2, y+118, C.GREY, 9, 'center');
-  txt(t('tap_for_title'), W/2, y+150, Math.sin(S.t*5)>0?C.WHITE:C.GREYDK, 10, 'center');
+
+  // banked amount, the headline number
+  txt(ku.best>0 ? MONEY_LABELS[ku.best-1] : '£0', W/2, y+50, C.GOLD, 30, 'center');
+  txt(t('rank_reached')+' '+ku.best+'/15  ·  '+t('answered_prefix')+' '+ku.answered,
+      W/2, y+84, C.GREYDK, 7, 'center');
+
+  if (!sum){ txt(t('tap_for_title'), W/2, y+300, C.WHITE, 10, 'center'); return; }
+
+  // ── xp, counting up ──
+  const anim = Math.min(1, sum.anim);
+  const shown = Math.round(sum.total * anim);
+  txt('+'+shown+' XP', W/2, y+102, C.GOLD2, 15, 'center');
+
+  const rows = [
+    [t('rank_reached'), sum.xpRank],
+    ['CORRECT ×'+ku.answered, sum.xpCorrect],
+  ];
+  if (sum.xpWin)   rows.push([t('ladder_complete'), sum.xpWin]);
+  if (sum.xpDaily) rows.push(['DAILY BONUS', sum.xpDaily]);
+  rows.forEach(([label,val],i)=>{
+    const ry = y+124+i*11;
+    const vis = Math.max(0, Math.min(1, (anim - i*0.12)/0.3));
+    if (vis <= 0) return;
+    b.save(); b.globalAlpha = vis;
+    txtFit(label, 34, ry, C.GREYDK, 7, 130);
+    txt('+'+val, W-34, ry, C.GOLD, 7, 'right');
+    b.restore();
+  });
+
+  // ── level bar ──
+  const barY = y+186;
+  const xpNow = sum.xpAtStart + sum.total*anim;
+  const lv = levelFromXp(Math.round(xpNow));
+  txt('LEVEL '+lv.level, 34, barY-11, C.WHITE, 9);
+  txtFit(rankTitle(lv.level), W-34, barY-11, C.GOLD2, 8, 120, 'right');
+  rect(32, barY, W-64, 8, C.PANELED); rect(33, barY+1, W-66, 6, '#0a1220');
+  const frac = Math.max(0, Math.min(1, lv.into/lv.need));
+  rect(33, barY+1, (W-66)*frac, 6, C.GOLD);
+  txt(lv.into+' / '+lv.need, W/2, barY+12, C.GREYDK, 6, 'center');
+
+  // stacked under the bar so neither line can land on the xp rows above
+  let noteY = barY+22;
+  if (sum.levelAfter > sum.levelBefore && anim > 0.85){
+    const pulse = 0.5+0.5*Math.sin(S.t*8);
+    b.save(); b.globalAlpha = 0.6+pulse*0.4;
+    txt('LEVEL UP!', W/2, noteY, C.GOLD2, 12, 'center');
+    b.restore();
+    noteY += 14;
+  }
+  if (sum.newAchs > 0 && anim > 0.6){
+    txt('+'+sum.newAchs+' ACHIEVEMENT'+(sum.newAchs>1?'S':''), W/2, noteY, C.GOLD2, 8, 'center');
+  }
+
+  // ── buttons ──
+  KUOVER_RECTS = [];
+  const bw = (W-28-20-8)/2, by = y+254;
+  KUOVER_RECTS.push([24, by, bw, 24, 'again']);
+  rect(24,by,bw,24, C.GOLDDK); rect(25,by+1,bw-2,22,'#241a06');
+  txt('PLAY AGAIN', 24+bw/2, by+7, C.GOLD2, 9, 'center');
+
+  KUOVER_RECTS.push([24+bw+8, by, bw, 24, 'share']);
+  rect(24+bw+8,by,bw,24, C.PANELED); rect(24+bw+9,by+1,bw-2,22,C.PANEL);
+  txt(S.shareFlashT>0?'COPIED ✓':'SHARE', 24+bw+8+bw/2, by+7, S.shareFlashT>0?C.GOLD2:C.WHITE, 9, 'center');
+
+  KUOVER_RECTS.push([24, by+30, W-48, 22, 'title']);
+  rect(24,by+30,W-48,22, C.PANELED); rect(25,by+31,W-50,20,C.PANEL);
+  txt(t('tap_for_title'), W/2, by+36, C.GREY, 9, 'center');
 }
 
 const LADDER_X = 4, LADDER_Y = 64, LADDER_W = 78, LADDER_ROW_H = 33, LADDER_GROUP = 5;
@@ -3325,13 +3821,16 @@ function drawNameEntry(){
   txt(String(S.playerNumber), W/2, numY+5, C.GOLD, 14, 'center');
 
   // continue
-  const by = 340;
-  NAME_RECTS.push(['go', 0, 40, by, W-80, 22]);
-  rect(40,by,W-80,22, Math.sin(S.t*5)>0?C.GOLD:C.GOLDDK);
-  rect(41,by+1,W-82,20,'#241a06');
-  txt(t('name_continue'), W/2, by+6, C.GOLD2, 10, 'center');
+  // keyboard first, then CONTINUE below it with clear air between —
+  // they used to overlap by 2px, so tapping the top edge of the A-I row
+  // submitted the name instead of typing the letter
+  KEYBOARD_RECTS = drawNameKeyboard(70, 332);
 
-  KEYBOARD_RECTS = drawNameKeyboard(70, 360);
+  const by = 390;
+  NAME_RECTS.push(['go', 0, 40, by, W-80, 24]);
+  rect(40,by,W-80,24, Math.sin(S.t*5)>0?C.GOLD:C.GOLDDK);
+  rect(41,by+1,W-82,22,'#241a06');
+  txt(t('name_continue'), W/2, by+7, C.GOLD2, 10, 'center');
 }
 let NAME_RECTS = [], KEYBOARD_RECTS = [];
 const NAME_KEYS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ⌫';
@@ -3407,55 +3906,192 @@ function drawCreate(){
   if (S.confetti.length) drawConfetti();
 }
 
+/* The player card — who you are and how far you've come, at the top
+   of the first screen you see. The single biggest reason the title
+   screen now feels like an account rather than a menu. */
+let PROFILE_RECT = null, DAILY_RECT = null;
+function drawPlayerCard(x, y, w){
+  const p = S.profile, lv = levelFromXp(p.xp);
+  const h = 46;
+  rect(x, y, w, h, C.PANELED); rect(x+1, y+1, w-2, h-2, '#0d1424');
+
+  // shirt-number chip, in the player's own kit colour
+  const kit = playerKit();
+  rect(x+6, y+8, 26, 30, C.INK); rect(x+7, y+9, 24, 28, kit.shirt);
+  b.fillStyle = '#0d1424';
+  b.font = 'bold 15px ui-monospace, Menlo, Consolas, monospace';
+  b.textAlign='center'; b.textBaseline='middle';
+  b.fillText(String(S.playerNumber), x+19, y+24);
+
+  txtFit(S.playerName || 'PLAYER', x+38, y+7, C.WHITE, 11, w-100);
+  txtFit(rankTitle(lv.level), x+38, y+20, C.GOLD2, 7, w-100);
+
+  // level + xp bar
+  txt('LV '+lv.level, x+w-8, y+7, C.GOLD, 10, 'right');
+  const bx0 = x+38, bw = w-46;
+  rect(bx0, y+30, bw, 6, C.PANELED); rect(bx0+1, y+31, bw-2, 4, '#0a1220');
+  rect(bx0+1, y+31, (bw-2)*Math.max(0,Math.min(1,lv.into/lv.need)), 4, C.GOLD);
+  txt(lv.into+'/'+lv.need, x+w-8, y+38, C.GREYDK, 6, 'right');
+
+  const streak = effectiveDailyStreak();
+  if (streak > 0){
+    drawAchIcon('flame', x+w-16, y+22, 5, C.ORANGE);
+    txt(String(streak), x+w-26, y+18, C.ORANGE, 9, 'right');
+  }
+  PROFILE_RECT = [x, y, w, h];
+}
+
 function drawTitle(){
   if (!backdrop) makeBackdrop();
   b.drawImage(backdrop, 0, 0);
 
-  // edit player — top right, out of the way
-  EDIT_RECT = [W-70, 4, 62, 14];
+  txt('KICKUP', W/2, 8, C.GOLD, 22, 'center');
+  txtFit(t('tagline'), W/2, 32, C.GREY, 7, W-40, 'center');
+
+  drawPlayerCard(14, 46, W-28);
+
+  // edit player — under the card, small
+  EDIT_RECT = [W-14-62, 96, 62, 13];
   rect(EDIT_RECT[0], EDIT_RECT[1], EDIT_RECT[2], EDIT_RECT[3], C.PANELED);
   rect(EDIT_RECT[0]+1, EDIT_RECT[1]+1, EDIT_RECT[2]-2, EDIT_RECT[3]-2, C.PANEL);
-  txt(t('edit_player'), W-39, 8, C.GREYDK, 6, 'center');
+  txt(t('edit_player'), W-14-31, 99, C.GREYDK, 6, 'center');
+  txt('TAP CARD FOR CAREER', 14, 99, C.GREYDK, 6);
 
-  // crest
-  const cy = 60;
-  rect(W/2-46, cy, 92, 56, C.INK); rect(W/2-45, cy+1, 90, 54, '#0d1424');
-  circ(W/2, cy+28, 20, C.BLUEDK); circ(W/2, cy+28, 14, C.RED); circ(W/2, cy+28, 8, '#f0efe4'); circ(W/2, cy+28, 3.5, C.GOLD);
-  txt('KICKUP', W/2, cy+70, C.GOLD, 26, 'center');
-  txt(t('tagline'), W/2, cy+100, C.GREY, 8, 'center');
+  // ── daily challenge — the reason to open the app tomorrow ──
+  const dy = 118, done = dailyDone(), streak = effectiveDailyStreak();
+  DAILY_RECT = done ? null : [14, dy, W-28, 40];
+  const glow = 0.5+0.5*Math.sin(S.t*3);
+  if (!done){ b.save(); b.globalAlpha = 0.35+glow*0.4; rect(13, dy-1, W-26, 42, C.GOLD2); b.restore(); }
+  rect(14, dy, W-28, 40, done?C.PANELED:C.GOLD);
+  rect(15, dy+1, W-30, 38, done?C.PANEL:'#2b2005');
+  drawAchIcon(done?'trophy':'flame', 32, dy+20, 9, done?C.GREYDK:C.GOLD2);
+  txt('DAILY CHALLENGE', 48, dy+7, done?C.GREYDK:C.GOLD2, 10);
+  if (done){
+    txtFit('DONE TODAY  ·  BACK TOMORROW', 48, dy+21, C.GREYDK, 7, W-90);
+    txt(String(streak), W-24, dy+13, C.ORANGE, 12, 'right');
+  } else {
+    txtFit(dailyCat()+'  ·  ONE RUN, SAME FOR EVERYONE', 48, dy+21, C.GREY, 7, W-90);
+    txt('PLAY ▸', W-24, dy+15, C.GOLD2, 9, 'right');
+  }
+  if (streak > 0) txt('STREAK '+streak, 48, dy+30, C.ORANGE, 6);
 
-  // how
-  const hy = 190;
-  txtFit('1  '+t('how_aim'), 26, hy, C.WHITE, 9, 62);        txtFit(t('how_aim_desc'), 92, hy, C.GREYDK, 8, W-100);
-  txtFit('2  '+t('how_power'), 26, hy+14, C.WHITE, 9, 62);   txtFit(t('how_power_desc'), 92, hy+14, C.GREYDK, 8, W-100);
-  txtFit('3  '+t('how_accuracy'), 26, hy+28, C.WHITE, 9, 62);txtFit(t('how_accuracy_desc'), 92, hy+28, C.GREYDK, 8, W-100);
-  txtFit(t('how_perfect'), 30, hy+44, C.GOLD2, 8, W-56);
-  txtFit(t('how_wind'), 30, hy+55, C.ORANGE, 8, W-56);
-
-  // mode toggle — shootout vs. solo trivia survival
+  // ── free play ──
+  txt('FREE PLAY', 14, 170, C.GREYDK, 7);
   MODE_RECTS = [];
-  const modes = [[t('mode_shootout'),'SHOOTOUT'], [t('mode_keepyups'),'KEEPYUPS']];
+  const modes = [[t('mode_keepyups'),'KEEPYUPS'], [t('mode_shootout'),'SHOOTOUT']];
   modes.forEach(([label,key],i)=>{
-    const w = 106, h = 16, x = W/2 - 114 + i*114, y = 258;
+    const w = (W-28-8)/2, h = 18, x = 14 + i*(w+8), y = 182;
     MODE_RECTS.push([x,y,w,h,key]);
     const on = S.menuMode === key;
     rect(x,y,w,h, on?C.GOLD:C.PANELED); rect(x+1,y+1,w-2,h-2, on?'#3a2c06':C.PANEL);
-    txtFit(label, x+w/2, y+4, on?C.GOLD2:C.GREYDK, 8, w-10, 'center');
+    txtFit(label, x+w/2, y+5, on?C.GOLD2:C.GREYDK, 8, w-10, 'center');
   });
 
-  // category grid
-  txt(S.menuMode==='KEEPYUPS' ? t('choose_team') : t('choose_category'), W/2, 285, C.GREYDK, 8, 'center');
+  txt(S.menuMode==='KEEPYUPS' ? t('choose_team') : t('choose_category'), W/2, 208, C.GREYDK, 7, 'center');
   CAT_RECTS = [];
   CATS.forEach((c,i)=>{
     const col = i%2, row = Math.floor(i/2);
-    const x = 26 + col*120, y = 300 + row*26, w = 112, h = 21;
+    const w = (W-28-8)/2, x = 14 + col*(w+8), y = 222 + row*24, h = 20;
     CAT_RECTS.push([x,y,w,h,c]);
     const hot = Math.floor(S.t*2)%CATS.length === i;
     rect(x,y,w,h, hot?C.GOLDDK:C.PANELED); rect(x+1,y+1,w-2,h-2, C.PANEL);
-    txt(c, x+w/2, y+6, hot?C.GOLD2:C.GREY, 9, 'center');
+    txtFit(c, x+w/2, y+6, hot?C.GOLD2:C.GREY, 9, w-8, 'center');
   });
-  txt('seed '+SEED.toString(16).slice(0,8)+'  ·  same seed, same match', W/2, 404, C.GREYDK, 7, 'center');
+
+  // ── career strip ──
+  const p = S.profile, sy = 306;
+  rect(14, sy, W-28, 40, C.PANELED); rect(15, sy+1, W-30, 38, C.PANEL);
+  const stats = [
+    ['BEST', p.bestRank+'/15'],
+    ['RUNS', String(p.runs)],
+    ['CORRECT', String(p.correct)],
+    ['BADGES', Object.keys(p.achievements).length+'/'+ACHIEVEMENTS.length]
+  ];
+  stats.forEach(([label,val],i)=>{
+    const cw = (W-30)/4, cx = 15 + i*cw + cw/2;
+    txt(val, cx, sy+8, C.WHITE, 11, 'center');
+    txtFit(label, cx, sy+24, C.GREYDK, 6, cw-4, 'center');
+  });
+
+  txt('seed '+SEED.toString(16).slice(0,8), W/2, 356, C.GREYDK, 6, 'center');
+
+  // how-to, compact, at the very bottom
+  const hy = 372;
+  txtFit(t('how_perfect'), W/2, hy, C.GOLD2, 7, W-28, 'center');
+  txtFit(t('how_wind'), W/2, hy+11, C.ORANGE, 7, W-28, 'center');
 }
+
+/* ── career screen: lifetime stats and every badge, earned or not ── */
+function drawProfile(){
+  if (!backdrop) makeBackdrop();
+  b.drawImage(backdrop, 0, 0);
+  b.save(); b.globalAlpha = 0.72; rect(0,0,W,H,C.INK); b.restore();
+
+  const p = S.profile, lv = levelFromXp(p.xp);
+  txt('CAREER', W/2, 8, C.GOLD, 16, 'center');
+  txtFit((S.playerName||'PLAYER')+'  ·  '+rankTitle(lv.level), W/2, 28, C.GOLD2, 8, W-28, 'center');
+
+  // level bar
+  rect(20, 44, W-40, 7, C.PANELED); rect(21, 45, W-42, 5, '#0a1220');
+  rect(21, 45, (W-42)*Math.max(0,Math.min(1,lv.into/lv.need)), 5, C.GOLD);
+  txt('LEVEL '+lv.level, 20, 54, C.WHITE, 8);
+  txt(p.xp+' XP TOTAL', W-20, 54, C.GREYDK, 7, 'right');
+
+  const acc = p.answered ? Math.round(p.correct/p.answered*100) : 0;
+  const rows = [
+    ['BEST RANK', p.bestRank+'/15'], ['LADDERS WON', String(p.ladderCompletes)],
+    ['RUNS PLAYED', String(p.runs)], ['ACCURACY', acc+'%'],
+    ['ANSWERED', String(p.answered)], ['CORRECT', String(p.correct)],
+    ['SHOOTOUTS', String(p.matches)], ['SHOOTOUT WINS', String(p.matchWins)],
+    ['DAILY STREAK', String(effectiveDailyStreak())], ['BEST STREAK', String(p.dailyBest)]
+  ];
+  rows.forEach(([label,val],i)=>{
+    const col = i%2, row = Math.floor(i/2);
+    const cw = (W-40)/2, x = 20 + col*cw, y = 68 + row*15;
+    txtFit(label, x, y, C.GREYDK, 6, cw-40);
+    txt(val, x+cw-6, y, C.WHITE, 8, 'right');
+  });
+
+  const got = Object.keys(p.achievements).length;
+  txt('ACHIEVEMENTS  '+got+'/'+ACHIEVEMENTS.length, W/2, 152, C.GOLD2, 9, 'center');
+
+  // badge grid — 3 across so the one-line description actually fits
+  const gTop = 168, gBot = 392, cols = 3, cell = (W-28)/cols;
+  const rowsN = Math.ceil(ACHIEVEMENTS.length/cols), contentH = rowsN*54;
+  const maxScroll = Math.max(0, contentH - (gBot-gTop));
+  S.profileScroll = Math.max(0, Math.min(maxScroll, S.profileScroll));
+
+  b.save(); b.beginPath(); b.rect(0, gTop, W, gBot-gTop); b.clip();
+  ACHIEVEMENTS.forEach((a,i)=>{
+    const col = i%cols, row = Math.floor(i/cols);
+    const cx = 14 + col*cell + cell/2, cy = gTop + 22 + row*54 - S.profileScroll;
+    if (cy < gTop-40 || cy > gBot+40) return;
+    const on = !!p.achievements[a.id];
+    b.save(); b.globalAlpha = on ? 1 : 0.32;
+    circ(cx, cy, 15, on ? '#241a06' : C.PANEL);
+    ring(cx, cy, 15, on ? C.GOLD : C.PANELED, 1);
+    drawAchIcon(a.icon, cx, cy, 8, on ? C.GOLD : C.GREYDK);
+    b.restore();
+    b.save(); b.globalAlpha = on ? 1 : 0.45;
+    txtClip(on ? a.name : '???', cx, cy+19, on?C.WHITE:C.GREYDK, 6, cell-6, 'center');
+    txtClip(a.desc, cx, cy+27, C.GREYDK, 5, cell-4, 'center');
+    b.restore();
+  });
+  b.restore();
+
+  if (maxScroll > 0){
+    const trackH = gBot-gTop, kh = Math.max(18, trackH*(trackH/contentH));
+    const ky = gTop + (trackH-kh)*(S.profileScroll/maxScroll);
+    rect(W-4, gTop, 2, trackH, C.PANEL);
+    rect(W-4, ky, 2, kh, C.GOLDDK);
+  }
+
+  PROFILE_BACK = [W/2-46, 396, 92, 20];
+  rect(PROFILE_BACK[0], PROFILE_BACK[1], 92, 20, C.GOLDDK);
+  rect(PROFILE_BACK[0]+1, PROFILE_BACK[1]+1, 90, 18, '#241a06');
+  txt('BACK', W/2, 402, C.GOLD2, 9, 'center');
+}
+let PROFILE_BACK = null;
 function drawMatchEnd(){
   if (!backdrop) makeBackdrop();
   b.drawImage(backdrop, 0, 0);
@@ -3736,7 +4372,100 @@ function drawDevMenu(){
   txt('CLOSE', W/2, ry+6, C.WHITE, 9, 'center');
 }
 
+/* ── achievement badge art — small pictograms, no font glyphs, so
+   they read the same on every device ─────────────────────────── */
+function drawAchIcon(kind, cx, cy, r, col){
+  switch (kind){
+    case 'coin':
+      circ(cx, cy, r, col); circ(cx, cy, r*0.66, '#241a06');
+      txt('£', cx, cy-r*0.55, col, Math.max(6,Math.round(r*1.1)), 'center'); break;
+    case 'diamond':
+      b.fillStyle = col; b.beginPath();
+      b.moveTo(cx, cy-r); b.lineTo(cx+r*0.78, cy); b.lineTo(cx, cy+r); b.lineTo(cx-r*0.78, cy);
+      b.closePath(); b.fill();
+      b.strokeStyle='rgba(255,255,255,0.55)'; b.lineWidth=1; b.stroke(); break;
+    case 'bolt':
+      b.fillStyle = col; b.beginPath();
+      b.moveTo(cx+r*0.3, cy-r); b.lineTo(cx-r*0.55, cy+r*0.15); b.lineTo(cx, cy+r*0.15);
+      b.lineTo(cx-r*0.3, cy+r); b.lineTo(cx+r*0.6, cy-r*0.2); b.lineTo(cx+r*0.05, cy-r*0.2);
+      b.closePath(); b.fill(); break;
+    case 'shield':
+      b.fillStyle = col; b.beginPath();
+      b.moveTo(cx-r*0.8, cy-r*0.8); b.lineTo(cx+r*0.8, cy-r*0.8);
+      b.lineTo(cx+r*0.8, cy*1+r*0.1); b.lineTo(cx, cy+r); b.lineTo(cx-r*0.8, cy+r*0.1);
+      b.closePath(); b.fill(); break;
+    case 'target':
+      circ(cx, cy, r, col); circ(cx, cy, r*0.66, '#0e1526'); circ(cx, cy, r*0.32, col); break;
+    case 'trophy':
+      rect(cx-r*0.55, cy-r*0.85, r*1.1, r*0.95, col);
+      rect(cx-r*0.22, cy+r*0.1, r*0.44, r*0.5, col);
+      rect(cx-r*0.7, cy+r*0.6, r*1.4, r*0.3, col);
+      rect(cx-r*0.95, cy-r*0.75, r*0.3, r*0.5, col);
+      rect(cx+r*0.65, cy-r*0.75, r*0.3, r*0.5, col); break;
+    case 'flame':
+      b.fillStyle = col; b.beginPath();
+      b.moveTo(cx, cy-r); b.quadraticCurveTo(cx+r, cy-r*0.1, cx+r*0.45, cy+r*0.7);
+      b.quadraticCurveTo(cx, cy+r*1.05, cx-r*0.45, cy+r*0.7);
+      b.quadraticCurveTo(cx-r, cy-r*0.1, cx, cy-r);
+      b.closePath(); b.fill(); break;
+    case 'globe':
+      circ(cx, cy, r, col); circ(cx, cy, r*0.82, '#0e1526');
+      b.strokeStyle = col; b.lineWidth = 1;
+      b.beginPath(); b.ellipse(cx, cy, r*0.36, r*0.82, 0, 0, 6.2832); b.stroke();
+      b.beginPath(); b.moveTo(cx-r*0.82, cy); b.lineTo(cx+r*0.82, cy); b.stroke(); break;
+    case 'moon':
+      circ(cx, cy, r, col); circ(cx+r*0.42, cy-r*0.3, r*0.85, '#0e1526'); break;
+    case 'boot':
+      rect(cx-r*0.7, cy-r*0.7, r*0.72, r*1.1, col);
+      rect(cx-r*0.7, cy+r*0.25, r*1.6, r*0.5, col); break;
+    default:  // 'ball'
+      drawLadderBall(cx, cy, r, 'plain');
+  }
+}
+
+/* Toasts queue up and play one at a time — slide in from the right,
+   hold, slide out — so a burst of unlocks never overlaps itself. */
+const TOAST_IN = 0.3, TOAST_HOLD = 1.9, TOAST_OUT = 0.35;
+const TOAST_LIFE = TOAST_IN + TOAST_HOLD + TOAST_OUT;
+function updateAchToasts(dt){
+  if (!S.achQueue.length) return;
+  const cur = S.achQueue[0];
+  cur.t += dt;
+  if (cur.t >= TOAST_LIFE) S.achQueue.shift();
+}
+function drawAchToast(){
+  if (!S.achQueue.length) return;
+  // the results screens already tally what was earned — a toast on top
+  // of that is both redundant and lands on the headline
+  if (S.scene === 'KU_OVER' || S.scene === 'MATCHEND') return;
+  const cur = S.achQueue[0], a = ACH_BY_ID[cur.id];
+  if (!a) { S.achQueue.shift(); return; }
+  const tw = 176, th = 34, ty = 58;
+  let slide;
+  if (cur.t < TOAST_IN)                   slide = 1 - cur.t/TOAST_IN;
+  else if (cur.t < TOAST_IN + TOAST_HOLD) slide = 0;
+  else                                    slide = (cur.t - TOAST_IN - TOAST_HOLD)/TOAST_OUT;
+  const ease = slide*slide;
+  const tx = W - tw - 6 + ease*(tw + 12);
+
+  b.save();
+  b.globalAlpha = 0.96;
+  rect(tx-1, ty-1, tw+2, th+2, C.GOLD);
+  rect(tx, ty, tw, th, '#1a1405');
+  const pulse = 0.5 + 0.5*Math.sin(S.t*7);
+  b.globalAlpha = 0.25 + pulse*0.35;
+  rect(tx, ty, tw, 1, C.GOLD2); rect(tx, ty+th-1, tw, 1, C.GOLD2);
+  b.globalAlpha = 1;
+  drawAchIcon(a.icon, tx+17, ty+th/2, 9, C.GOLD);
+  txt('ACHIEVEMENT UNLOCKED', tx+32, ty+6, C.GOLD2, 6);
+  txtFit(a.name, tx+32, ty+15, C.WHITE, 10, tw-40);
+  txtFit(a.desc, tx+32, ty+26, C.GREYDK, 6, tw-40);
+  b.restore();
+}
+
 function finishDraw(){
+  drawAchToast();
+  drawTransition();
   if (S.settingsOpen) drawSettings();
   if (S.devPinOpen) drawDevPin();
   if (S.devMenuOpen) drawDevMenu();
@@ -3809,6 +4538,10 @@ function post(){
 }
 
 loadGame();
+/* Onboarding is a one-time cost. Anyone who has already been through it
+   has a name saved, and should land straight on their own title screen
+   rather than re-picking a language every single launch. */
+if (S.playerName) gotoScene('TITLE');
 
 /* ═══════════════════════════════════════════════════════════
    RESIZE + LOOP
@@ -3831,6 +4564,7 @@ function frame(now){
   tickAcc += dt;
   let guard = 0;
   while (tickAcc >= DT && guard++ < 8){ update(DT); tickAcc -= DT; }
+  updateAmbience();
   draw();
   requestAnimationFrame(frame);
 }
