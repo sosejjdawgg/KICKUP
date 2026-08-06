@@ -19,8 +19,6 @@
   #wrap{height:100%;display:flex;align-items:center;justify-content:center}
   canvas{image-rendering:pixelated;image-rendering:crisp-edges;display:block;cursor:pointer;
     box-shadow:0 0 0 1px #1b2438, 0 0 60px -10px #1a3a6b}
-  #hint{position:fixed;bottom:6px;left:0;right:0;text-align:center;color:#3d4d6b;
-    font-size:10px;letter-spacing:.14em;text-transform:uppercase;pointer-events:none}
   @media (prefers-reduced-motion:reduce){canvas{box-shadow:0 0 0 1px #1b2438}}
   #menuBtn{position:fixed;top:8px;left:8px;z-index:5;
     font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
@@ -40,7 +38,6 @@
 <div id="wrap"><canvas id="cv"></canvas></div>
 <button id="menuBtn" type="button">≡ MENU</button>
 <button id="devBtn" type="button">⚙</button>
-<div id="hint">tap / click / space &nbsp;·&nbsp; aim it, power it, place it</div>
 <script>
 /* Installable without a second file: the manifest is generated at run time
    and handed to the browser as a blob URL. Keeps the whole game one file. */
@@ -76,7 +73,7 @@ const W = 288, H = 432;
 // the game buffer stays 288x432 untouched; the display frame adds vertical
 // padding above and below so the presentation fills a modern tall phone
 // screen instead of letterboxing top and bottom.
-const PAD_TOP = 96, PAD_BOTTOM = 48;
+const PAD_TOP = 54, PAD_BOTTOM = 26;
 const FRAME_W = W, FRAME_H = H + PAD_TOP + PAD_BOTTOM;
 const cv = document.getElementById('cv');
 const ctx = cv.getContext('2d', { alpha:false });
@@ -2278,7 +2275,10 @@ function drawStadium(){
     const wave = (waveBoost(i, S.t) + burstWaveBoost(i, S.t)) * 11;   // the Mexican wave crest(s)
     const j = idle + wave + (hype > 0 ? Math.max(0, Math.sin(S.t*17 + i*0.55) * hype * 4) : 0);
     const lit = wave > 6.5 || (hype > 0.55 && hash%5===0 && Math.sin(S.t*13 + i) > 0);
-    rect(i, 76-hh-j, 2, hh+j, lit ? '#9ec4f2' : (hash%3===0 ? C.CROWD2 : C.CROWD1));
+    // a lit crest keeps per-person variation, otherwise the wave renders
+    // as one flat bright slab across the stand instead of a row of people
+    const litCol = hash%3===0 ? '#b9d6f7' : (hash%3===1 ? '#8fbdec' : '#7ba9d8');
+    rect(i, 76-hh-j, 2, hh+j, lit ? litCol : (hash%3===0 ? C.CROWD2 : C.CROWD1));
   }
   {    // scarves, arms and banners above the heads — mostly quiet, rise with the wave or the hype
     b.save(); b.globalAlpha = Math.min(0.55, 0.08 + hype*0.55);
@@ -4132,36 +4132,29 @@ function drawMatchEnd(){
 /* ── frame padding: extends the stadium above and below the game
    buffer so the presentation fills a tall phone screen rather than
    letterboxing. Purely decorative — the buffer itself is untouched. ── */
+/* The bands above and below the playfield are a bezel, not a second
+   scene. They used to carry a full bobbing crowd and two floodlight
+   cones, which read as clutter competing with the game. Now: a clean
+   dark gradient, one calm silhouette row, and a crisp rule line to
+   frame the play area. */
 function drawFrameTop(){
+  // Deliberately empty of scenery. The playfield already draws a full
+  // stand of its own directly below this band, and having a second
+  // crowd up here just stacked two competing terraces on top of each
+  // other. A plain bezel lets the actual game read.
   const g = ctx.createLinearGradient(0,0,0,PAD_TOP);
-  g.addColorStop(0, '#03040a'); g.addColorStop(1, C.STAND2);
+  g.addColorStop(0, '#03040a'); g.addColorStop(1, '#0a1020');
   ctx.fillStyle = g; ctx.fillRect(0,0,FRAME_W,PAD_TOP);
-  const hype = S.crowdHype;
-  for (let i=0;i<FRAME_W;i+=3){
-    const hh = 6 + ((i*7919)%9);
-    const hash = ((i*2654435761)>>>0);
-    const ph = (hash%628)/100;
-    const bob = Math.sin(S.t*(1.0+(hash%5)*0.14) + ph) * 0.7 + (waveBoost(i, S.t)+burstWaveBoost(i,S.t))*6
-              + (hype > 0 ? Math.max(0, Math.sin(S.t*17 + i*0.4)) * hype * 5 : 0);
-    ctx.fillStyle = hash%3===0 ? C.CROWD2 : C.CROWD1;
-    ctx.fillRect(i, PAD_TOP-hh-bob, 3, hh+bob);
-  }
-  [26, FRAME_W-26].forEach(px=>{
-    ctx.fillStyle = '#1b2438'; ctx.fillRect(px-1, 4, 2, PAD_TOP-6);
-    ctx.fillStyle = '#e8e0c8';
-    for (let k=0;k<3;k++) ctx.fillRect(px-4+k*4, 2, 2, 2);
-    ctx.save(); ctx.globalAlpha=0.10; ctx.fillStyle='#9fd0ff';
-    ctx.beginPath(); ctx.moveTo(px,6); ctx.lineTo(px+60,PAD_TOP); ctx.lineTo(px-60,PAD_TOP); ctx.closePath(); ctx.fill();
-    ctx.restore();
-  });
+  ctx.fillStyle = '#1d2942'; ctx.fillRect(0, PAD_TOP-2, FRAME_W, 2);
+  ctx.fillStyle = '#2b3a5c'; ctx.fillRect(0, PAD_TOP-1, FRAME_W, 1);
 }
 function drawFrameBottom(){
   const y0 = FRAME_H-PAD_BOTTOM;
   const g = ctx.createLinearGradient(0,y0,0,FRAME_H);
-  g.addColorStop(0, C.TURFLO); g.addColorStop(1, '#03040a');
+  g.addColorStop(0, '#0a1020'); g.addColorStop(1, '#03040a');
   ctx.fillStyle = g; ctx.fillRect(0,y0,FRAME_W,PAD_BOTTOM);
-  ctx.fillStyle = '#0f4028';
-  for (let y=y0; y<FRAME_H; y++){ if (Math.floor((y-y0)/7)%2===0) ctx.fillRect(0,y,FRAME_W,1); }
+  ctx.fillStyle = '#1d2942'; ctx.fillRect(0, y0, FRAME_W, 2);
+  ctx.fillStyle = '#2b3a5c'; ctx.fillRect(0, y0, FRAME_W, 1);
 }
 
 /* ── settings / pause menu — top-left MENU button, always available.
@@ -4525,14 +4518,14 @@ function post(){
 
   ctx.restore();   // undo the PAD_TOP translate — back to frame space
 
-  // scanlines, over the whole frame
-  ctx.globalAlpha = 0.13; ctx.fillStyle = '#000';
+  // scanlines — kept as a hint of CRT, not a veil over the art
+  ctx.globalAlpha = 0.06; ctx.fillStyle = '#000';
   for (let y=0;y<FRAME_H;y+=2) ctx.fillRect(0,y,FRAME_W,1);
   ctx.globalAlpha = 1;
 
-  // vignette, over the whole frame
-  const g = ctx.createRadialGradient(FRAME_W/2,FRAME_H/2,FRAME_H*0.30, FRAME_W/2,FRAME_H/2,FRAME_H*0.72);
-  g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(0,0,0,0.55)');
+  // vignette, over the whole frame — lighter, so edge detail survives
+  const g = ctx.createRadialGradient(FRAME_W/2,FRAME_H/2,FRAME_H*0.38, FRAME_W/2,FRAME_H/2,FRAME_H*0.78);
+  g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(0,0,0,0.34)');
   ctx.fillStyle = g; ctx.fillRect(0,0,FRAME_W,FRAME_H);
   ctx.restore();
 }
@@ -4546,11 +4539,24 @@ if (S.playerName) gotoScene('TITLE');
 /* ═══════════════════════════════════════════════════════════
    RESIZE + LOOP
    ═══════════════════════════════════════════════════════════ */
+/* Sharpness lives or dies here. The backing store has to be sized in
+   *device* pixels — size it in CSS pixels and the browser resamples the
+   whole bitmap up to the physical display with smoothing on, which is
+   what turns crisp pixel art into mush on any phone with DPR > 1.
+   On top of that, an exact integer scale keeps every game pixel a
+   perfect square block instead of an uneven 2-or-3 physical pixels. */
 function resize(){
-  const availH = window.innerHeight - 20, availW = window.innerWidth - 8;
-  const s = Math.min(availW / FRAME_W, availH / FRAME_H);
-  cv.width = Math.round(FRAME_W*s); cv.height = Math.round(FRAME_H*s);
-  cv.style.width = cv.width+'px'; cv.style.height = cv.height+'px';
+  const dpr = Math.max(1, Math.min(4, window.devicePixelRatio || 1));
+  const availH = window.innerHeight - 12, availW = window.innerWidth - 8;
+  const fit = Math.min(availW*dpr / FRAME_W, availH*dpr / FRAME_H);
+  const snapped = Math.floor(fit);
+  // only give up the perfect pixel grid when snapping would cost real size
+  const scale = (snapped >= 1 && snapped/fit > 0.82) ? snapped : fit;
+
+  cv.width  = Math.round(FRAME_W*scale);
+  cv.height = Math.round(FRAME_H*scale);
+  cv.style.width  = (cv.width/dpr)+'px';
+  cv.style.height = (cv.height/dpr)+'px';
   ctx.imageSmoothingEnabled = false;
 }
 window.addEventListener('resize', resize);
