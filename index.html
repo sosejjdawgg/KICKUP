@@ -902,7 +902,9 @@ const S = {
   runSummary:null,             // xp breakdown for the results screen
   profileScroll:0,
   transition:{ t:0, dur:0, pending:null },
-  shareFlashT:0
+  shareFlashT:0,
+  chestReward:null,            // the cheat won this run, shown by KU_CHEST
+  cheatMenuOpen:false          // the earned-cheats panel inside settings
 };
 
 function targetRadius(){ return 30 * (1 + 0.10*Math.min(S.streak,5)); }
@@ -1007,7 +1009,10 @@ function beginKeepyups(cat){
     clock: KU_START_CLOCK, rank:0, best:0, answered:0, asked:0, qShownClock:KU_START_CLOCK,
     checkpoint5Used:false, checkpoint10Used:false, won:false,
     cycleT:0, foot:0, trickIdx:0, tier:0, contactPop:0, contactType:'foot', celebWord:'', bike:null, bonusFlashT:0,
-    introChimed:0
+    introChimed:0,
+    // set the moment a run-trivialising cheat is seen active; a tainted
+    // run still counts for xp and stats, it just can't open a chest
+    tainted: runIsTainted()
   };
   if (S.cheats.megabucks){ S.ku.rank = 10; S.ku.best = 10; }   // cheat: start already banked
   gotoScene('KU_INTRO');
@@ -1071,6 +1076,11 @@ function finishRun(){
   const before = Object.keys(p.achievements).length;
   if (ku.won && !ku.checkpoint5Used && !ku.checkpoint10Used) unlockAch('no_net');
   if (ku.checkpoint5Used && ku.checkpoint10Used) unlockAch('both_nets');
+
+  // a clean win on a team you've never beaten opens the chest
+  S.chestReward = null;
+  if (ku.won && !ku.tainted) S.chestReward = openChest();
+
   checkMilestoneAch();
 
   const levelAfter = levelFromXp(p.xp).level;
@@ -1085,6 +1095,9 @@ function finishRun(){
 }
 function endKeepyups(){
   finishRun();
+  // a chest to open takes precedence over the results screen; the
+  // results are still waiting behind it when the ceremony finishes
+  if (S.chestReward){ SFX.crowdBreath(); gotoScene('KU_CHEST'); return; }
   if (S.ku.won){ gotoScene('KU_OVER'); return; }
   SFX.miss(); SFX.crowdBoo();
   setTimeout(()=>{ if (audioOn && AC) SFX.sadSting(); }, 300);
@@ -1126,6 +1139,8 @@ function updateKeepyups(dt){
   ku.bonusFlashT = Math.max(0, ku.bonusFlashT - dt*1.2);
 
   if (S.scene === 'KU_PLAY'){
+    // catch a cheat switched on mid-run, not just one set at the whistle
+    if (!ku.tainted && runIsTainted()) ku.tainted = true;
     if (!ku.qResolved){
       if (!S.cheats.timefreeze) ku.clock -= dt;    // cheat: clock never runs down
       if (ku.clock < 3 && S.t - lastTickSound > 0.25){ SFX.tick(true); lastTickSound = S.t; }
@@ -1189,6 +1204,18 @@ function updateKeepyups(dt){
     if (S.runSummary && S.runSummary.anim < 1){
       S.runSummary.anim = Math.min(1, S.runSummary.anim + dt*0.75);
     }
+    return;
+  }
+
+  if (S.scene === 'KU_CHEST'){
+    const before = S.sceneT - dt;
+    if (before < CHEST_RATTLE && S.sceneT >= CHEST_RATTLE){   // the lid goes
+      SFX.boom(); SFX.crowdRoar(1);
+      spawnConfetti(44); triggerCrowdBurst();
+      S.flash = Math.max(S.flash, 0.5); S.shake = Math.max(S.shake, 4);
+      S.crowdHype = 1; buzz([50,40,80]);
+    }
+    if (S.sceneT < CHEST_RATTLE && S.sceneT % 0.28 < dt) SFX.tick(true);  // it rattles
     return;
   }
 
@@ -1540,6 +1567,10 @@ function tapAt(px, py){
       return;
     }
     case 'KU_HATTRICK': case 'KU_BICYCLE': return;   // these play out on their own
+    case 'KU_CHEST':
+      // no skipping the rattle — the reveal is the whole point
+      if (S.sceneT > CHEST_RATTLE + 0.5){ SFX.lock(0,true); gotoScene('KU_OVER'); }
+      return;
     case 'KU_OVER': {
       if (S.sceneT < 0.4) return;
       // let an impatient tap fast-forward the xp count-up before it acts
@@ -1744,8 +1775,35 @@ function freshProfile(){
     answered:0, correct:0, bestRank:0, ladderCompletes:0,
     teamsPlayed:[], langsUsed:[],
     dailyStreak:0, dailyBest:0, lastDaily:'', dailyBestRank:0,
-    achievements:{}
+    achievements:{},
+    wonTeams:[], unlockedCheats:[]     // the cheat vault — see openChest()
   };
+}
+
+/* ── the cheat vault ──────────────────────────────────────────
+   Cheats stop being a debug backdoor and become the reward loop:
+   take a team all the way to £1,000,000 honestly and a chest opens
+   with one random code in it. Six teams, eight codes — so a full
+   sweep of the world still leaves a couple to chase.
+
+   "Honestly" means NOLOSE was never switched on during the run.
+   Kept as a list so widening it later is a one-line change; today
+   it holds exactly the cheat the brief named.                  ── */
+const TRIVIALIZING_CHEATS = ['nolose'];
+function runIsTainted(){ return TRIVIALIZING_CHEATS.some(k => S.cheats[k]); }
+function cheatUnlocked(key){
+  return S.profile && S.profile.unlockedCheats.indexOf(key) >= 0;
+}
+/* Returns the cheat won, or null if there was nothing to win. */
+function openChest(){
+  const p = S.profile;
+  if (p.wonTeams.indexOf(S.cat) >= 0) return null;    // already conquered
+  p.wonTeams.push(S.cat);
+  const locked = CHEATS.filter(c => p.unlockedCheats.indexOf(c.key) < 0);
+  if (!locked.length) return null;                     // vault already full
+  const pick = locked[Math.floor(Math.random()*locked.length)];
+  p.unlockedCheats.push(pick.key);
+  return pick;
 }
 
 /* ── achievements ─────────────────────────────────────────────
@@ -1776,6 +1834,10 @@ const ACHIEVEMENTS = [
   { id:'scholar',      name:'SCHOLAR',        desc:'Get 250 answers right',                icon:'boot' },
   { id:'veteran',      name:'VETERAN',        desc:'Play 50 runs',                         icon:'trophy' },
   { id:'no_net',       name:'NERVES OF STEEL',desc:'Complete the ladder with no net spent',icon:'diamond' },
+  { id:'safe_cracker', name:'SAFE CRACKER',   desc:'Open your first cheat chest',          icon:'chest' },
+  { id:'treble',       name:'TREBLE',         desc:'Win the ladder with 3 teams',          icon:'trophy' },
+  { id:'clean_sweep',  name:'CLEAN SWEEP',    desc:'Win the ladder with all six teams',    icon:'globe' },
+  { id:'vault_full',   name:'FULL VAULT',     desc:'Unlock every cheat code',              icon:'chest' },
 ];
 const ACH_BY_ID = {};
 ACHIEVEMENTS.forEach(a => ACH_BY_ID[a.id] = a);
@@ -1805,6 +1867,10 @@ function checkMilestoneAch(){
   if (p.dailyStreak >= 3) unlockAch('dedicated');
   if (p.dailyStreak >= 7) unlockAch('unstoppable');
   if (p.ladderCompletes >= 1) unlockAch('millionaire');
+  if (p.unlockedCheats.length >= 1) unlockAch('safe_cracker');
+  if (p.unlockedCheats.length >= CHEATS.length) unlockAch('vault_full');
+  if (p.wonTeams.length >= 3) unlockAch('treble');
+  if (p.wonTeams.length >= CATS.length) unlockAch('clean_sweep');
   const h = new Date().getHours();
   if (h >= 0 && h < 5) unlockAch('night_shift');
 }
@@ -2033,7 +2099,7 @@ function update(dt){
   }
 
   if (S.scene==='KU_INTRO' || S.scene==='KU_READY' || S.scene==='KU_PLAY' || S.scene==='KU_HATTRICK' ||
-      S.scene==='KU_SAFETYNET' || S.scene==='KU_BICYCLE' || S.scene==='KU_OVER'){
+      S.scene==='KU_SAFETYNET' || S.scene==='KU_BICYCLE' || S.scene==='KU_CHEST' || S.scene==='KU_OVER'){
     updateKeepyups(dt);
     return;
   }
@@ -2165,6 +2231,7 @@ function draw(){
   if (S.scene === 'TITLE'){ drawTitle(); finishDraw(); return; }
   if (S.scene === 'MATCHEND'){ drawMatchEnd(); finishDraw(); return; }
   if (S.scene === 'KU_INTRO'){ drawKUIntro(); finishDraw(); return; }
+  if (S.scene === 'KU_CHEST'){ drawKUChest(); finishDraw(); return; }
 
   if (S.scene==='KU_READY' || S.scene==='KU_PLAY' || S.scene==='KU_HATTRICK' ||
       S.scene==='KU_SAFETYNET' || S.scene==='KU_BICYCLE' || S.scene==='KU_OVER'){
@@ -3238,6 +3305,88 @@ function drawKUIntro(){
   txt(t('tap_to_start'), W/2, 412, Math.sin(S.t*5)>0?C.GREYDK:'transparent', 8, 'center');
 }
 
+/* ── the chest ────────────────────────────────────────────────
+   Beat a team to £1,000,000 honestly and this is what you get.
+   Rattles under the lid for a beat, blows open on a burst of light,
+   then hands over the code.                                     ── */
+const CHEST_RATTLE = 1.15;
+function drawChest(cx, cy, s, openAmt){
+  const w = 52*s, h = 34*s, lidH = 20*s;
+  const lift = openAmt * 22*s, tilt = openAmt * 0.9;
+
+  // body
+  rect(cx-w/2, cy-h/2+lidH*0.5, w, h, '#6b4620');
+  rect(cx-w/2+1, cy-h/2+lidH*0.5+1, w-2, h-2, '#8a5c2c');
+  for (let i=-1;i<=1;i+=2) rect(cx+i*w*0.31-1.5*s, cy-h/2+lidH*0.5, 3*s, h, '#c98f16');
+  rect(cx-w/2, cy+h/2+lidH*0.5-3*s, w, 3*s, '#4a2f14');
+
+  // lid — pivots on the back-left corner so it swings like a real
+  // hinge instead of floating away from the body
+  b.save();
+  b.translate(cx-w/2, cy-h/2+lidH*0.5);
+  b.rotate(-tilt);
+  b.translate(0, -lift*0.18);
+  rect(0, -lidH, w, lidH, '#6b4620');
+  rect(1, -lidH+1, w-2, lidH-2, '#9a6832');
+  for (let i=1;i<=2;i++) rect(w*(i/3)-1.5*s, -lidH, 3*s, lidH, '#c98f16');
+  rect(0, -lidH, w, 2*s, '#c98f16');
+  b.restore();
+
+  // clasp, only while shut
+  if (openAmt < 0.15){
+    rect(cx-4*s, cy-h/2+lidH*0.5-3*s, 8*s, 8*s, C.GOLD);
+    rect(cx-1.5*s, cy-h/2+lidH*0.5-0.5*s, 3*s, 3*s, '#4a2f14');
+  }
+}
+function drawKUChest(){
+  const g = b.createRadialGradient(W/2,180,10, W/2,180,H*0.8);
+  g.addColorStop(0,'#181228'); g.addColorStop(1,'#05070d');
+  b.fillStyle = g; b.fillRect(0,0,W,H);
+
+  const t = S.sceneT;
+  const open = Math.max(0, Math.min(1, (t - CHEST_RATTLE)/0.45));
+  const cx = W/2, cy = 178;
+
+  txt('LADDER COMPLETE', W/2, 40, C.GOLD2, 11, 'center');
+  txtFit(S.cat + ' TAKEN TO ' + MONEY_LABELS[14], W/2, 56, C.GREY, 8, W-40, 'center');
+
+  // light spilling out once the lid lets go
+  if (open > 0){
+    b.save();
+    for (let i=0;i<10;i++){
+      const a = (i/10)*Math.PI*2 + S.t*0.7;
+      b.globalAlpha = 0.10*open;
+      b.fillStyle = C.GOLD2;
+      b.beginPath(); b.moveTo(cx, cy-6);
+      b.lineTo(cx+Math.cos(a)*150, cy-6+Math.sin(a)*150);
+      b.lineTo(cx+Math.cos(a+0.22)*150, cy-6+Math.sin(a+0.22)*150);
+      b.closePath(); b.fill();
+    }
+    b.globalAlpha = 0.30*open; circ(cx, cy-4, 34+Math.sin(S.t*5)*3, C.GOLD2);
+    b.restore();
+  }
+
+  const rattle = t < CHEST_RATTLE ? Math.sin(t*38)*(1.6 + t*1.4) : 0;
+  b.save(); b.translate(rattle, 0);
+  drawChest(cx, cy, 1.5, open);
+  b.restore();
+
+  if (open >= 1){
+    const r = S.chestReward;
+    panel(24, 236, W-48, 104);
+    txt('CHEAT CODE UNLOCKED', W/2, 246, C.GOLD2, 8, 'center');
+    txt(r ? r.name : '—', W/2, 262, C.GOLD, 17, 'center');
+    if (r) wrapText(r.desc, W-76).forEach((l,i)=> txt(l, W/2, 288+i*11, C.GREY, 8, 'center'));
+    txtFit('FIND IT IN SETTINGS ▸ CHEAT CODES', W/2, 322, C.GREYDK, 7, W-64, 'center');
+
+    const p = S.profile;
+    txt('VAULT '+p.unlockedCheats.length+'/'+CHEATS.length+
+        '   ·   TEAMS '+p.wonTeams.length+'/'+CATS.length, W/2, 352, C.GREYDK, 7, 'center');
+    txt('TAP TO CONTINUE', W/2, 380, Math.sin(S.t*5)>0?C.WHITE:C.GREYDK, 9, 'center');
+  }
+  if (S.confetti.length) drawConfetti();
+}
+
 function drawKeepyups(){
   drawStadium();
   const showLadder = S.scene==='KU_READY' || S.scene==='KU_PLAY' || S.scene==='KU_HATTRICK' || S.scene==='KU_SAFETYNET';
@@ -4052,11 +4201,25 @@ function drawProfile(){
     txt(val, x+cw-6, y, C.WHITE, 8, 'right');
   });
 
+  // ── cheat vault: one chest per team taken to £1M ──
+  // sits clear of the last stats row, which ends at y=136
+  const vy = 142;
+  drawAchIcon('chest', 26, vy+7, 6, p.unlockedCheats.length?C.GOLD:C.GREYDK);
+  txt('CHEAT VAULT', 38, vy+3, p.unlockedCheats.length?C.GOLD2:C.GREYDK, 8);
+  txt(p.unlockedCheats.length+'/'+CHEATS.length, W-20, vy+3, C.WHITE, 8, 'right');
+  // a pip per team, filled once you've beaten that team's ladder cleanly
+  CATS.forEach((c,i)=>{
+    const beaten = p.wonTeams.indexOf(c) >= 0;
+    const px0 = 20 + i*((W-40)/CATS.length), pw = (W-40)/CATS.length - 3;
+    rect(px0, vy+15, pw, 4, beaten ? C.GOLD : C.PANELED);
+    txtClip(c, px0+pw/2, vy+21, beaten?C.GREY:C.GREYDK, 5, pw+2, 'center');
+  });
+
   const got = Object.keys(p.achievements).length;
-  txt('ACHIEVEMENTS  '+got+'/'+ACHIEVEMENTS.length, W/2, 152, C.GOLD2, 9, 'center');
+  txt('ACHIEVEMENTS  '+got+'/'+ACHIEVEMENTS.length, W/2, 172, C.GOLD2, 9, 'center');
 
   // badge grid — 3 across so the one-line description actually fits
-  const gTop = 168, gBot = 392, cols = 3, cell = (W-28)/cols;
+  const gTop = 186, gBot = 392, cols = 3, cell = (W-28)/cols;
   const rowsN = Math.ceil(ACHIEVEMENTS.length/cols), contentH = rowsN*54;
   const maxScroll = Math.max(0, contentH - (gBot-gTop));
   S.profileScroll = Math.max(0, Math.min(maxScroll, S.profileScroll));
@@ -4162,7 +4325,72 @@ function drawFrameBottom(){
    is behind it. Same panel/row language as everything else.       ── */
 let SETTINGS_RECTS = [], SETTINGS_PANEL = [0,0,0,0];
 function settingsHit(px,py){ for (const r of SETTINGS_RECTS){ if (px>=r[0]&&px<=r[0]+r[2]&&py>=r[1]&&py<=r[1]+r[3]) return r; } return null; }
+/* ── earned-cheats panel, reached from settings ────────────────
+   Only codes the player has actually won out of a chest can be
+   switched on here. Locked slots stay as mystery placeholders so
+   the vault reads as something to fill.                        ── */
+let CHEATMENU_RECTS = [], CHEATMENU_PANEL = [0,0,0,0];
+function handleCheatMenuTap(px,py){
+  const p = CHEATMENU_PANEL;
+  const inPanel = px>=p[0]&&px<=p[0]+p[2]&&py>=p[1]&&py<=p[1]+p[3];
+  const hit = CHEATMENU_RECTS.find(r=>px>=r[0]&&px<=r[0]+r[2]&&py>=r[1]&&py<=r[1]+r[3]);
+  if (!hit){ if (!inPanel) S.cheatMenuOpen = false; return; }
+  const key = hit[4];
+  if (key === 'back'){ S.cheatMenuOpen = false; SFX.lock(0,true); return; }
+  if (key === 'alloff'){
+    CHEATS.forEach(c=>{ if (cheatUnlocked(c.key)) S.cheats[c.key] = false; });
+    SFX.lock(0,false); return;
+  }
+  if (!cheatUnlocked(key)){ SFX.wrong(); return; }      // still locked
+  S.cheats[key] = !S.cheats[key];
+  SFX.lock(0, S.cheats[key]); buzz(15);
+}
+function drawCheatMenu(){
+  b.save(); b.globalAlpha = 0.80; rect(0,0,W,H,C.INK); b.restore();
+  const px0 = 16, py0 = 30, pw = 256, ph = 372;
+  CHEATMENU_PANEL = [px0,py0,pw,ph];
+  panel(px0,py0,pw,ph);
+
+  const p = S.profile, n = p ? p.unlockedCheats.length : 0;
+  drawAchIcon('chest', px0+22, py0+15, 8, n?C.GOLD:C.GREYDK);
+  txt('CHEAT CODES', W/2+8, py0+8, C.GOLD, 14, 'center');
+  txtFit('WIN THE LADDER WITH A NEW TEAM TO EARN ONE', W/2, py0+26, C.GREYDK, 6, pw-20, 'center');
+
+  // vault progress
+  const bx0 = px0+14, bw = pw-28;
+  rect(bx0, py0+38, bw, 6, C.PANELED); rect(bx0+1, py0+39, bw-2, 4, '#0a1220');
+  rect(bx0+1, py0+39, (bw-2)*(n/CHEATS.length), 4, C.GOLD);
+  txt('VAULT '+n+'/'+CHEATS.length, bx0, py0+47, C.GREYDK, 6);
+  txt('TEAMS BEATEN '+(p?p.wonTeams.length:0)+'/'+CATS.length, bx0+bw, py0+47, C.GREYDK, 6, 'right');
+
+  CHEATMENU_RECTS = [];
+  const rx = px0+10, rw = pw-20, rh = 31;
+  let ry = py0+58;
+  CHEATS.forEach(c=>{
+    const got = cheatUnlocked(c.key), on = got && S.cheats[c.key];
+    CHEATMENU_RECTS.push([rx,ry,rw,rh-4,c.key]);
+    rect(rx,ry,rw,rh-4, on?C.GOLD:(got?C.PANELED:'#141a28'));
+    rect(rx+1,ry+1,rw-2,rh-6, on?'#3a2c06':C.PANEL);
+    b.save(); if (!got) b.globalAlpha = 0.45;
+    txtClip(got?c.name:'LOCKED', rx+8, ry+4, got?(on?C.GOLD2:C.WHITE):C.GREYDK, 9, rw-58);
+    txtClip(got?c.desc:'Beat the ladder with a new team', rx+8, ry+15, C.GREYDK, 6, rw-58);
+    b.restore();
+    txt(got?(on?'ON':'OFF'):'—', rx+rw-20, ry+8, on?C.GREEN:C.GREYDK, 8, 'center');
+    ry += rh;
+  });
+
+  ry += 2;
+  CHEATMENU_RECTS.push([rx, ry, (rw-6)/2, 20, 'alloff']);
+  rect(rx,ry,(rw-6)/2,20, C.PANELED); rect(rx+1,ry+1,(rw-6)/2-2,18, C.PANEL);
+  txt('ALL OFF', rx+(rw-6)/4, ry+5, C.WHITE, 8, 'center');
+
+  CHEATMENU_RECTS.push([rx+(rw-6)/2+6, ry, (rw-6)/2, 20, 'back']);
+  rect(rx+(rw-6)/2+6,ry,(rw-6)/2,20, C.GOLDDK); rect(rx+(rw-6)/2+7,ry+1,(rw-6)/2-2,18, '#241a06');
+  txt('BACK', rx+(rw-6)/2+6+(rw-6)/4, ry+5, C.GOLD2, 8, 'center');
+}
+
 function handleSettingsTap(px,py){
+  if (S.cheatMenuOpen){ handleCheatMenuTap(px,py); return; }
   const hit = settingsHit(px,py);
   if (!hit){
     const p = SETTINGS_PANEL;
@@ -4180,6 +4408,7 @@ function handleSettingsTap(px,py){
     const i = LANGUAGES.findIndex(l=>l.code===S.language);
     S.language = LANGUAGES[(i+1)%LANGUAGES.length].code;
   }
+  else if (key === 'cheats'){ S.cheatMenuOpen = true; SFX.lock(0,true); }
   else if (key === 'save'){ const ok = saveGame(); S.saveFlashT = ok ? 1.4 : 0; SFX.correct(); }
   else if (key === 'quit'){
     if (S.settingsConfirmQuit){
@@ -4193,7 +4422,7 @@ function handleSettingsTap(px,py){
 function drawSettings(){
   b.save(); b.globalAlpha = 0.72; rect(0,0,W,H,C.INK); b.restore();
 
-  const px0=24, py0=76, pw=240, ph=262;
+  const px0=24, py0=64, pw=240, ph=288;
   SETTINGS_PANEL = [px0,py0,pw,ph];
   panel(px0,py0,pw,ph);
   txt(t('paused'), W/2, py0+10, C.GOLD, 15, 'center');
@@ -4233,6 +4462,17 @@ function drawSettings(){
   txt('LANGUAGE', rx+8, ry+7, C.GREYDK, 8);
   txt(LANGUAGES.find(l=>l.code===S.language).name, rx+rw-8, ry+7, C.GOLD2, 8, 'right');
   SETTINGS_RECTS.push([rx, ry, rw, rh-4, 'language']);
+  ry += rh;
+
+  // the vault the player earns their way into
+  const nUnlocked = S.profile ? S.profile.unlockedCheats.length : 0;
+  const nOn = CHEATS.filter(c => S.cheats[c.key] && cheatUnlocked(c.key)).length;
+  rect(rx,ry,rw,rh-4, C.PANEL);
+  drawAchIcon('chest', rx+13, ry+10, 6, nUnlocked?C.GOLD:C.GREYDK);
+  txt('CHEAT CODES', rx+24, ry+7, nUnlocked?C.GOLD2:C.GREYDK, 8);
+  txt(nOn>0 ? nOn+' ON' : nUnlocked+'/'+CHEATS.length,
+      rx+rw-8, ry+7, nOn>0?C.GREEN:C.GREYDK, 8, 'right');
+  SETTINGS_RECTS.push([rx, ry, rw, rh-4, 'cheats']);
   ry += rh + 6;
 
   SETTINGS_RECTS.push([rx, ry, rw, 22, 'save']);
@@ -4411,6 +4651,10 @@ function drawAchIcon(kind, cx, cy, r, col){
     case 'boot':
       rect(cx-r*0.7, cy-r*0.7, r*0.72, r*1.1, col);
       rect(cx-r*0.7, cy+r*0.25, r*1.6, r*0.5, col); break;
+    case 'chest':
+      rect(cx-r*0.85, cy-r*0.15, r*1.7, r*0.95, col);
+      rect(cx-r*0.85, cy-r*0.7, r*1.7, r*0.55, col);
+      rect(cx-r*0.15, cy-r*0.25, r*0.3, r*0.45, '#0e1526'); break;
     default:  // 'ball'
       drawLadderBall(cx, cy, r, 'plain');
   }
@@ -4428,9 +4672,10 @@ function updateAchToasts(dt){
 }
 function drawAchToast(){
   if (!S.achQueue.length) return;
-  // the results screens already tally what was earned — a toast on top
-  // of that is both redundant and lands on the headline
-  if (S.scene === 'KU_OVER' || S.scene === 'MATCHEND') return;
+  // ceremony and results screens report their own rewards — a toast on
+  // top of those is both redundant and lands on the headline
+  if (S.scene === 'KU_OVER' || S.scene === 'MATCHEND' ||
+      S.scene === 'KU_CHEST' || S.scene === 'PROFILE') return;
   const cur = S.achQueue[0], a = ACH_BY_ID[cur.id];
   if (!a) { S.achQueue.shift(); return; }
   const tw = 176, th = 34, ty = 58;
@@ -4459,7 +4704,7 @@ function drawAchToast(){
 function finishDraw(){
   drawAchToast();
   drawTransition();
-  if (S.settingsOpen) drawSettings();
+  if (S.settingsOpen){ if (S.cheatMenuOpen) drawCheatMenu(); else drawSettings(); }
   if (S.devPinOpen) drawDevPin();
   if (S.devMenuOpen) drawDevMenu();
   post();
