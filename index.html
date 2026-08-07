@@ -769,8 +769,312 @@ const QUESTIONS = {
 };
 const CATS = Object.keys(QUESTIONS);
 
+/* ═══════════════════════════════════════════════════════════
+   CLUB LEGENDS — the real ~51 clubs to have played in the
+   Premier League since 1992-93. Badges are plain shield shapes
+   in a single solid team colour with initials, same "no crest,
+   no kit design" policy as the player's own shirt (see kit
+   colours note below) — the league/club NAMES are fine to use
+   (nominative, factual), it's crest/kit IMAGERY that isn't.
+   Only `hasContent` clubs have a real question bank; of those,
+   `startUnlocked` ones are playable immediately and the rest
+   unlock by winning a clean £1,000,000 ladder with a category
+   not already spent on an unlock (see checkClubUnlock()). Every
+   other club is a permanent, never-unlockable placeholder shown
+   for a complete-looking roster.                                */
+const CLUBS = [
+  // the 10 real clubs lead the grid — 3 playable now, 7 queued to unlock —
+  // so a first-time visitor sees what matters before scrolling to the
+  // 41 placeholders.
+  { id:'NEWCASTLE',    name:'Newcastle United',     short:'NUFC',  color:'#242424', hasContent:true,  startUnlocked:true  },
+  { id:'LIVERPOOL',    name:'Liverpool',            short:'LFC',   color:'#c8102e', hasContent:true,  startUnlocked:true  },
+  { id:'MANUTD',       name:'Manchester United',    short:'MUFC',  color:'#da291c', hasContent:true,  startUnlocked:true  },
+  { id:'ARSENAL',      name:'Arsenal',              short:'ARS',   color:'#ef0107', hasContent:true,  startUnlocked:false },
+  { id:'CHELSEA',      name:'Chelsea',              short:'CFC',   color:'#034694', hasContent:true,  startUnlocked:false },
+  { id:'MANCITY',      name:'Manchester City',      short:'MCFC',  color:'#6cabdd', hasContent:true,  startUnlocked:false },
+  { id:'TOTTENHAM',    name:'Tottenham Hotspur',    short:'THFC',  color:'#132257', hasContent:true,  startUnlocked:false },
+  { id:'EVERTON',      name:'Everton',              short:'EFC',   color:'#003399', hasContent:true,  startUnlocked:false },
+  { id:'ASTONVILLA',   name:'Aston Villa',          short:'AVFC',  color:'#670e36', hasContent:true,  startUnlocked:false },
+  { id:'LEEDS',        name:'Leeds United',         short:'LUFC',  color:'#f5f5f5', hasContent:true,  startUnlocked:false },
+  // the remaining ~41 clubs to have played in the Premier League since
+  // 1992-93 — permanent placeholders, alphabetical.
+  { id:'BARNSLEY',     name:'Barnsley',             short:'BARN',  color:'#d2122e', hasContent:false, startUnlocked:false },
+  { id:'BIRMINGHAM',   name:'Birmingham City',      short:'BCFC',  color:'#1c3f94', hasContent:false, startUnlocked:false },
+  { id:'BLACKBURN',    name:'Blackburn Rovers',     short:'BRFC',  color:'#00447c', hasContent:false, startUnlocked:false },
+  { id:'BLACKPOOL',    name:'Blackpool',            short:'BFC',   color:'#f68712', hasContent:false, startUnlocked:false },
+  { id:'BOLTON',       name:'Bolton Wanderers',     short:'BWFC',  color:'#1c3f6e', hasContent:false, startUnlocked:false },
+  { id:'BOURNEMOUTH',  name:'Bournemouth',          short:'AFCB',  color:'#d0021b', hasContent:false, startUnlocked:false },
+  { id:'BRADFORD',     name:'Bradford City',        short:'BCAFC', color:'#7a1e3c', hasContent:false, startUnlocked:false },
+  { id:'BRENTFORD',    name:'Brentford',            short:'BREN',  color:'#e30613', hasContent:false, startUnlocked:false },
+  { id:'BRIGHTON',     name:'Brighton & Hove Albion',short:'BHA',  color:'#0057b8', hasContent:false, startUnlocked:false },
+  { id:'BURNLEY',      name:'Burnley',              short:'CLAR',  color:'#6c1d45', hasContent:false, startUnlocked:false },
+  { id:'CARDIFF',      name:'Cardiff City',         short:'CCFC',  color:'#0070b5', hasContent:false, startUnlocked:false },
+  { id:'CHARLTON',     name:'Charlton Athletic',    short:'CAFC',  color:'#d2122e', hasContent:false, startUnlocked:false },
+  { id:'COVENTRY',     name:'Coventry City',        short:'SKYB',  color:'#78b9e8', hasContent:false, startUnlocked:false },
+  { id:'CRYSTALPALACE',name:'Crystal Palace',       short:'CPFC',  color:'#c4122e', hasContent:false, startUnlocked:false },
+  { id:'DERBY',        name:'Derby County',         short:'DCFC',  color:'#f5f5f5', hasContent:false, startUnlocked:false },
+  { id:'FULHAM',       name:'Fulham',               short:'FFC',   color:'#f5f5f5', hasContent:false, startUnlocked:false },
+  { id:'HUDDERSFIELD', name:'Huddersfield Town',    short:'HTFC',  color:'#0e63ad', hasContent:false, startUnlocked:false },
+  { id:'HULL',         name:'Hull City',            short:'HCAFC', color:'#f18a00', hasContent:false, startUnlocked:false },
+  { id:'IPSWICH',      name:'Ipswich Town',         short:'ITFC',  color:'#0044a9', hasContent:false, startUnlocked:false },
+  { id:'LEICESTER',    name:'Leicester City',       short:'LCFC',  color:'#003090', hasContent:false, startUnlocked:false },
+  { id:'LUTON',        name:'Luton Town',           short:'LTFC',  color:'#f78f1e', hasContent:false, startUnlocked:false },
+  { id:'MIDDLESBROUGH',name:'Middlesbrough',        short:'MFC',   color:'#cc0000', hasContent:false, startUnlocked:false },
+  { id:'NORWICH',      name:'Norwich City',         short:'NCFC',  color:'#fff200', hasContent:false, startUnlocked:false },
+  { id:'NOTTMFOREST',  name:'Nottingham Forest',    short:'NFFC',  color:'#dd0000', hasContent:false, startUnlocked:false },
+  { id:'OLDHAM',       name:'Oldham Athletic',      short:'OAFC',  color:'#1c4b9c', hasContent:false, startUnlocked:false },
+  { id:'PORTSMOUTH',   name:'Portsmouth',           short:'PFC',   color:'#1b5aa5', hasContent:false, startUnlocked:false },
+  { id:'QPR',          name:'Queens Park Rangers',  short:'QPR',   color:'#1d5ba4', hasContent:false, startUnlocked:false },
+  { id:'READING',      name:'Reading',              short:'RFC',   color:'#004494', hasContent:false, startUnlocked:false },
+  { id:'SHEFFIELDUTD', name:'Sheffield United',     short:'SUFC',  color:'#ee2737', hasContent:false, startUnlocked:false },
+  { id:'SHEFFIELDWED', name:'Sheffield Wednesday',  short:'SWFC',  color:'#0066b3', hasContent:false, startUnlocked:false },
+  { id:'SOUTHAMPTON',  name:'Southampton',          short:'SFC',   color:'#d71920', hasContent:false, startUnlocked:false },
+  { id:'STOKE',        name:'Stoke City',           short:'SCFC',  color:'#e03a3e', hasContent:false, startUnlocked:false },
+  { id:'SUNDERLAND',   name:'Sunderland',           short:'SAFC',  color:'#eb172b', hasContent:false, startUnlocked:false },
+  { id:'SWANSEA',      name:'Swansea City',         short:'SWANS', color:'#f5f5f5', hasContent:false, startUnlocked:false },
+  { id:'SWINDON',      name:'Swindon Town',         short:'STFC',  color:'#dd0000', hasContent:false, startUnlocked:false },
+  { id:'WATFORD',      name:'Watford',              short:'WFC',   color:'#fbee23', hasContent:false, startUnlocked:false },
+  { id:'WESTBROM',     name:'West Bromwich Albion', short:'WBA',   color:'#122f67', hasContent:false, startUnlocked:false },
+  { id:'WESTHAM',      name:'West Ham United',      short:'WHUFC', color:'#7a263a', hasContent:false, startUnlocked:false },
+  { id:'WIGAN',        name:'Wigan Athletic',       short:'WAFC',  color:'#1c3f94', hasContent:false, startUnlocked:false },
+  { id:'WIMBLEDON',    name:'Wimbledon',            short:'DONS',  color:'#002f6c', hasContent:false, startUnlocked:false },
+  { id:'WOLVES',       name:'Wolverhampton Wanderers',short:'WWFC',color:'#fdb913', hasContent:false, startUnlocked:false },
+];
+const CLUB_BY_ID = {}; CLUBS.forEach(c => CLUB_BY_ID[c.id] = c);
+const CLUB_STARTERS = CLUBS.filter(c => c.startUnlocked).map(c => c.id);
+const CLUB_UNLOCK_ORDER = CLUBS.filter(c => c.hasContent && !c.startUnlocked).map(c => c.id);
+
+/* ═══════════════════════════════════════════════════════════
+   CLUB LEGENDS — question banks, same tuple format as QUESTIONS
+   above. Fan/terrace trivia, not dry Wikipedia facts.
+   ═══════════════════════════════════════════════════════════ */
+const CLUB_QUESTIONS = {
+  NEWCASTLE: [
+    ["What is Newcastle United's home ground called?", ["St James' Park","Elland Road","Villa Park","Goodison Park"], 0],
+    ["Newcastle's shirt is famously which two colours?", ["Black and white stripes","Claret and blue","All white","Sky blue"], 0],
+    ["What are Newcastle's fans affectionately known as?", ["The Toon Army","The Kop","The Shed","The Bhoys"], 0],
+    ["In 2025, Newcastle ended a decades-long wait for a major trophy by winning which competition?", ["The League Cup (Carabao Cup)","The FA Cup","The Champions League","The Community Shield"], 0],
+    ["Newcastle beat which rivals in the 2025 League Cup final?", ["Liverpool","Manchester City","Arsenal","Manchester United"], 0],
+    ["Which Newcastle-born striker is the club's all-time record goalscorer?", ["Alan Shearer","Andy Cole","Jackie Milburn","Peter Beardsley"], 0],
+    ["Alan Shearer joined Newcastle in 1996 for a world-record fee, from which club?", ["Blackburn Rovers","Southampton","Everton","Leeds United"], 0],
+    ["Which legendary 1950s Newcastle striker was nicknamed 'Wor Jackie'?", ["Jackie Milburn","Alan Shearer","Malcolm Macdonald","Kevin Keegan"], 0],
+    ["Kevin Keegan's thrilling mid-90s Newcastle side was nicknamed?", ["The Entertainers","The Invincibles","The Bootroom Boys","The Busby Babes"], 0],
+    ["Newcastle's fierce North East rivals in the Tyne-Wear derby are?", ["Sunderland","Middlesbrough","Leeds United","Hull City"], 0],
+    ["In 2021, Newcastle United was bought by a consortium fronted by which country's sovereign wealth fund?", ["Saudi Arabia","Qatar","UAE","Kuwait"], 0],
+    ["Who has managed Newcastle since November 2021, guiding them back into Europe?", ["Eddie Howe","Steve Bruce","Rafa Benítez","Kevin Keegan"], 0],
+    ["St James' Park sits prominently on a hill overlooking which city centre?", ["Newcastle city centre","Sunderland city centre","Durham","Middlesbrough"], 0],
+    ["Newcastle's last major trophy before 2025 came in 1969 — which European competition did they win?", ["Inter-Cities Fairs Cup","European Cup","Cup Winners' Cup","UEFA Cup"], 0],
+    ["Newcastle finished 4th in the Premier League in 2022-23, qualifying for which competition?", ["The Champions League","The Europa League","The Conference League","The FA Cup"], 0],
+    ["Which end of St James' Park is famous for generating noise from the home crowd?", ["The Gallowgate End","The Kop","The Shed End","The Stretford End"], 0],
+    ["Which striker was sold from Newcastle to Manchester United for a British transfer record in 1995?", ["Andy Cole","Les Ferdinand","Peter Beardsley","Alan Shearer"], 0],
+    ["What two creatures flank the castle on Newcastle's club crest?", ["Seahorses","Lions","Eagles","Stags"], 0],
+    ["Which winger returned to Newcastle for a second spell in the late 1990s after time at Liverpool?", ["Peter Beardsley","John Barnes","Craig Bellamy","Michael Owen"], 0],
+    ["Newcastle were relegated from the Premier League in 2009, then won promotion straight back as Championship winners under which manager?", ["Chris Hughton","Alan Pardew","Sam Allardyce","Graeme Souness"], 0]
+  ],
+  LIVERPOOL: [
+    ["What is Liverpool's home ground called?", ["Anfield","Goodison Park","Old Trafford","Stamford Bridge"], 0],
+    ["What anthem do Liverpool fans famously sing before kick-off?", ["You'll Never Walk Alone","Blue Moon","Glory Glory","Blue Is The Colour"], 0],
+    ["What is the name of Liverpool's famous home end?", ["The Kop","The Gallowgate End","The Shed End","The Stretford End"], 0],
+    ["Liverpool are English football's most successful club in Europe's top competition, with how many European Cup/Champions League titles?", ["6","4","5","8"], 0],
+    ["Liverpool's stunning comeback from 3-0 down to win the 2005 Champions League final is nicknamed?", ["The Miracle of Istanbul","The Miracle of Munich","The Comeback at Camp Nou","The Anfield Miracle"], 0],
+    ["Who is the legendary Scottish manager regarded as the founder of Liverpool's modern success in the 1960s?", ["Bill Shankly","Bob Paisley","Kenny Dalglish","Jürgen Klopp"], 0],
+    ["Which manager ended Liverpool's 30-year wait for a league title in 2020?", ["Jürgen Klopp","Rafa Benítez","Brendan Rodgers","Roy Hodgson"], 0],
+    ["Who captained Liverpool to Champions League glory in 2019?", ["Jordan Henderson","Steven Gerrard","James Milner","Virgil van Dijk"], 0],
+    ["Liverpool's biggest local rivalry, the Merseyside Derby, is against?", ["Everton","Manchester United","Manchester City","Leeds United"], 0],
+    ["Steven Gerrard inspired an unforgettable comeback to win which 2006 cup final, forever known as the 'Gerrard Final'?", ["FA Cup","League Cup","Champions League","Community Shield"], 0],
+    ["What sign do Liverpool players famously touch on their way out of the tunnel?", ["This Is Anfield","You'll Never Walk Alone","Home Sweet Home","Champions"], 0],
+    ["Jürgen Klopp's high-intensity playing style became known among fans as?", ["Heavy metal football","Total football","Route one","Tiki-taka"], 0],
+    ["Which Kop hero, a prolific striker of the 1990s, was nicknamed 'God' by Liverpool fans?", ["Robbie Fowler","Michael Owen","Ian Rush","Fernando Torres"], 0],
+    ["Liverpool's front three of Salah, Mané and this Brazilian terrorised defences in the late 2010s?", ["Roberto Firmino","Philippe Coutinho","Alisson Becker","Luis Díaz"], 0],
+    ["Which Egyptian forward broke the Premier League's single-season goal record for a 38-game season, with 32 in 2017-18 (later matched)?", ["Mohamed Salah","Sadio Mané","Luis Suárez","Fernando Torres"], 0],
+    ["Liverpool's traditional shirt colour, worn since the 1960s under Shankly, is?", ["All red","Red and white stripes","All white","Claret and blue"], 0],
+    ["Which American ownership group has owned Liverpool since 2010?", ["Fenway Sports Group","Glazer family","Kroenke Sports","Elliott Management"], 0],
+    ["Ian Rush is Liverpool's all-time top scorer — which country did he play for?", ["Wales","England","Scotland","Republic of Ireland"], 0],
+    ["Which centre-back, signed from Southampton in 2018, became a cornerstone of Liverpool's title-winning defence?", ["Virgil van Dijk","Joel Matip","Dejan Lovren","Joe Gomez"], 0],
+    ["Liverpool won the League title again in 2024-25, their first under which new manager after Klopp's departure?", ["Arne Slot","Xabi Alonso","Julian Nagelsmann","Ruben Amorim"], 0]
+  ],
+  MANUTD: [
+    ["What is Manchester United's home ground, nicknamed the 'Theatre of Dreams'?", ["Old Trafford","Etihad Stadium","Anfield","Villa Park"], 0],
+    ["Manchester United hold the record for the most English top-flight league titles, with how many?", ["20","19","18","23"], 0],
+    ["Which manager led United for 26 trophy-laden years from 1986 to 2013?", ["Sir Alex Ferguson","Sir Matt Busby","José Mourinho","David Moyes"], 0],
+    ["In 1999, United won an unprecedented Treble of Premier League, FA Cup and which other trophy?", ["Champions League","UEFA Cup","Club World Cup","Community Shield"], 0],
+    ["United's dramatic 1999 Champions League final win over Bayern Munich came with two injury-time goals from Sheringham and who else?", ["Ole Gunnar Solskjær","Ryan Giggs","David Beckham","Andy Cole"], 0],
+    ["The famous group of academy graduates including Beckham, Scholes and Giggs is known as?", ["The Class of '92","The Busby Babes","The Fledglings","The Red Academy"], 0],
+    ["Who is Manchester United's all-time record goalscorer?", ["Wayne Rooney","Bobby Charlton","Ryan Giggs","Denis Law"], 0],
+    ["Which Portuguese winger developed at United before a first move to Real Madrid in 2009?", ["Cristiano Ronaldo","Nani","Ricardo Quaresma","Bruno Fernandes"], 0],
+    ["Who managed Manchester United to their first European Cup win in 1968?", ["Sir Matt Busby","Sir Alex Ferguson","Tommy Docherty","Ron Atkinson"], 0],
+    ["United's fierce rivalry with which Manchester neighbours is known as the Manchester Derby?", ["Manchester City","Bolton Wanderers","Oldham Athletic","Stockport County"], 0],
+    ["'Fergie time' is a fan term describing United's habit of scoring dramatic goals when?", ["Deep into stoppage time","In the first five minutes","From the penalty spot","Straight from kick-off"], 0],
+    ["United won the 2008 Champions League final against Chelsea in Moscow via what method?", ["Penalty shoot-out","Extra-time golden goal","2-0 in normal time","3-1 in normal time"], 0],
+    ["Which Irish midfielder captained United through much of the treble-winning era?", ["Roy Keane","Denis Irwin","Paul McGrath","Kevin Moran"], 0],
+    ["Eric Cantona's notorious 'kung-fu kick' on a fan happened in 1995 during a match against?", ["Crystal Palace","Arsenal","Leeds United","Liverpool"], 0],
+    ["Which family owned Manchester United from 2005 until partially selling to Sir Jim Ratcliffe's INEOS in 2024?", ["The Glazer family","The Kroenke family","The Abramovich family","The Moores family"], 0],
+    ["George Best, Bobby Charlton and Denis Law all won which individual award while at United?", ["The Ballon d'Or","FIFA World Player of the Year","PFA Player of the Year","England Golden Boot"], 0],
+    ["United's traditional home shirt colour is?", ["Red","Blue","White","Claret"], 0],
+    ["Wayne Rooney signed for United as a teenager in 2004, arriving from which club?", ["Everton","Liverpool","Manchester City","Newcastle United"], 0],
+    ["Cristiano Ronaldo returned to Manchester United for a second spell in which year?", ["2021","2019","2016","2023"], 0],
+    ["The Munich air disaster, which tragically claimed the lives of several 'Busby Babes' players, happened in which year?", ["1958","1968","1948","1972"], 0]
+  ],
+  ARSENAL: [
+    ["What is Arsenal's home ground?", ["Emirates Stadium","Stamford Bridge","White Hart Lane","Selhurst Park"], 0],
+    ["Arsenal's famous 2003-04 side went the entire league season unbeaten and are nicknamed?", ["The Invincibles","The Untouchables","The Immortals","The Unstoppables"], 0],
+    ["Which long-serving French manager led Arsenal from 1996 to 2018?", ["Arsène Wenger","George Graham","Unai Emery","Bruce Rioch"], 0],
+    ["Arsenal's home before the Emirates Stadium was?", ["Highbury","White Hart Lane","Upton Park","The Den"], 0],
+    ["Who is Arsenal's all-time record goalscorer?", ["Thierry Henry","Ian Wright","Dennis Bergkamp","Robin van Persie"], 0],
+    ["Arsenal's fiercest rivalry is with which fellow North London club?", ["Tottenham Hotspur","Chelsea","West Ham United","Fulham"], 0],
+    ["What are Arsenal's traditional home shirt colours?", ["Red and white","All blue","Claret and blue","Black and white"], 0],
+    ["Who captained Arsenal for much of the 1990s, nicknamed 'Mr Arsenal'?", ["Tony Adams","Patrick Vieira","David Seaman","Lee Dixon"], 0],
+    ["Thierry Henry's trademark goal celebration involved sliding on his knees toward which part of the pitch?", ["The corner flag","The centre circle","The goal line","The touchline"], 0],
+    ["What weapon appears on Arsenal's club crest, a nod to the club's Woolwich Arsenal origins?", ["A cannon","A sword","A spear","A shield"], 0],
+    ["Arsenal famously won the league title in 1989 with a last-minute goal away at which rivals?", ["Liverpool","Tottenham Hotspur","Manchester United","Chelsea"], 0],
+    ["Which Dutch forward, known for his close control and reluctance to fly, starred for Arsenal in the 1990s?", ["Dennis Bergkamp","Marc Overmars","Robin van Persie","Frank de Boer"], 0],
+    ["Which combative French midfielder captained the Invincibles side?", ["Patrick Vieira","Emmanuel Petit","Gilberto Silva","Cesc Fàbregas"], 0],
+    ["Which manager led early 20th-century Arsenal and pioneered tactical innovations like the WM formation?", ["Herbert Chapman","Tom Whittaker","George Allison","Bertie Mee"], 0],
+    ["Arsenal won the FA Cup in 2020 in Arteta's first season, with Mikel Arteta previously having played for the club as a?", ["Midfielder","Goalkeeper","Striker","Defender"], 0],
+    ["Which Norwegian midfielder has captained Arsenal's resurgence since the early 2020s?", ["Martin Ødegaard","Granit Xhaka","Mesut Özil","Aaron Ramsey"], 0],
+    ["Robin van Persie left Arsenal in 2012 to join which title rivals, going on to win the league the following season?", ["Manchester United","Manchester City","Chelsea","Liverpool"], 0],
+    ["Arsenal share which London postcode area rivalry beyond Spurs, historically feuding with this club over 1930s success?", ["Chelsea","West Ham United","Millwall","Charlton Athletic"], 0],
+    ["Ian Wright held Arsenal's scoring record for years before being overtaken by which club legend?", ["Thierry Henry","Dennis Bergkamp","Alan Smith","Nicolas Anelka"], 0],
+    ["What is Arsenal's official club motto, seen on the crest?", ["Victoria Concordia Crescit","Audere est Facere","Nil Satis Nisi Optimum","Superbia in Proelio"], 0]
+  ],
+  CHELSEA: [
+    ["What is Chelsea's home ground?", ["Stamford Bridge","Craven Cottage","Loftus Road","The Valley"], 0],
+    ["Chelsea won their first-ever Champions League title in 2012, beating which German side on penalties?", ["Bayern Munich","Borussia Dortmund","Bayer Leverkusen","Schalke 04"], 0],
+    ["Which Russian billionaire's 2003 takeover transformed Chelsea into a major footballing power?", ["Roman Abramovich","Boris Berezovsky","Alisher Usmanov","Mikhail Prokhorov"], 0],
+    ["Who is Chelsea's all-time record goalscorer?", ["Frank Lampard","Didier Drogba","Bobby Tambling","Eden Hazard"], 0],
+    ["Which Ivorian striker scored the vital equaliser and winning penalty in the 2012 Champions League final?", ["Didier Drogba","Salomon Kalou","Nicolas Anelka","Florent Malouda"], 0],
+    ["Which manager, nicknamed 'The Special One', won back-to-back Premier League titles with Chelsea in 2005 and 2006?", ["José Mourinho","Carlo Ancelotti","Claudio Ranieri","Antonio Conte"], 0],
+    ["Chelsea won the Champions League for a second time in 2021, beating Manchester City in a final held in?", ["Porto","Istanbul","Munich","Madrid"], 0],
+    ["Chelsea's home shirt colour is famously?", ["Blue","Red","White","Claret and blue"], 0],
+    ["Who took over ownership of Chelsea in 2022 following Abramovich's sanctioned exit?", ["A Todd Boehly-led consortium","The Glazer family","Fenway Sports Group","Sheikh Mansour"], 0],
+    ["Which long-serving defender captained Chelsea for over a decade, coming through the academy?", ["John Terry","Frank Lampard","Ashley Cole","Petr Čech"], 0],
+    ["What is the title of Chelsea's famous matchday anthem?", ["Blue Is The Colour","You'll Never Walk Alone","Blue Moon","The Great Escape"], 0],
+    ["Chelsea's Czech goalkeeper wore a distinctive protective headguard for years after a serious head injury — name him.", ["Petr Čech","Carlo Cudicini","Kepa Arrizabalaga","Thibaut Courtois"], 0],
+    ["Which Belgian playmaker became a fan favourite at Chelsea through the 2010s before leaving for Real Madrid?", ["Eden Hazard","Kevin De Bruyne","Romelu Lukaku","Christian Pulisic"], 0],
+    ["Chelsea's 2004-05 title-winning side under Mourinho set a record for the fewest goals conceded in a Premier League season, at how many?", ["15","20","10","25"], 0],
+    ["Which English academy graduates became key first-team players in the late 2010s and 2020s?", ["Mason Mount and Reece James","Frank Lampard and John Terry","Joe Cole and Wayne Bridge","Jack Wilshere and Ashley Cole"], 0],
+    ["Chelsea's women's team won multiple WSL titles under which manager before she left to coach the USA?", ["Emma Hayes","Sonia Bompastor","Hope Powell","Casey Stoney"], 0],
+    ["Chelsea won their first-ever English league title in which season?", ["1954-55","1964-65","1970-71","1980-81"], 0],
+    ["Which Italian playmaker, famed for his flicks and turns in the late 90s, was adored by Stamford Bridge fans?", ["Gianfranco Zola","Roberto Di Matteo","Gianluca Vialli","Pierluigi Casiraghi"], 0],
+    ["Chelsea's traditional West London rivalries include Fulham and which other close neighbours?", ["Queens Park Rangers","Watford","Millwall","Charlton Athletic"], 0],
+    ["Which Chelsea academy product later became club captain in the 2020s after rising through the ranks?", ["Reece James","Mason Mount","Ruben Loftus-Cheek","Callum Hudson-Odoi"], 0]
+  ],
+  MANCITY: [
+    ["What is Manchester City's home stadium?", ["Etihad Stadium","Old Trafford","Maine Road","Anfield"], 0],
+    ["Manchester City's traditional shirt colour is?", ["Sky blue","Red","Claret and blue","All white"], 0],
+    ["City's dramatic title-winning goal in the very last minute of the 2011-12 season, against QPR, was scored by?", ["Sergio Agüero","Yaya Touré","Edin Džeko","David Silva"], 0],
+    ["That 2012 title was City's first English top-flight title in how many years?", ["44","20","30","60"], 0],
+    ["Which manager has led City to a string of Premier League titles since 2016?", ["Pep Guardiola","Roberto Mancini","Manuel Pellegrini","Mark Hughes"], 0],
+    ["In 2023, City completed a historic Treble of Premier League, FA Cup and which other trophy?", ["Champions League","Europa League","Club World Cup","Community Shield"], 0],
+    ["City's 2008 takeover, which began the club's transformation, was led by investors from?", ["Abu Dhabi","Qatar","Saudi Arabia","China"], 0],
+    ["Who is Manchester City's all-time record goalscorer?", ["Sergio Agüero","Erling Haaland","Colin Bell","David Silva"], 0],
+    ["Which Norwegian striker broke the Premier League's single-season goal-scoring record in his debut season, 2022-23?", ["Erling Haaland","Gabriel Jesus","Julian Alvarez","Riyad Mahrez"], 0],
+    ["The Manchester Derby pits City against which fierce local rivals?", ["Manchester United","Bolton Wanderers","Stockport County","Oldham Athletic"], 0],
+    ["Sir Alex Ferguson once dismissively called City which phrase, referring to their spending?", ["Noisy neighbours","Small club syndrome","Nouveau riche","Plastic club"], 0],
+    ["Which Belgian midfielder became one of City's greatest ever creative players through the 2010s and 2020s?", ["Kevin De Bruyne","Ilkay Gündogan","Bernardo Silva","David Silva"], 0],
+    ["Which Spanish playmaker, a key figure of City's early title wins, was nicknamed 'Merlin'?", ["David Silva","Samir Nasri","Jesús Navas","Sergio Agüero"], 0],
+    ["City's captain who scored the title-clinching goal in the 2018-19 season against Leicester was?", ["Vincent Kompany","Fernandinho","Aymeric Laporte","Nicolás Otamendi"], 0],
+    ["City's home ground before the Etihad Stadium was?", ["Maine Road","Old Trafford","Belle Vue","Hyde Road"], 0],
+    ["City reached their first-ever Champions League final in 2021, losing to which club?", ["Chelsea","Bayern Munich","Real Madrid","Liverpool"], 0],
+    ["Which England goalkeeper spent many years as City's number one either side of the 2012 title win?", ["Joe Hart","Ederson","Kasper Schmeichel","Shay Given"], 0],
+    ["City's badge features a golden bird perched at the top, referencing the city's heraldry — what is it?", ["An eagle","A hawk","A raven","A phoenix"], 0],
+    ["Which Argentine midfielder, a City academy product, won the World Cup with Argentina in 2022?", ["Julián Álvarez","Sergio Agüero","Pablo Zabaleta","Nicolás Otamendi"], 0],
+    ["Colin Bell, one of City's greatest-ever players, earned which affectionate nickname from fans?", ["Nijinsky","The Wizard","King Colin","Chairman Bell"], 0]
+  ],
+  TOTTENHAM: [
+    ["What is Tottenham Hotspur's current home stadium, opened in 2019?", ["Tottenham Hotspur Stadium","White Hart Lane","Wembley Stadium","Highbury"], 0],
+    ["The North London Derby pits Tottenham against which rivals?", ["Arsenal","Chelsea","West Ham United","Crystal Palace"], 0],
+    ["In 1961, Spurs became the first club in the 20th century to achieve which feat?", ["The League and FA Cup Double","An unbeaten league season","Three trophies in one season","Back-to-back European Cups"], 0],
+    ["Who is Tottenham's all-time record goalscorer, having left for Bayern Munich in 2023?", ["Harry Kane","Jermain Defoe","Gary Lineker","Teddy Sheringham"], 0],
+    ["What is Tottenham's official club motto?", ["To Dare Is To Do","Audere est Facere (same meaning, Latin)","Victoria Concordia Crescit","Nil Satis Nisi Optimum"], 0],
+    ["Which manager led Spurs' legendary Double-winning side of 1960-61?", ["Bill Nicholson","Terry Venables","Keith Burkinshaw","Arthur Rowe"], 0],
+    ["Which cult-hero defender famously played for years despite having no cartilage in his knee?", ["Ledley King","Michael Dawson","Sol Campbell","Jan Vertonghen"], 0],
+    ["Tottenham reached the 2019 Champions League final, losing to Liverpool, under which manager?", ["Mauricio Pochettino","Ange Postecoglou","José Mourinho","Antonio Conte"], 0],
+    ["Which Welsh winger rose to stardom at Spurs before a world-record move to Real Madrid?", ["Gareth Bale","Aaron Lennon","Kyle Walker","Danny Rose"], 0],
+    ["What creature stands atop a football on Tottenham's club crest?", ["A cockerel","An eagle","A lion","A stag"], 0],
+    ["Who is Tottenham's South Korean captain and long-time fan favourite forward?", ["Son Heung-min","Ki Sung-yueng","Hwang Hee-chan","Lee Kang-in"], 0],
+    ["Which elegant England international, later a national team manager, starred as Spurs' playmaker in the 1980s?", ["Glenn Hoddle","Chris Waddle","Ossie Ardiles","Ricky Villa"], 0],
+    ["Spurs' fans self-deprecatingly use which term to describe painfully snatching defeat from the jaws of victory?", ["Spursy","Chokers","Nearly men","Bottlers"], 0],
+    ["Tottenham's old ground, White Hart Lane, was demolished and replaced by a new stadium in which year?", ["2019","2015","2021","2017"], 0],
+    ["Which German striker delighted Spurs fans in the mid-90s with his celebratory dive along the turf?", ["Jürgen Klinsmann","Lothar Matthäus","Andreas Möller","Oliver Bierhoff"], 0],
+    ["Tottenham became one of the first British clubs to win a European trophy, lifting the Cup Winners' Cup in which year?", ["1963","1972","1984","1991"], 0],
+    ["Who took charge as Tottenham manager in 2023, bringing an attacking style fans nicknamed 'Angeball'?", ["Ange Postecoglou","Nuno Espírito Santo","Antonio Conte","Fabio Paratici"], 0],
+    ["Spurs' new stadium was notable for hosting matches from which American sport, thanks to a retractable pitch?", ["NFL American football","NBA basketball","MLB baseball","NHL ice hockey"], 0],
+    ["Which England striker, later a famous TV pundit, starred for Spurs in the mid-1980s?", ["Gary Lineker","Alan Shearer","Michael Owen","Ian Wright"], 0],
+    ["What are Tottenham's traditional home shirt colours?", ["White shirts, navy shorts","All claret","Sky blue and white","Red and white stripes"], 0]
+  ],
+  EVERTON: [
+    ["Everton's historic home was Goodison Park — what is their new stadium, opened in 2025, called?", ["Everton Stadium (Bramley-Moore Dock)","Anfield","Etihad Stadium","St James' Park"], 0],
+    ["What are Everton fans and the club affectionately nicknamed?", ["The Toffees","The Reds","The Blues Brothers","The Cottagers"], 0],
+    ["The Merseyside Derby is Everton's rivalry against which fellow Liverpool club?", ["Liverpool","Tranmere Rovers","Manchester United","Manchester City"], 0],
+    ["Everton's traditional shirt colour is?", ["Royal blue","All red","Claret and blue","All white"], 0],
+    ["Which prolific 1920s striker still holds the record for most goals scored in a single English top-flight season?", ["Dixie Dean","Gary Lineker","Tommy Lawton","Bob Latchford"], 0],
+    ["Everton were founding members of the Football League in which year?", ["1888","1878","1892","1900"], 0],
+    ["Everton earned the nickname 'The School of Science' for playing what kind of football?", ["Stylish, skilful football","Long-ball, physical football","Ultra-defensive football","Route one football"], 0],
+    ["Which manager led Everton's successful 1980s era, including league titles and a European trophy?", ["Howard Kendall","Harry Catterick","Colin Harvey","Joe Royle"], 0],
+    ["Which England striker began his career at Everton's academy before a famous move to Manchester United?", ["Wayne Rooney","Michael Owen","Steven Gerrard","Jack Rodwell"], 0],
+    ["What is Everton's Latin club motto?", ["Nil Satis Nisi Optimum","Audere est Facere","Victoria Concordia Crescit","Superbia in Proelio"], 0],
+    ["Which fiery Scottish striker became a cult hero at Everton and later served as caretaker manager?", ["Duncan Ferguson","Kevin Campbell","Andy Gray","Graeme Sharp"], 0],
+    ["What theme tune traditionally plays as Everton's teams take the field?", ["Z-Cars","Blue Moon","You'll Never Walk Alone","Glory Glory"], 0],
+    ["Which long-serving Welsh goalkeeping legend is considered one of the finest of his generation at Everton?", ["Neville Southall","Tim Howard","Jordan Pickford","Nigel Martyn"], 0],
+    ["Everton's club crest features a landmark tower named after which historical figure?", ["Prince Rupert","King Henry VIII","Lord Nelson","Sir Walter Raleigh"], 0],
+    ["Which Australian midfielder was adored by Everton fans for his energetic play and corner-flag boxing celebration?", ["Tim Cahill","Mile Jedinak","Harry Kewell","Brett Emerton"], 0],
+    ["Which England 1966 World Cup winner later played for Everton?", ["Alan Ball","Bobby Moore","Geoff Hurst","Martin Peters"], 0],
+    ["Everton and Liverpool's grounds were historically separated by which public space?", ["Stanley Park","Sefton Park","Princes Park","Calderstones Park"], 0],
+    ["Which combative midfielder was a key part of Everton's title-winning sides of the mid-1980s?", ["Peter Reid","Kevin Ratcliffe","Trevor Steven","Paul Bracewell"], 0],
+    ["Everton won the old First Division title how many times in total across their history?", ["9","5","12","3"], 0],
+    ["Everton's traditional away shirt has often featured which colour?", ["Yellow","Green","Orange","Purple"], 0]
+  ],
+  ASTONVILLA: [
+    ["What is Aston Villa's home ground?", ["Villa Park","Molineux","The Hawthorns","St Andrew's"], 0],
+    ["What are Aston Villa's traditional club colours?", ["Claret and blue","All white","Sky blue","Black and white stripes"], 0],
+    ["Villa won the European Cup in 1982, beating which German giants in the final?", ["Bayern Munich","Borussia Mönchengladbach","Hamburger SV","Werder Bremen"], 0],
+    ["Villa were founding members of the Football League in which year?", ["1888","1878","1892","1900"], 0],
+    ["The Second City Derby pits Aston Villa against which local rivals?", ["Birmingham City","Wolverhampton Wanderers","West Bromwich Albion","Coventry City"], 0],
+    ["Villa Park has hosted more of which competition's semi-finals than any other English ground?", ["FA Cup semi-finals","League Cup finals","Charity Shields","European finals"], 0],
+    ["Which academy graduate became a boyhood-fan hero for Villa through the 2000s and 2010s?", ["Gabby Agbonlahor","Ashley Young","Stiliyan Petrov","James Milner"], 0],
+    ["What animal appears on Aston Villa's club crest?", ["A lion","A cannon","A cockerel","An eagle"], 0],
+    ["Which cult-hero Irish defender was famous for playing through serious knee injuries at Villa in the 1990s?", ["Paul McGrath","Steve Staunton","Shay Given","Ray Houghton"], 0],
+    ["Which manager took charge of Villa in late 2022 and led a return to Champions League football?", ["Unai Emery","Steven Gerrard","Dean Smith","Remi Garde"], 0],
+    ["Villa won the old First Division title the season before their famous European Cup triumph — in which year?", ["1981","1980","1982","1979"], 0],
+    ["Who scored the winning goal in Villa's 1982 European Cup final victory?", ["Peter Withe","Tony Morley","Dennis Mortimer","Gordon Cowans"], 0],
+    ["Villa's current ownership group, in charge since 2018, is fronted by Nassef Sawiris and which American businessman?", ["Wes Edens","Todd Boehly","Stan Kroenke","John Textor"], 0],
+    ["Which academy graduate and boyhood Villa fan captained the club before a big-money move to Manchester City in 2021?", ["Jack Grealish","Gabby Agbonlahor","Ashley Young","Jack Butland"], 0],
+    ["In which part of Birmingham is Villa Park located?", ["Aston","Edgbaston","Handsworth","Sparkbrook"], 0],
+    ["Villa reached the 2000 FA Cup final, the last one held at the old Wembley before its rebuild — who beat them?", ["Chelsea","Manchester United","Arsenal","Liverpool"], 0],
+    ["Which striker became a key modern-era goalscorer for Villa through the early 2020s?", ["Ollie Watkins","Danny Ings","Christian Benteke","Gabby Agbonlahor"], 0],
+    ["Aston Villa hold a joint record for winning which domestic cup competition the most times?", ["The League Cup","The FA Cup","The Community Shield","The Full Members' Cup"], 0],
+    ["Which World Cup-winning Argentine goalkeeper joined Villa in 2020 and became a fan favourite?", ["Emiliano Martínez","Sergio Romero","Franco Armani","Nahuel Guzmán"], 0],
+    ["What is Aston Villa's nickname?", ["The Villans","The Baggies","The Blues","The Hornets"], 0]
+  ],
+  LEEDS: [
+    ["What is Leeds United's home ground?", ["Elland Road","Hillsborough","Bramall Lane","Molineux"], 0],
+    ["Leeds' famously all-white kit was inspired by which European giants, at manager Don Revie's suggestion?", ["Real Madrid","AC Milan","Bayern Munich","Ajax"], 0],
+    ["Which manager built Leeds into a dominant, feared force through the 1960s and early 1970s?", ["Don Revie","Howard Wilkinson","Marcelo Bielsa","Brian Clough"], 0],
+    ["Leeds' fierce rivalry with which club dates back to fiery clashes including the 1970 FA Cup final?", ["Chelsea","Manchester United","Liverpool","Arsenal"], 0],
+    ["Leeds won the old First Division title in 1992, the last champions crowned before the Premier League began — true or false framing aside, who was their manager?", ["Howard Wilkinson","Don Revie","David O'Leary","Terry Venables"], 0],
+    ["Which combative Scottish captain of Revie's great Leeds side has a statue outside Elland Road?", ["Billy Bremner","Norman Hunter","Jack Charlton","Paul Reaney"], 0],
+    ["Leeds reached a Champions League semi-final in 2001 under a young manager named?", ["David O'Leary","George Graham","Terry Venables","Peter Reid"], 0],
+    ["Leeds were relegated from the Premier League in 2004 following a financial crisis, and spent how many years away from the top flight before returning?", ["16","10","20","8"], 0],
+    ["Which Argentine coach, beloved for his intense 'Bielsaball' style, led Leeds back to the Premier League in 2020?", ["Marcelo Bielsa","Jesse Marsch","Javi Gracia","Sam Allardyce"], 0],
+    ["What song do Leeds fans traditionally sing as their club anthem?", ["Marching On Together","You'll Never Walk Alone","Blue Moon","Glory Glory Leeds United"], 0],
+    ["Which England 1966 World Cup winner was a long-serving Leeds defender under Don Revie?", ["Jack Charlton","Bobby Moore","Alan Ball","Geoff Hurst"], 0],
+    ["Leeds won the Fairs Cup, forerunner of the UEFA Cup, on how many occasions?", ["2","1","3","0"], 0],
+    ["Which striker was a key figure in Leeds' Bielsa-era promotion back to the Premier League?", ["Patrick Bamford","Kemar Roofe","Chris Wood","Rodrigo"], 0],
+    ["Leeds' famous East Stand at Elland Road is notable for being one of English football's what?", ["Largest single stands","Oldest stands","Only all-seater stands in the 80s","Smallest stands"], 0],
+    ["Leeds returned to the Premier League for the 2025-26 season after winning promotion from which division?", ["The Championship","League One","The National League","The FA Cup"], 0],
+    ["Which homegrown academy graduate was nicknamed 'The Yorkshire Pirlo' for his passing range?", ["Kalvin Phillips","Luke Ayling","Stuart Dallas","Mateusz Klich"], 0],
+    ["Leeds' title-winning 1973-74 squad set a top-flight record by going unbeaten for how many matches at the start of the season?", ["29","20","15","38"], 0],
+    ["What nickname is commonly used for Leeds United and their fans?", ["The Whites","The Tractor Boys","The Trotters","The Terriers"], 0],
+    ["Leeds' club crest has changed design several times, most recently featuring which city symbol?", ["An owl","A rose","A dragon","A castle"], 0],
+    ["Which Leeds legend, part of Revie's side, later managed the Republic of Ireland to a World Cup quarter-final?", ["Jack Charlton","Billy Bremner","Norman Hunter","Terry Yorath"], 0]
+  ]
+};
+
+function questionBankFor(cat){ return QUESTIONS[cat] || CLUB_QUESTIONS[cat]; }
+
 function buildQuestionSet(cat, n){
-  const pool = QUESTIONS[cat].slice();
+  const pool = questionBankFor(cat).slice();
   const out = [];
   for (let i=0; i<n; i++){
     if (!pool.length) pool.push(...QUESTIONS[cat]);
@@ -901,6 +1205,7 @@ const S = {
   isDaily:false,               // is the current run the date-seeded daily?
   runSummary:null,             // xp breakdown for the results screen
   profileScroll:0,
+  clubsScroll:0, clubHintMsg:'', clubHintT:0,
   transition:{ t:0, dur:0, pending:null },
   shareFlashT:0
 };
@@ -981,7 +1286,7 @@ function contactX(type, side){ return type==='head' ? 0 : (side===0 ? -5 : 5); }
 const MONEY_LABELS = ['£100','£200','£300','£500','£1K','£2K','£4K','£8K','£16K','£32K','£64K','£125K','£250K','£500K','£1M'];
 
 function shuffledPool(cat){
-  const pool = QUESTIONS[cat].slice();
+  const pool = questionBankFor(cat).slice();
   for (let j=pool.length-1;j>0;j--){ const k=Math.floor(rnd()*(j+1)); [pool[j],pool[k]]=[pool[k],pool[j]]; }
   return pool;
 }
@@ -995,6 +1300,11 @@ function nextKUQuestion(){
   ku.qPick = -1; ku.qResolved = false; ku.qWasRight = false; ku.qRevealT = 0;
   ku.qShownClock = ku.clock;          // baseline for the "answered fast" badge
 }
+// cheats that shortcut the ladder itself void a run's club-unlock eligibility;
+// purely cosmetic/other-mode cheats (bighead, discomode, nowind, hotshot,
+// turbotouch) don't touch Keepy-Ups difficulty and stay unlock-safe.
+const BLOCKING_CHEATS = ['nolose','megabucks','timefreeze'];
+
 function beginKeepyups(cat){
   srand(SEED);
   S.mode = 'KEEPYUPS';
@@ -1007,7 +1317,8 @@ function beginKeepyups(cat){
     clock: KU_START_CLOCK, rank:0, best:0, answered:0, asked:0, qShownClock:KU_START_CLOCK,
     checkpoint5Used:false, checkpoint10Used:false, won:false,
     cycleT:0, foot:0, trickIdx:0, tier:0, contactPop:0, contactType:'foot', celebWord:'', bike:null, bonusFlashT:0,
-    introChimed:0
+    introChimed:0,
+    tainted: BLOCKING_CHEATS.some(k => S.cheats[k])
   };
   if (S.cheats.megabucks){ S.ku.rank = 10; S.ku.best = 10; }   // cheat: start already banked
   gotoScene('KU_INTRO');
@@ -1047,6 +1358,20 @@ function startSafetyNet(){
 /* Bank the run into the career: xp, lifetime counters, the daily
    streak, and every badge the run just earned. Builds the summary
    the results screen animates. Called exactly once per run. */
+/* A clean (untainted) £1M finish spends the category it was played with —
+   nation or club — toward unlocking the next queued Club Legends team, in
+   CLUB_UNLOCK_ORDER. Each category can only fund one unlock, ever, which
+   is what makes "a team you haven't used before" a real constraint. */
+function checkClubUnlock(){
+  const ku = S.ku, p = S.profile;
+  if (!ku.won || ku.tainted) return null;
+  if (p.clubUnlockFundsUsed.indexOf(S.cat) >= 0) return null;
+  const nextId = CLUB_UNLOCK_ORDER.find(id => p.clubsUnlocked.indexOf(id) < 0);
+  if (!nextId) return null;
+  p.clubUnlockFundsUsed.push(S.cat);
+  p.clubsUnlocked.push(nextId);
+  return CLUB_BY_ID[nextId];
+}
 function finishRun(){
   const ku = S.ku, p = S.profile;
   const levelBefore = levelFromXp(p.xp).level;
@@ -1065,13 +1390,19 @@ function finishRun(){
   p.bestRank = Math.max(p.bestRank, ku.best);
   if (ku.won) p.ladderCompletes++;
   if (ku.best > S.bestEverRank) S.bestEverRank = ku.best;
-  noteTeamPlayed(S.cat);
+  if (CATS.indexOf(S.cat) >= 0){
+    noteTeamPlayed(S.cat);
+  } else if (p.clubsPlayed.indexOf(S.cat) < 0){
+    p.clubsPlayed.push(S.cat);
+  }
   if (S.isDaily) recordDailyResult(ku.best);
 
   const before = Object.keys(p.achievements).length;
   if (ku.won && !ku.checkpoint5Used && !ku.checkpoint10Used) unlockAch('no_net');
   if (ku.checkpoint5Used && ku.checkpoint10Used) unlockAch('both_nets');
+  const clubUnlock = checkClubUnlock();
   checkMilestoneAch();
+  if (clubUnlock) SFX.rankUp();
 
   const levelAfter = levelFromXp(p.xp).level;
   S.runSummary = {
@@ -1079,7 +1410,8 @@ function finishRun(){
     levelBefore, levelAfter,
     xpAtStart: p.xp - total,
     anim: 0,
-    newAchs: Object.keys(p.achievements).length - before
+    newAchs: Object.keys(p.achievements).length - before,
+    clubUnlock
   };
   saveGame();
 }
@@ -1109,6 +1441,7 @@ function updateKeepyups(dt){
 
   const juggling = S.scene==='KU_READY' || S.scene==='KU_PLAY' || S.scene==='KU_HATTRICK' || S.scene==='KU_SAFETYNET';
   if (juggling){
+    if (!ku.tainted) ku.tainted = BLOCKING_CHEATS.some(k => S.cheats[k]);   // dev menu toggled mid-run
     ku.cycleT += dt * (S.cheats.turbotouch ? 2.2 : 1);   // cheat: double-time tricks
     if (ku.cycleT >= 1){
       ku.cycleT -= 1;
@@ -1482,6 +1815,7 @@ function tapAt(px, py){
         SFX.lock(0,true); gotoScene('TITLE');
       }
       return;
+    case 'CLUBS': handleClubsTap(px, py); return;
     case 'TITLE':
       // edit player, career card, daily, mode toggle, then category grid
       if (editHit(px, py)){ SFX.lock(0, true); resetCreateShow(); gotoScene('CREATE'); return; }
@@ -1492,6 +1826,10 @@ function tapAt(px, py){
       if (DAILY_RECT && px>=DAILY_RECT[0] && px<=DAILY_RECT[0]+DAILY_RECT[2] &&
           py>=DAILY_RECT[1] && py<=DAILY_RECT[1]+DAILY_RECT[3]){
         SFX.whistleShort(); buzz(20); transitionTo(()=> beginDaily()); return;
+      }
+      if (CLUBS_RECT && px>=CLUBS_RECT[0] && px<=CLUBS_RECT[0]+CLUBS_RECT[2] &&
+          py>=CLUBS_RECT[1] && py<=CLUBS_RECT[1]+CLUBS_RECT[3]){
+        SFX.lock(0,true); S.clubsScroll = 0; gotoScene('CLUBS'); return;
       }
       { const m = modeHit(px, py); if (m){ S.menuMode = m; SFX.lock(0, true); return; } }
       { const pick = catHit(px, py); if (!pick) return;
@@ -1588,7 +1926,7 @@ function applyQuestion(){
 }
 
 // hit regions
-let ANSWER_RECTS = [], CAT_RECTS = [], MODE_RECTS = [], CREATE_RECTS = [], EDIT_RECT = null;
+let ANSWER_RECTS = [], CAT_RECTS = [], MODE_RECTS = [], CREATE_RECTS = [], EDIT_RECT = null, CLUBS_RECT = null;
 function answerHit(px,py){ for (let i=0;i<ANSWER_RECTS.length;i++){ const r=ANSWER_RECTS[i];
   if (px>=r[0]&&px<=r[0]+r[2]&&py>=r[1]&&py<=r[1]+r[3]) return i; } return -1; }
 function catHit(px,py){ for (const r of CAT_RECTS){ if (px>=r[0]&&px<=r[0]+r[2]&&py>=r[1]&&py<=r[1]+r[3]) return r[4]; } return null; }
@@ -1744,7 +2082,8 @@ function freshProfile(){
     answered:0, correct:0, bestRank:0, ladderCompletes:0,
     teamsPlayed:[], langsUsed:[],
     dailyStreak:0, dailyBest:0, lastDaily:'', dailyBestRank:0,
-    achievements:{}
+    achievements:{},
+    clubsUnlocked: CLUB_STARTERS.slice(), clubUnlockFundsUsed:[], clubsPlayed:[]
   };
 }
 
@@ -1776,6 +2115,9 @@ const ACHIEVEMENTS = [
   { id:'scholar',      name:'SCHOLAR',        desc:'Get 250 answers right',                icon:'boot' },
   { id:'veteran',      name:'VETERAN',        desc:'Play 50 runs',                         icon:'trophy' },
   { id:'no_net',       name:'NERVES OF STEEL',desc:'Complete the ladder with no net spent',icon:'diamond' },
+  { id:'club_debut',   name:'CLUB DEBUT',     desc:'Play your first Club Legends run',     icon:'shield' },
+  { id:'new_signing',  name:'NEW SIGNING',    desc:'Unlock a new club',                    icon:'shield' },
+  { id:'full_squad',   name:'FULL SQUAD',     desc:'Unlock all 7 Club Legends teams',      icon:'trophy' },
 ];
 const ACH_BY_ID = {};
 ACHIEVEMENTS.forEach(a => ACH_BY_ID[a.id] = a);
@@ -1805,6 +2147,9 @@ function checkMilestoneAch(){
   if (p.dailyStreak >= 3) unlockAch('dedicated');
   if (p.dailyStreak >= 7) unlockAch('unstoppable');
   if (p.ladderCompletes >= 1) unlockAch('millionaire');
+  if (p.clubsPlayed.length >= 1) unlockAch('club_debut');
+  if (p.clubsUnlocked.length > CLUB_STARTERS.length) unlockAch('new_signing');
+  if (p.clubsUnlocked.length >= CLUB_STARTERS.length + CLUB_UNLOCK_ORDER.length) unlockAch('full_squad');
   const h = new Date().getHours();
   if (h >= 0 && h < 5) unlockAch('night_shift');
 }
@@ -1916,21 +2261,25 @@ function toBuf(e){
   return [ cx * (FRAME_W/rect.width), cy * (FRAME_H/rect.height) - PAD_TOP ];
 }
 cv.addEventListener('pointerdown', e=>{ e.preventDefault(); const [x,y]=toBuf(e); tapAt(x,y); }, {passive:false});
-/* Drag-to-scroll for the badge grid. Only the career screen scrolls,
-   so a drag anywhere else stays a plain tap and nothing else changes. */
+/* Drag-to-scroll for the badge grids. Only the career and Club Legends
+   screens scroll, so a drag anywhere else stays a plain tap and nothing
+   else changes. */
 let dragY = null, dragMoved = 0;
-cv.addEventListener('pointerdown', e=>{ if (S.scene==='PROFILE'){ dragY = toBuf(e)[1]; dragMoved = 0; } });
+const SCROLLABLE_SCENES = ['PROFILE','CLUBS'];
+cv.addEventListener('pointerdown', e=>{ if (SCROLLABLE_SCENES.includes(S.scene)){ dragY = toBuf(e)[1]; dragMoved = 0; } });
 cv.addEventListener('pointermove', e=>{
-  if (S.scene!=='PROFILE' || dragY===null) return;
+  if (!SCROLLABLE_SCENES.includes(S.scene) || dragY===null) return;
   e.preventDefault();
   const y = toBuf(e)[1];
-  S.profileScroll -= (y - dragY); dragMoved += Math.abs(y-dragY); dragY = y;
+  const dy = y - dragY; dragMoved += Math.abs(dy); dragY = y;
+  if (S.scene==='PROFILE') S.profileScroll -= dy; else S.clubsScroll -= dy;
 }, {passive:false});
 ['pointerup','pointercancel','pointerleave'].forEach(ev =>
   cv.addEventListener(ev, ()=>{ dragY = null; }));
 cv.addEventListener('wheel', e=>{
-  if (S.scene!=='PROFILE') return;
-  e.preventDefault(); S.profileScroll += e.deltaY*0.5;
+  if (!SCROLLABLE_SCENES.includes(S.scene)) return;
+  e.preventDefault();
+  if (S.scene==='PROFILE') S.profileScroll += e.deltaY*0.5; else S.clubsScroll += e.deltaY*0.5;
 }, {passive:false});
 document.getElementById('menuBtn').addEventListener('click', e=>{
   e.preventDefault(); e.stopPropagation();
@@ -1975,6 +2324,7 @@ function update(dt){
   S.t += dt; S.sceneT += dt;
   updateAchToasts(dt);
   S.shareFlashT = Math.max(0, S.shareFlashT - dt*0.7);
+  S.clubHintT = Math.max(0, S.clubHintT - dt*0.7);
   if (S.transition.dur > 0){
     S.transition.t += dt;
     const half = S.transition.dur/2;
@@ -2161,6 +2511,7 @@ function draw(){
   if (S.scene === 'LANGUAGE'){ drawLanguage(); finishDraw(); return; }
   if (S.scene === 'NAME'){ drawNameEntry(); finishDraw(); return; }
   if (S.scene === 'PROFILE'){ drawProfile(); finishDraw(); return; }
+  if (S.scene === 'CLUBS'){ drawClubsScene(); finishDraw(); return; }
   if (S.scene === 'CREATE'){ drawCreate(); finishDraw(); return; }
   if (S.scene === 'TITLE'){ drawTitle(); finishDraw(); return; }
   if (S.scene === 'MATCHEND'){ drawMatchEnd(); finishDraw(); return; }
@@ -2989,6 +3340,13 @@ function drawKUOver(){
   }
   if (sum.newAchs > 0 && anim > 0.6){
     txt('+'+sum.newAchs+' ACHIEVEMENT'+(sum.newAchs>1?'S':''), W/2, noteY, C.GOLD2, 8, 'center');
+    noteY += 14;
+  }
+  if (sum.clubUnlock && anim > 0.75){
+    const pulse = 0.5+0.5*Math.sin(S.t*6);
+    b.save(); b.globalAlpha = 0.7+pulse*0.3;
+    txtFit('NEW CLUB UNLOCKED: '+sum.clubUnlock.name.toUpperCase(), W/2, noteY, C.GOLD, 8, W-40, 'center');
+    b.restore();
   }
 
   // ── buttons ──
@@ -3975,23 +4333,31 @@ function drawTitle(){
   }
   if (streak > 0) txt('STREAK '+streak, 48, dy+30, C.ORANGE, 6);
 
+  // ── club legends — the 51-club roster, mostly locked ──
+  const cly = 160, unlockedCount = S.profile.clubsUnlocked.length, totalContent = CLUB_STARTERS.length + CLUB_UNLOCK_ORDER.length;
+  CLUBS_RECT = [14, cly, W-28, 16];
+  rect(14, cly, W-28, 16, C.PANELED); rect(15, cly+1, W-30, 14, C.PANEL);
+  drawClubBadge(28, cly+8, 6, '#8a7a3a', '', false);
+  txt('CLUB LEGENDS', 40, cly+4, C.GOLD2, 8);
+  txt(unlockedCount+'/'+totalContent+' UNLOCKED ▸', W-20, cly+4, C.GREYDK, 6, 'right');
+
   // ── free play ──
-  txt('FREE PLAY', 14, 170, C.GREYDK, 7);
+  txt('FREE PLAY', 14, 182, C.GREYDK, 7);
   MODE_RECTS = [];
   const modes = [[t('mode_keepyups'),'KEEPYUPS'], [t('mode_shootout'),'SHOOTOUT']];
   modes.forEach(([label,key],i)=>{
-    const w = (W-28-8)/2, h = 18, x = 14 + i*(w+8), y = 182;
+    const w = (W-28-8)/2, h = 18, x = 14 + i*(w+8), y = 194;
     MODE_RECTS.push([x,y,w,h,key]);
     const on = S.menuMode === key;
     rect(x,y,w,h, on?C.GOLD:C.PANELED); rect(x+1,y+1,w-2,h-2, on?'#3a2c06':C.PANEL);
     txtFit(label, x+w/2, y+5, on?C.GOLD2:C.GREYDK, 8, w-10, 'center');
   });
 
-  txt(S.menuMode==='KEEPYUPS' ? t('choose_team') : t('choose_category'), W/2, 208, C.GREYDK, 7, 'center');
+  txt(S.menuMode==='KEEPYUPS' ? t('choose_team') : t('choose_category'), W/2, 220, C.GREYDK, 7, 'center');
   CAT_RECTS = [];
   CATS.forEach((c,i)=>{
     const col = i%2, row = Math.floor(i/2);
-    const w = (W-28-8)/2, x = 14 + col*(w+8), y = 222 + row*24, h = 20;
+    const w = (W-28-8)/2, x = 14 + col*(w+8), y = 234 + row*24, h = 20;
     CAT_RECTS.push([x,y,w,h,c]);
     const hot = Math.floor(S.t*2)%CATS.length === i;
     rect(x,y,w,h, hot?C.GOLDDK:C.PANELED); rect(x+1,y+1,w-2,h-2, C.PANEL);
@@ -3999,7 +4365,7 @@ function drawTitle(){
   });
 
   // ── career strip ──
-  const p = S.profile, sy = 306;
+  const p = S.profile, sy = 318;
   rect(14, sy, W-28, 40, C.PANELED); rect(15, sy+1, W-30, 38, C.PANEL);
   const stats = [
     ['BEST', p.bestRank+'/15'],
@@ -4013,10 +4379,10 @@ function drawTitle(){
     txtFit(label, cx, sy+24, C.GREYDK, 6, cw-4, 'center');
   });
 
-  txt('seed '+SEED.toString(16).slice(0,8), W/2, 356, C.GREYDK, 6, 'center');
+  txt('seed '+SEED.toString(16).slice(0,8), W/2, 368, C.GREYDK, 6, 'center');
 
   // how-to, compact, at the very bottom
-  const hy = 372;
+  const hy = 384;
   txtFit(t('how_perfect'), W/2, hy, C.GOLD2, 7, W-28, 'center');
   txtFit(t('how_wind'), W/2, hy+11, C.ORANGE, 7, W-28, 'center');
 }
@@ -4092,6 +4458,124 @@ function drawProfile(){
   txt('BACK', W/2, 402, C.GOLD2, 9, 'center');
 }
 let PROFILE_BACK = null;
+
+/* ── club badges — plain shield shapes in a solid team colour with
+   initials, no crest linework, same policy as the player's own kit
+   colours (see the note above CLUB_QUESTIONS). Locked ones (both the
+   7 not-yet-earned clubs and the permanent placeholders) get dimmed
+   and padlocked the same way.                                      ── */
+function isLightColor(hex){
+  const r = parseInt(hex.substr(1,2),16), g = parseInt(hex.substr(3,2),16), bl = parseInt(hex.substr(5,2),16);
+  return (r*299+g*587+bl*114)/1000 > 150;
+}
+function drawPadlock(cx, cy, r){
+  b.save();
+  b.fillStyle = '#181818'; b.globalAlpha = 0.88;
+  const bw = r*1.3, bh = r;
+  b.fillRect(cx-bw/2, cy-bh*0.1, bw, bh);
+  b.strokeStyle = '#181818'; b.lineWidth = Math.max(1.5, r*0.28); b.lineCap = 'round';
+  b.beginPath(); b.arc(cx, cy-bh*0.1, r*0.55, Math.PI, 0); b.stroke();
+  b.restore();
+  circ(cx, cy+bh*0.28, Math.max(1.2, r*0.16), '#f0d060');
+}
+function drawClubBadge(cx, cy, r, color, initials, locked){
+  b.save();
+  if (locked) b.globalAlpha *= 0.5;
+  b.fillStyle = color;
+  b.beginPath();
+  b.moveTo(cx-r*0.8, cy-r*0.8); b.lineTo(cx+r*0.8, cy-r*0.8);
+  b.lineTo(cx+r*0.8, cy+r*0.1); b.lineTo(cx, cy+r); b.lineTo(cx-r*0.8, cy+r*0.1);
+  b.closePath(); b.fill();
+  b.strokeStyle = 'rgba(0,0,0,0.4)'; b.lineWidth = 1; b.stroke();
+  if (initials) txt(initials, cx, cy-r*0.32, isLightColor(color) ? '#1a1a1a' : '#ffffff', Math.max(5, Math.round(r*0.5)), 'center');
+  b.restore();
+  if (locked) drawPadlock(cx, cy, r*0.55);
+}
+
+const CLUBS_GRID_TOP = 34, CLUBS_GRID_BOT = 384, CLUBS_COLS = 4, CLUBS_ROWH = 58;
+let CLUBS_BACK = null;
+/* ── club legends: 51-badge roster, spin-in on entry, drag-to-scroll ── */
+function drawClubsScene(){
+  if (!backdrop) makeBackdrop();
+  b.drawImage(backdrop, 0, 0);
+  b.save(); b.globalAlpha = 0.72; rect(0,0,W,H,C.INK); b.restore();
+
+  const p = S.profile;
+  txt('CLUB LEGENDS', W/2, 8, C.GOLD, 16, 'center');
+  const totalContent = CLUB_STARTERS.length + CLUB_UNLOCK_ORDER.length;
+  txtFit(p.clubsUnlocked.length+'/'+totalContent+' UNLOCKED  ·  TAP A CLUB TO PLAY', W/2, 24, C.GREYDK, 7, W-28, 'center');
+
+  const cols = CLUBS_COLS, cell = (W-28)/cols, gTop = CLUBS_GRID_TOP, gBot = CLUBS_GRID_BOT;
+  const rowsN = Math.ceil(CLUBS.length/cols), contentH = rowsN*CLUBS_ROWH;
+  const maxScroll = Math.max(0, contentH - (gBot-gTop));
+  S.clubsScroll = Math.max(0, Math.min(maxScroll, S.clubsScroll));
+
+  b.save(); b.beginPath(); b.rect(0, gTop, W, gBot-gTop); b.clip();
+  CLUBS.forEach((club,i)=>{
+    const col = i%cols, row = Math.floor(i/cols);
+    const cx = 14 + col*cell + cell/2, cy = gTop + 24 + row*CLUBS_ROWH - S.clubsScroll;
+    if (cy < gTop-30 || cy > gBot+30) return;
+    const locked = p.clubsUnlocked.indexOf(club.id) < 0;
+
+    // spin-in: badges flip open one-by-one, staggered by grid index
+    const delay = i*0.018, localT = Math.max(0, Math.min(1, (S.sceneT-delay)/0.4));
+    if (localT < 1){
+      const scaleX = Math.abs(Math.cos((1-localT)*Math.PI/2));
+      b.save(); b.translate(cx,cy); b.scale(Math.max(0.02,scaleX),1); b.translate(-cx,-cy);
+      drawClubBadge(cx, cy, 15, club.color, club.short, locked);
+      b.restore();
+    } else {
+      drawClubBadge(cx, cy, 15, club.color, club.short, locked);
+    }
+    txtClip(club.name, cx, cy+21, locked?C.GREYDK:C.WHITE, 6, cell-4, 'center');
+  });
+  b.restore();
+
+  if (maxScroll > 0){
+    const trackH = gBot-gTop, kh = Math.max(18, trackH*(trackH/contentH));
+    const ky = gTop + (trackH-kh)*(S.clubsScroll/maxScroll);
+    rect(W-4, gTop, 2, trackH, C.PANEL);
+    rect(W-4, ky, 2, kh, C.GOLDDK);
+  }
+
+  if (S.clubHintT > 0){
+    b.save(); b.globalAlpha = Math.min(1, S.clubHintT);
+    rect(14, gBot+2, W-28, 20, C.PANELED); rect(15, gBot+3, W-30, 18, C.PANEL);
+    txtFit(S.clubHintMsg, W/2, gBot+9, C.GOLD2, 7, W-40, 'center');
+    b.restore();
+  }
+
+  CLUBS_BACK = [W/2-46, 404, 92, 20];
+  rect(CLUBS_BACK[0], CLUBS_BACK[1], 92, 20, C.GOLDDK);
+  rect(CLUBS_BACK[0]+1, CLUBS_BACK[1]+1, 90, 18, '#241a06');
+  txt('BACK', W/2, 410, C.GOLD2, 9, 'center');
+}
+function handleClubsTap(px, py){
+  if (S.clubHintT > 0) S.clubHintT = 0;
+  if (CLUBS_BACK && px>=CLUBS_BACK[0] && px<=CLUBS_BACK[0]+CLUBS_BACK[2] &&
+      py>=CLUBS_BACK[1] && py<=CLUBS_BACK[1]+CLUBS_BACK[3]){
+    SFX.lock(0,true); gotoScene('TITLE'); return;
+  }
+  const cols = CLUBS_COLS, cell = (W-28)/cols, gTop = CLUBS_GRID_TOP, gBot = CLUBS_GRID_BOT;
+  if (py < gTop || py > gBot) return;
+  const col = Math.floor((px-14)/cell);
+  if (col < 0 || col >= cols) return;
+  const row = Math.floor((py - gTop + S.clubsScroll) / CLUBS_ROWH);
+  const idx = row*cols + col;
+  if (idx < 0 || idx >= CLUBS.length) return;
+  const club = CLUBS[idx];
+  const p = S.profile;
+  if (p.clubsUnlocked.indexOf(club.id) >= 0){
+    SFX.whistleShort(); S.isDaily = false;
+    transitionTo(()=> beginKeepyups(club.id));
+  } else if (club.hasContent){
+    S.clubHintMsg = 'Win £1,000,000 in Keepy-Ups with a team you haven’t used yet to unlock '+club.name+'.';
+    S.clubHintT = 2.6; SFX.lock(0,false);
+  } else {
+    S.clubHintMsg = club.name+' — coming soon.';
+    S.clubHintT = 2.0; SFX.lock(0,false);
+  }
+}
 function drawMatchEnd(){
   if (!backdrop) makeBackdrop();
   b.drawImage(backdrop, 0, 0);
@@ -4254,9 +4738,9 @@ function drawSettings(){
 /* ── the dev menu — gear icon, bottom right, code 1234. GameShark-style
    toggles that mess with the experience for fun / testing.            ── */
 const CHEATS = [
-  { key:'nolose',     name:'NOLOSE',     desc:"Wrong answers can't end your run — the net always catches you." },
-  { key:'megabucks',  name:'MEGABUCKS',  desc:'Every climb starts already banked at £32,000.' },
-  { key:'timefreeze', name:'TIMEFREEZE', desc:'The clock stops ticking. Answer at your leisure.' },
+  { key:'nolose',     name:'NOLOSE',     desc:"Wrong answers can't end your run — the net always catches you.", blocksClubUnlock:true },
+  { key:'megabucks',  name:'MEGABUCKS',  desc:'Every climb starts already banked at £32,000.', blocksClubUnlock:true },
+  { key:'timefreeze', name:'TIMEFREEZE', desc:'The clock stops ticking. Answer at your leisure.', blocksClubUnlock:true },
   { key:'hotshot',    name:'HOTSHOT',    desc:'Every strike lands dead in the gold core. Auto PERFECT SHOT.' },
   { key:'nowind',     name:'NOWIND',     desc:'Dead calm. The ball goes exactly where you send it.' },
   { key:'bighead',    name:'BIGHEAD',    desc:"Classic. Your player's head is now enormous." },
@@ -4355,6 +4839,7 @@ function drawDevMenu(){
     rect(rx,ry,rw,rh-4, on?C.GOLDDK:C.PANELED); rect(rx+1,ry+1,rw-2,rh-6, on?'#241a06':C.PANEL);
     txt(c.name, rx+8, ry+4, on?C.GOLD2:C.WHITE, 9);
     txtFit(c.desc, rx+8, ry+15, C.GREYDK, 6, rw-52);
+    if (c.blocksClubUnlock) txt('⚠ BLOCKS CLUB UNLOCK', rx+8, ry+23, C.RED, 5);
     txt(on?'ON':'OFF', rx+rw-22, ry+9, on?C.GREEN:C.GREYDK, 8, 'center');
     ry += rh;
   });
