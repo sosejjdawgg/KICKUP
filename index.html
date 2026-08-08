@@ -17,7 +17,7 @@
     font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
     -webkit-tap-highlight-color:transparent;touch-action:manipulation}
   #wrap{height:100%;display:flex;align-items:center;justify-content:center}
-  canvas{image-rendering:pixelated;image-rendering:crisp-edges;display:block;cursor:pointer;
+  canvas{display:block;cursor:pointer;
     box-shadow:0 0 0 1px #1b2438, 0 0 60px -10px #1a3a6b}
   @media (prefers-reduced-motion:reduce){canvas{box-shadow:0 0 0 1px #1b2438}}
   #menuBtn{position:fixed;top:8px;left:8px;z-index:5;
@@ -77,15 +77,29 @@ const PAD_TOP = 54, PAD_BOTTOM = 26;
 const FRAME_W = W, FRAME_H = H + PAD_TOP + PAD_BOTTOM;
 const cv = document.getElementById('cv');
 const ctx = cv.getContext('2d', { alpha:false });
-const buf = document.createElement('canvas'); buf.width = W; buf.height = H;
+/* buf is drawn supersampled — its backing store is SS times the logical
+   288x432 — then smooth-downscaled into the final composite in post().
+   Every draw call in this file still works in plain W/H logical units;
+   the b.scale(SS,SS) below makes that land at SS times the pixel density
+   for free. Flat rects still look crisp (a solid-colour block downsamples
+   to the same solid colour), but text and curves — which get antialiased
+   at whatever resolution they're actually drawn at — stop looking like
+   blurry, chunky mush once they're not also being nearest-neighbour
+   blown up from a tiny 288px-wide source. */
+const SS = 2;
+const buf = document.createElement('canvas'); buf.width = W*SS; buf.height = H*SS;
 const b = buf.getContext('2d', { alpha:false });
+b.scale(SS, SS);
 b.imageSmoothingEnabled = false;
 ctx.imageSmoothingEnabled = false;
 
-// tint buffers for the RGB-split flash
+// tint buffers for the RGB-split flash — stay at logical resolution;
+// they're sampled *from* the supersampled buf (with smoothing), so this
+// is a free antialiased downsample rather than a quality loss.
 const tA = document.createElement('canvas'); tA.width=W; tA.height=H;
 const tB = document.createElement('canvas'); tB.width=W; tB.height=H;
 const ta = tA.getContext('2d'), tb = tB.getContext('2d');
+ta.imageSmoothingEnabled = true; tb.imageSmoothingEnabled = true;
 
 // a small scratch canvas the language flags are drawn flat onto, then
 // sampled column-by-column with a vertical sine offset to make them wave
@@ -5201,21 +5215,25 @@ function post(){
   ctx.save();
   ctx.translate(0, PAD_TOP);
 
+  // buf is supersampled (SSxSS the logical size) — draw it smooth so the
+  // downscale genuinely antialiases instead of just picking nearest pixels
+  ctx.imageSmoothingEnabled = true;
   if (S.aberr > 0.01 && !S.reduceMotion){
     const d = S.aberr * 3;
-    ta.clearRect(0,0,W,H); ta.drawImage(buf,0,0);
+    ta.clearRect(0,0,W,H); ta.drawImage(buf,0,0,W,H);
     ta.globalCompositeOperation='multiply'; ta.fillStyle='#ff2020'; ta.fillRect(0,0,W,H);
     ta.globalCompositeOperation='source-over';
-    tb.clearRect(0,0,W,H); tb.drawImage(buf,0,0);
+    tb.clearRect(0,0,W,H); tb.drawImage(buf,0,0,W,H);
     tb.globalCompositeOperation='multiply'; tb.fillStyle='#20ffff'; tb.fillRect(0,0,W,H);
     tb.globalCompositeOperation='source-over';
-    ctx.drawImage(buf, ox, oy);
+    ctx.drawImage(buf, ox, oy, W, H);
     ctx.globalCompositeOperation='lighter';
     ctx.globalAlpha = 0.55; ctx.drawImage(tA, ox-d, oy); ctx.drawImage(tB, ox+d, oy);
     ctx.globalAlpha = 1; ctx.globalCompositeOperation='source-over';
   } else {
-    ctx.drawImage(buf, ox, oy);
+    ctx.drawImage(buf, ox, oy, W, H);
   }
+  ctx.imageSmoothingEnabled = false;
 
   if (S.flash > 0.01){ ctx.globalAlpha = Math.min(0.7, S.flash); ctx.fillStyle='#fff'; ctx.fillRect(0,0,W,H); ctx.globalAlpha=1; }
 
@@ -5263,10 +5281,12 @@ if (S.playerName) gotoScene('TITLE');
    ═══════════════════════════════════════════════════════════ */
 /* Sharpness lives or dies here. The backing store has to be sized in
    *device* pixels — size it in CSS pixels and the browser resamples the
-   whole bitmap up to the physical display with smoothing on, which is
-   what turns crisp pixel art into mush on any phone with DPR > 1.
-   On top of that, an exact integer scale keeps every game pixel a
-   perfect square block instead of an uneven 2-or-3 physical pixels. */
+   whole bitmap up to the physical display, which is what turns crisp
+   art into mush on any phone with DPR > 1. `buf` is supersampled (see
+   SS above) and smooth-downscaled into this backing store, so an exact
+   integer scale isn't required for crispness the way it used to be —
+   it's kept mainly so a snap that barely costs any screen space is
+   free to take, not to preserve literal blocky pixels. */
 function resize(){
   const dpr = Math.max(1, Math.min(4, window.devicePixelRatio || 1));
   const availH = window.innerHeight - 12, availW = window.innerWidth - 8;
