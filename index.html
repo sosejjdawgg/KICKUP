@@ -1853,6 +1853,7 @@ function tapAt(px, py){
       }
       return;
     case 'CLUBS': handleClubsTap(px, py); return;
+    case 'WORLDTEAMS': handleWorldTeamsTap(px, py); return;
     case 'TITLE':
       // edit player, career card, daily, mode toggle, then category grid
       if (editHit(px, py)){ SFX.lock(0, true); resetCreateShow(); gotoScene('CREATE'); return; }
@@ -1864,15 +1865,14 @@ function tapAt(px, py){
           py>=DAILY_RECT[1] && py<=DAILY_RECT[1]+DAILY_RECT[3]){
         SFX.whistleShort(); buzz(20); transitionTo(()=> beginDaily()); return;
       }
+      { const m = modeHit(px, py); if (m){ S.menuMode = m; SFX.lock(0, true); return; } }
+      if (WORLDTEAMS_RECT && px>=WORLDTEAMS_RECT[0] && px<=WORLDTEAMS_RECT[0]+WORLDTEAMS_RECT[2] &&
+          py>=WORLDTEAMS_RECT[1] && py<=WORLDTEAMS_RECT[1]+WORLDTEAMS_RECT[3]){
+        SFX.lock(0,true); gotoScene('WORLDTEAMS'); return;
+      }
       if (CLUBS_RECT && px>=CLUBS_RECT[0] && px<=CLUBS_RECT[0]+CLUBS_RECT[2] &&
           py>=CLUBS_RECT[1] && py<=CLUBS_RECT[1]+CLUBS_RECT[3]){
         SFX.lock(0,true); S.clubsScroll = 0; gotoScene('CLUBS'); return;
-      }
-      { const m = modeHit(px, py); if (m){ S.menuMode = m; SFX.lock(0, true); return; } }
-      { const pick = catHit(px, py); if (!pick) return;
-        SFX.whistleShort();
-        S.isDaily = false;
-        if (S.menuMode === 'KEEPYUPS') beginKeepyups(pick); else beginMatch(pick);
       }
       return;
     case 'ROUNDCARD': if (S.sceneT > 0.35){ SFX.whistleShort(); prepShot(); } return;
@@ -1967,7 +1967,7 @@ function applyQuestion(){
 }
 
 // hit regions
-let ANSWER_RECTS = [], CAT_RECTS = [], MODE_RECTS = [], CREATE_RECTS = [], EDIT_RECT = null, CLUBS_RECT = null;
+let ANSWER_RECTS = [], CAT_RECTS = [], MODE_RECTS = [], CREATE_RECTS = [], EDIT_RECT = null, CLUBS_RECT = null, WORLDTEAMS_RECT = null;
 function answerHit(px,py){ for (let i=0;i<ANSWER_RECTS.length;i++){ const r=ANSWER_RECTS[i];
   if (px>=r[0]&&px<=r[0]+r[2]&&py>=r[1]&&py<=r[1]+r[3]) return i; } return -1; }
 function catHit(px,py){ for (const r of CAT_RECTS){ if (px>=r[0]&&px<=r[0]+r[2]&&py>=r[1]&&py<=r[1]+r[3]) return r[4]; } return null; }
@@ -2584,6 +2584,7 @@ function draw(){
   if (S.scene === 'NAME'){ drawNameEntry(); finishDraw(); return; }
   if (S.scene === 'PROFILE'){ drawProfile(); finishDraw(); return; }
   if (S.scene === 'CLUBS'){ drawClubsScene(); finishDraw(); return; }
+  if (S.scene === 'WORLDTEAMS'){ drawWorldTeamsScene(); finishDraw(); return; }
   if (S.scene === 'CREATE'){ drawCreate(); finishDraw(); return; }
   if (S.scene === 'TITLE'){ drawTitle(); finishDraw(); return; }
   if (S.scene === 'MATCHEND'){ drawMatchEnd(); finishDraw(); return; }
@@ -4488,39 +4489,36 @@ function drawTitle(){
   }
   if (streak > 0) txt('STREAK '+streak, 48, dy+30, C.ORANGE, 6);
 
-  // ── club legends — the 51-club roster, mostly locked ──
-  const cly = 160, unlockedCount = S.profile.clubsUnlocked.length, totalContent = CLUB_STARTERS.length + CLUB_UNLOCK_ORDER.length;
-  CLUBS_RECT = [14, cly, W-28, 16];
-  rect(14, cly, W-28, 16, C.PANELED); rect(15, cly+1, W-30, 14, C.PANEL);
-  drawClubBadge(28, cly+8, 6, '#8a7a3a', '', false);
-  txt('CLUB LEGENDS', 40, cly+4, C.GOLD2, 8);
-  txt(unlockedCount+'/'+totalContent+' UNLOCKED ▸', W-20, cly+4, C.GREYDK, 6, 'right');
-
-  // ── free play ──
-  txt('FREE PLAY', 14, 182, C.GREYDK, 7);
+  // ── free play: pick a mode, then a category group ──
+  txt('FREE PLAY', 14, 168, C.GREYDK, 7);
   MODE_RECTS = [];
   const modes = [[t('mode_keepyups'),'KEEPYUPS'], [t('mode_shootout'),'SHOOTOUT']];
   modes.forEach(([label,key],i)=>{
-    const w = (W-28-8)/2, h = 18, x = 14 + i*(w+8), y = 194;
+    const w = (W-28-10)/2, h = 22, x = 14 + i*(w+10), y = 180;
     MODE_RECTS.push([x,y,w,h,key]);
     const on = S.menuMode === key;
     rect(x,y,w,h, on?C.GOLD:C.PANELED); rect(x+1,y+1,w-2,h-2, on?'#3a2c06':C.PANEL);
-    txtFit(label, x+w/2, y+5, on?C.GOLD2:C.GREYDK, 8, w-10, 'center');
+    txtFit(label, x+w/2, y+7, on?C.GOLD2:C.GREYDK, 9, w-10, 'center');
   });
 
-  txt(S.menuMode==='KEEPYUPS' ? t('choose_team') : t('choose_category'), W/2, 220, C.GREYDK, 7, 'center');
-  CAT_RECTS = [];
-  CATS.forEach((c,i)=>{
-    const col = i%2, row = Math.floor(i/2);
-    const w = (W-28-8)/2, x = 14 + col*(w+8), y = 234 + row*24, h = 20;
-    CAT_RECTS.push([x,y,w,h,c]);
-    const hot = Math.floor(S.t*2)%CATS.length === i;
-    rect(x,y,w,h, hot?C.GOLDDK:C.PANELED); rect(x+1,y+1,w-2,h-2, C.PANEL);
-    txtFit(c, x+w/2, y+6, hot?C.GOLD2:C.GREY, 9, w-8, 'center');
-  });
+  // world teams (nations) and club legends (clubs) — each its own row,
+  // opening its own spacious picker rather than being crammed in here
+  const cgy = 214;
+  WORLDTEAMS_RECT = [14, cgy, W-28, 28];
+  rect(14, cgy, W-28, 28, C.PANELED); rect(15, cgy+1, W-30, 26, C.PANEL);
+  drawAchIcon('globe', 30, cgy+14, 8, C.GOLD2);
+  txt('WORLD TEAMS', 44, cgy+9, C.WHITE, 9);
+  txt(CATS.length+' NATIONS ▸', W-20, cgy+10, C.GREYDK, 6, 'right');
+
+  const cly = cgy + 36, unlockedCount = S.profile.clubsUnlocked.length, totalContent = CLUB_STARTERS.length + CLUB_UNLOCK_ORDER.length;
+  CLUBS_RECT = [14, cly, W-28, 28];
+  rect(14, cly, W-28, 28, C.PANELED); rect(15, cly+1, W-30, 26, C.PANEL);
+  drawClubBadge(30, cly+14, 8, '#8a7a3a', '', false);
+  txt('CLUB LEGENDS', 44, cly+9, C.GOLD2, 9);
+  txt(unlockedCount+'/'+totalContent+' UNLOCKED ▸', W-20, cly+10, C.GREYDK, 6, 'right');
 
   // ── career strip ──
-  const p = S.profile, sy = 318;
+  const p = S.profile, sy = 294;
   rect(14, sy, W-28, 40, C.PANELED); rect(15, sy+1, W-30, 38, C.PANEL);
   const stats = [
     ['BEST', p.bestRank+'/15'],
@@ -4745,6 +4743,46 @@ function handleClubsTap(px, py){
     S.clubHintT = 2.0; SFX.lock(0,false);
   }
 }
+
+let WORLDTEAMS_BACK = null;
+/* ── world teams: the 6 nations, picked from their own spacious scene
+   instead of being crammed onto the title screen. Reuses CAT_RECTS/
+   catHit() — same hit-test helper the old inline grid used.        ── */
+function drawWorldTeamsScene(){
+  if (!backdrop) makeBackdrop();
+  b.drawImage(backdrop, 0, 0);
+  b.save(); b.globalAlpha = 0.72; rect(0,0,W,H,C.INK); b.restore();
+
+  txt('WORLD TEAMS', W/2, 8, C.GOLD, 16, 'center');
+  txtFit(S.menuMode==='KEEPYUPS' ? t('choose_team') : t('choose_category'), W/2, 26, C.GREYDK, 7, W-28, 'center');
+
+  CAT_RECTS = [];
+  const listTop = 46, rowH = 46, gap = 12;
+  CATS.forEach((c,i)=>{
+    const x = 20, y = listTop + i*(rowH+gap), w = W-40;
+    CAT_RECTS.push([x,y,w,rowH,c]);
+    const hot = Math.floor(S.t*2)%CATS.length === i;
+    rect(x,y,w,rowH, hot?C.GOLDDK:C.PANELED); rect(x+1,y+1,w-2,rowH-2, C.PANEL);
+    txtFit(c, x+w/2, y+rowH/2-6, hot?C.GOLD2:C.GREY, 11, w-16, 'center');
+  });
+
+  WORLDTEAMS_BACK = [W/2-46, 396, 92, 20];
+  rect(WORLDTEAMS_BACK[0], WORLDTEAMS_BACK[1], 92, 20, C.GOLDDK);
+  rect(WORLDTEAMS_BACK[0]+1, WORLDTEAMS_BACK[1]+1, 90, 18, '#241a06');
+  txt('BACK', W/2, 402, C.GOLD2, 9, 'center');
+}
+function handleWorldTeamsTap(px, py){
+  if (WORLDTEAMS_BACK && px>=WORLDTEAMS_BACK[0] && px<=WORLDTEAMS_BACK[0]+WORLDTEAMS_BACK[2] &&
+      py>=WORLDTEAMS_BACK[1] && py<=WORLDTEAMS_BACK[1]+WORLDTEAMS_BACK[3]){
+    SFX.lock(0,true); gotoScene('TITLE'); return;
+  }
+  const pick = catHit(px, py);
+  if (!pick) return;
+  SFX.whistleShort();
+  S.isDaily = false;
+  if (S.menuMode === 'KEEPYUPS') beginKeepyups(pick); else beginMatch(pick);
+}
+
 function drawMatchEnd(){
   if (!backdrop) makeBackdrop();
   b.drawImage(backdrop, 0, 0);
