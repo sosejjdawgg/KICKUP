@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>KICKUP</title>
+<title>KICK-OFF — Fixtures &amp; Fun</title>
 <meta name="description" content="Three taps. Ten seconds. One goal. A football trivia climb from £100 to £1,000,000.">
 <meta name="theme-color" content="#05070d">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="KICKUP">
+<meta name="apple-mobile-web-app-title" content="KICK-OFF">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%2305070d'/%3E%3Ccircle cx='32' cy='32' r='19' fill='%231d5fa8'/%3E%3Ccircle cx='32' cy='32' r='13' fill='%23e8402c'/%3E%3Ccircle cx='32' cy='32' r='7' fill='%23f0efe4'/%3E%3Ccircle cx='32' cy='32' r='3' fill='%23ffc93c'/%3E%3C/svg%3E">
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
@@ -25,17 +25,24 @@
     font-size:10px;letter-spacing:.10em;color:#b9b8ae;background:#0e1526;
     border:1px solid #1d2942;border-radius:2px;padding:6px 9px;cursor:pointer;
     -webkit-tap-highlight-color:transparent;user-select:none}
-  #menuBtn:active{background:#1d2942;color:#ffe89a}
+  #menuBtn{transition:transform .12s ease,background .12s ease,color .12s ease,box-shadow .12s ease}
+  #menuBtn:hover{background:#16223a;color:#ffe89a;box-shadow:0 0 0 1px #2b3b5c,0 4px 18px #0008}
+  #menuBtn:focus-visible,#devBtn:focus-visible{outline:2px solid #ffc93c;outline-offset:3px}
+  #menuBtn:active{transform:translateY(1px) scale(.97);background:#1d2942;color:#ffe89a}
   #devBtn{position:fixed;bottom:8px;right:8px;z-index:5;
     font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
     font-size:14px;color:#3d4a63;background:#0e1526;
     border:1px solid #1d2942;border-radius:50%;width:26px;height:26px;line-height:24px;
     text-align:center;cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none;opacity:0.55}
-  #devBtn:active{background:#1d2942;color:#ffe89a;opacity:1}
+  #devBtn{transition:transform .12s ease,background .12s ease,color .12s ease,opacity .12s ease}
+  #devBtn:hover{opacity:1;background:#16223a;color:#ffe89a}
+  #devBtn:active{transform:scale(.92);background:#1d2942;color:#ffe89a;opacity:1}
+  @media (prefers-reduced-motion:reduce){#menuBtn,#devBtn{transition:none}}
 </style>
 </head>
 <body>
-<div id="wrap"><canvas id="cv"></canvas></div>
+<div id="wrap"><canvas id="cv" role="application" aria-label="KICK-OFF — Fixtures & Fun football game"></canvas></div>
+<div id="srStatus" aria-live="polite" aria-atomic="true" style="position:fixed;left:-10000px;top:auto;width:1px;height:1px;overflow:hidden">KICK-OFF — Fixtures &amp; Fun</div>
 <button id="menuBtn" type="button">≡ MENU</button>
 <button id="devBtn" type="button">⚙</button>
 <script>
@@ -45,8 +52,8 @@
   try {
     const icon = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%2305070d'/%3E%3Ccircle cx='256' cy='256' r='152' fill='%231d5fa8'/%3E%3Ccircle cx='256' cy='256' r='104' fill='%23e8402c'/%3E%3Ccircle cx='256' cy='256' r='56' fill='%23f0efe4'/%3E%3Ccircle cx='256' cy='256' r='24' fill='%23ffc93c'/%3E%3C/svg%3E";
     const manifest = {
-      name:'KICKUP', short_name:'KICKUP',
-      description:'Three taps. Ten seconds. One goal.',
+      name:'KICK-OFF — Fixtures & Fun', short_name:'KICK-OFF',
+      description:'Fixtures & Fun — three taps, ten seconds, one goal.',
       start_url:'.', display:'fullscreen', orientation:'portrait',
       background_color:'#05070d', theme_color:'#05070d',
       icons:[{ src:icon, sizes:'512x512', type:'image/svg+xml', purpose:'any maskable' }]
@@ -63,7 +70,7 @@
 "use strict";
 
 /* ═══════════════════════════════════════════════════════════
-   KICKUP — three-tap prototype
+   KICK-OFF — three-tap prototype
    Power → Height → Placement.  Wind. Targets. Trivia inflation.
    Internal buffer 288x432, nearest-neighbour upscale.
    Fixed timestep 1/120s. Seeded PRNG. Procedural audio.
@@ -430,6 +437,34 @@ Object.assign(SFX, {
   }
 });
 
+Object.assign(SFX,{
+  hoolKick(){ if(!AC) return; const t=AC.currentTime; noise(t,.045,.16,'lowpass',850,1); sweepTone(160,72,t,.16,.16,'sine'); tone(880,t,.003,.08,.08,'triangle'); },
+  hoolCoin(){ if(!AC) return; const t=AC.currentTime; tone(988,t,.004,.10,.14,'square'); tone(1480,t+.055,.004,.16,.11,'square'); },
+  hoolWhistle(){ if(!AC) return; const t=AC.currentTime; tone(1850,t,.004,.18,.12,'sine'); tone(2300,t+.12,.004,.28,.14,'sine'); },
+  // the enemy-clear "pop" — only fires on a kill, never on a plain hit, so it
+  // reads as a distinct reward rather than combat noise. Three tiers by
+  // enemy weight: small fry get a light flick, mid enemies a proper thud,
+  // the hool boss a heavier sub sweep + metallic ring (layered under the
+  // existing SFX.boom() chest cue, not replacing it)
+  hoolClear(tier){
+    if(!AC) return; const t=AC.currentTime;
+    if (tier==='boss'){
+      sweepTone(170,42,t,.40,.48,'sine');
+      [1400,1866,2600].forEach((f,i)=> tone(f,t+.012*i,.005,.38,.11,'triangle',i*6));
+      noise(t,.13,.26,'lowpass',900,1.2);
+      return;
+    }
+    if (tier==='mid'){
+      sweepTone(320,95,t,.20,.30,'sine');
+      tone(1200,t+.01,.004,.15,.12,'triangle');
+      noise(t,.05,.15,'highpass',3200,1);
+      return;
+    }
+    sweepTone(560,190,t,.10,.20,'sine');
+    tone(1650,t+.005,.003,.07,.08,'triangle');
+  }
+});
+
 /* ═══════════════════════════════════════════════════════════
    I18N — UI chrome only. Trivia questions stay English for now;
    translating ~120 questions across 4 languages is a separate job.
@@ -581,6 +616,28 @@ const I18N = {
     name_continue:"CONTINUA →",
   },
 };
+/* ── Hooligan Mode copy — mirrored across the existing language table.
+   The mode is deliberately terse: these labels are read at 288px. ── */
+const HOOL_I18N = {
+  en:{mode_hooligan:'HOOLIGAN', hooligan_title:'HOOLIGAN MODE', hooligan_sub:'SURVIVE THE TERRACE',
+    hooligan_start:'TAP TO KICK OFF', hooligan_move:'MOVE · NO AIM · AUTO ATTACK', hooligan_level:'LEVEL UP',
+    hooligan_choose:'CHOOSE YOUR CREW', hooligan_shop:'TERRACE SHOP', hooligan_buy:'BUY', hooligan_extra:'BUY AN EXTRA?',
+    hooligan_crew:'+1 CREW', hooligan_tokens:'TOKENS', hooligan_kickball:'KICK FOOTBALL', hooligan_crewman:'CREW MEMBER',
+    hooligan_pause:'PAUSED', hooligan_resume:'RESUME', hooligan_wave:'WAVE', hooligan_survive:'SURVIVED',
+    hooligan_wave_clear:'WAVE CLEAR', hooligan_boss:'BOSS', hooligan_gameover:'TERRACE LOST', hooligan_again:'RUN IT BACK',
+    hooligan_menu:'BACK TO TITLE', hooligan_upgrade:'UPGRADE', hooligan_heal:'PIE +HP', hooligan_speed:'TRAINERS',
+    hooligan_magnet:'SCARF MAGNET', hooligan_damage:'MEGAPHONE', hooligan_cooldown:'QUICK BOOTS', hooligan_hp:'BOVRIL',
+    hooligan_crew_scarf:'SCARF CREW', hooligan_crew_drum:'DRUMMER', hooligan_crew_flag:'FLAG WAVER',
+    hooligan_shop_hint:'BUY CREW · GEAR · FOOTBALLS', hooligan_best:'BEST', hooligan_kills:'KILLS',
+    hooligan_xp:'XP', hooligan_crew_count:'CREW', hooligan_boss_chest:'CHEST!', hooligan_gold:'TOKENS',
+    hooligan_final:'FULL TIME', hooligan_touch:'DRAG TO MOVE', hooligan_shop_open:'SHOP'},
+  fr:{mode_hooligan:'HOOLIGAN', hooligan_title:'MODE HOOLIGAN', hooligan_sub:'SURVIE EN TRIBUNE', hooligan_start:'TOUCHE POUR JOUER', hooligan_move:'BOUGE · AUTO-ATTAQUE', hooligan_level:'NIVEAU', hooligan_choose:'CHOISIS TON CREW', hooligan_shop:'BOUTIQUE', hooligan_buy:'ACHETER', hooligan_extra:'EN REPRENDRE ?', hooligan_crew:'+1 CREW', hooligan_tokens:'JETONS', hooligan_kickball:'BALLON KICK', hooligan_crewman:'MEMBRE', hooligan_pause:'PAUSE', hooligan_resume:'REPRENDRE', hooligan_wave:'VAGUE', hooligan_survive:'SURVÉCU', hooligan_wave_clear:'VAGUE TERMINÉE', hooligan_boss:'BOSS', hooligan_gameover:'TRIBUNE PERDUE', hooligan_again:'REJOUER', hooligan_menu:'MENU', hooligan_upgrade:'AMÉLIORER', hooligan_heal:'+PV', hooligan_speed:'CRAMPONS', hooligan_magnet:'ÉCHARPE', hooligan_damage:'MÉGAPHONE', hooligan_cooldown:'VITESSE', hooligan_hp:'BOUILLON', hooligan_crew_scarf:'CREW ÉCHARPE', hooligan_crew_drum:'BATTEUR', hooligan_crew_flag:'PORTE-DRAPEAU', hooligan_shop_hint:'CREW · ÉQUIPEMENT · BALLONS', hooligan_best:'MEILLEUR', hooligan_kills:'KILLS', hooligan_xp:'XP', hooligan_crew_count:'CREW', hooligan_boss_chest:'COFFRE !', hooligan_gold:'JETONS', hooligan_final:'COUP DE SIFFLET', hooligan_touch:'GLISSE POUR BOUGER', hooligan_shop_open:'BOUTIQUE'},
+  es:{mode_hooligan:'HOOLIGAN', hooligan_title:'MODO HOOLIGAN', hooligan_sub:'SUPERVIVENCIA DE GRADA', hooligan_start:'TOCA PARA EMPEZAR', hooligan_move:'MUEVE · AUTOATAQUE', hooligan_level:'SUBIR NIVEL', hooligan_choose:'ELIGE TU CREW', hooligan_shop:'TIENDA', hooligan_buy:'COMPRAR', hooligan_extra:'¿COMPRAR OTRO?', hooligan_crew:'+1 CREW', hooligan_tokens:'FICHAS', hooligan_kickball:'BALÓN KICK', hooligan_crewman:'MIEMBRO', hooligan_pause:'PAUSA', hooligan_resume:'SEGUIR', hooligan_wave:'OLEADA', hooligan_survive:'SOBREVIVIDO', hooligan_wave_clear:'OLEADA SUPERADA', hooligan_boss:'JEFE', hooligan_gameover:'GRADA PERDIDA', hooligan_again:'OTRA VEZ', hooligan_menu:'MENÚ', hooligan_upgrade:'MEJORAR', hooligan_heal:'+PV', hooligan_speed:'BOTAS', hooligan_magnet:'BUFANDA', hooligan_damage:'MEGÁFONO', hooligan_cooldown:'BOTAS RÁPIDAS', hooligan_hp:'CALDO', hooligan_crew_scarf:'CREW BUFANDA', hooligan_crew_drum:'TAMBOR', hooligan_crew_flag:'ABANDERADO', hooligan_shop_hint:'CREW · EQUIPO · BALONES', hooligan_best:'MEJOR', hooligan_kills:'BAJAS', hooligan_xp:'XP', hooligan_crew_count:'CREW', hooligan_boss_chest:'¡COFRE!', hooligan_gold:'FICHAS', hooligan_final:'FINAL', hooligan_touch:'ARRASTRA PARA MOVER', hooligan_shop_open:'TIENDA'},
+  de:{mode_hooligan:'HOOLIGAN', hooligan_title:'HOOLIGAN-MODUS', hooligan_sub:'TRIBÜNEN-SURVIVAL', hooligan_start:'TIPPEN ZUM START', hooligan_move:'BEWEGEN · AUTO-ANGRIFF', hooligan_level:'LEVEL UP', hooligan_choose:'CREW WÄHLEN', hooligan_shop:'SHOP', hooligan_buy:'KAUFEN', hooligan_extra:'NOCH EINER?', hooligan_crew:'+1 CREW', hooligan_tokens:'JETONS', hooligan_kickball:'KICK-BALL', hooligan_crewman:'CREW', hooligan_pause:'PAUSE', hooligan_resume:'WEITER', hooligan_wave:'WELLE', hooligan_survive:'ÜBERLEBT', hooligan_wave_clear:'WELLE GESCHAFFT', hooligan_boss:'BOSS', hooligan_gameover:'TRIBÜNE VERLOREN', hooligan_again:'NOCHMAL', hooligan_menu:'MENÜ', hooligan_upgrade:'UPGRADE', hooligan_heal:'+HP', hooligan_speed:'SCHUHE', hooligan_magnet:'SCHAL', hooligan_damage:'MEGAFON', hooligan_cooldown:'SCHNELLE SCHUHE', hooligan_hp:'BRÜHE', hooligan_crew_scarf:'SCHAL-CREW', hooligan_crew_drum:'TROMMLER', hooligan_crew_flag:'FAHNENWEDLER', hooligan_shop_hint:'CREW · GEAR · BÄLLE', hooligan_best:'BEST', hooligan_kills:'KILLS', hooligan_xp:'XP', hooligan_crew_count:'CREW', hooligan_boss_chest:'TRUHE!', hooligan_gold:'JETONS', hooligan_final:'ABPFIFF', hooligan_touch:'ZIEHEN ZUM BEWEGEN', hooligan_shop_open:'SHOP'},
+  it:{mode_hooligan:'HOOLIGAN', hooligan_title:'MODALITÀ HOOLIGAN', hooligan_sub:'SOPRAVVIVI IN CURVA', hooligan_start:'TOCCA PER INIZIARE', hooligan_move:'MUOVI · AUTO-ATTACCO', hooligan_level:'LIVELLO', hooligan_choose:'SCEGLI LA CREW', hooligan_shop:'NEGOZIO', hooligan_buy:'COMPRA', hooligan_extra:'UN ALTRO?', hooligan_crew:'+1 CREW', hooligan_tokens:'GETTONI', hooligan_kickball:'PALLONE KICK', hooligan_crewman:'MEMBRO', hooligan_pause:'PAUSA', hooligan_resume:'RIPRENDI', hooligan_wave:'ONDATA', hooligan_survive:'SOPRAVVISSUTO', hooligan_wave_clear:'ONDATA SUPERATA', hooligan_boss:'BOSS', hooligan_gameover:'CURVA PERSA', hooligan_again:'DI NUOVO', hooligan_menu:'MENU', hooligan_upgrade:'UPGRADE', hooligan_heal:'+PV', hooligan_speed:'SCARPE', hooligan_magnet:'SCIARPA', hooligan_damage:'MEGAFONO', hooligan_cooldown:'SCARPE RAPIDE', hooligan_hp:'BRODO', hooligan_crew_scarf:'CREW SCIARPA', hooligan_crew_drum:'TAMBURISTA', hooligan_crew_flag:'BANDIERA', hooligan_shop_hint:'CREW · EQUIP · PALLONI', hooligan_best:'MIGLIORE', hooligan_kills:'KILL', hooligan_xp:'XP', hooligan_crew_count:'CREW', hooligan_boss_chest:'SOLDO!', hooligan_gold:'GETTONI', hooligan_final:'FISCHIO FINALE', hooligan_touch:'TRASCINA PER MUOVERE', hooligan_shop_open:'NEGOZIO'}
+};
+for (const code of Object.keys(I18N)) Object.assign(I18N[code], HOOL_I18N[code] || HOOL_I18N.en);
+
 function t(key, vars){
   let s = (I18N[S.language] && I18N[S.language][key]) || I18N.en[key] || key;
   if (vars) for (const k in vars) s = s.split('{'+k+'}').join(vars[k]);
@@ -1199,6 +1256,9 @@ const S = {
   smokePuffs:[], windParts:[], trail:[],
   // solo keepy-ups mode
   mode:'SHOOTOUT', menuMode:'KEEPYUPS', ku:null,
+  // Hooligan Mode — compact survivor state; arrays are reused/capped for mobile performance
+  hool:null, hoolMeta:{ tokens:0, bestTime:0, bestWave:0, totalKills:0, kickball:false, crew:{scarf:0,drum:0,flag:0},
+    perm:{damage:0,speed:0,magnet:0,maxhp:0,cooldown:0} },
   hattrick:{active:false, t:0}, safetyNet:{active:false, t:0},
   // create-a-player
   character:{ teamIdx:0, bodyIdx:1, heightIdx:1, skinIdx:1, hairIdx:0, shirtIdx:0, sockIdx:2, shoeIdx:8 },
@@ -1230,6 +1290,7 @@ const S = {
   },
   transition:{ t:0, dur:0, pending:null },
   shareFlashT:0,
+  tapFX:null, feedbackQueue:[],
   chestReward:null,            // the cheat won this run, shown by KU_CHEST
   cheatMenuOpen:false          // the earned-cheats panel inside settings
 };
@@ -1376,12 +1437,12 @@ function pickKUAnswer(i){
   ku.qPick = i; ku.qResolved = true; ku.qRevealT = 0;
   ku.qWasRight = i>=0 && ku.q.opts[i].correct;
   ku.asked = (ku.asked||0) + 1;
-  if (ku.qWasRight){
-    SFX.correct(); buzz(18);
+  if(ku.qWasRight){
+    SFX.correct(); buzz(18); tapFeedback(tapDownX||-1,tapDownY||-1,'good'); pushFeedback('CORRECT · +'+KU_BONUS+'s',C.GREEN);
     unlockAch('on_the_board');
     if (spent < 2) unlockAch('quickdraw');
     if (ku.clock < 2) unlockAch('clutch');
-  } else { SFX.wrong(); buzz([30,40,30]); }
+  } else { SFX.wrong(); buzz([30,40,30]); tapFeedback(tapDownX||-1,tapDownY||-1,'bad'); pushFeedback('WRONG',C.RED); }
 }
 function startBicycle(){
   S.ku.bike = { t:0 };
@@ -1897,7 +1958,7 @@ function tapAt(px, py){
           py>=DAILY_RECT[1] && py<=DAILY_RECT[1]+DAILY_RECT[3]){
         SFX.whistleShort(); buzz(20); transitionTo(()=> beginDaily()); return;
       }
-      { const m = modeHit(px, py); if (m){ S.menuMode = m; SFX.lock(0, true); return; } }
+      { const m = modeHit(px, py); if (m){ S.menuMode = m; SFX.lock(0, true); if (m==='HOOLIGAN') { transitionTo(()=>beginHooligan()); } return; } }
       if (WORLDTEAMS_RECT && px>=WORLDTEAMS_RECT[0] && px<=WORLDTEAMS_RECT[0]+WORLDTEAMS_RECT[2] &&
           py>=WORLDTEAMS_RECT[1] && py<=WORLDTEAMS_RECT[1]+WORLDTEAMS_RECT[3]){
         SFX.lock(0,true); gotoScene('WORLDTEAMS'); return;
@@ -1913,6 +1974,7 @@ function tapAt(px, py){
         return;
       }
       return;
+    case 'HOOLIGAN_INTRO': case 'HOOLIGAN_RUN': case 'HOOLIGAN_LEVELUP': case 'HOOLIGAN_SHOP': case 'HOOLIGAN_OVER': hoolTap(px,py); return;
     case 'ROUNDCARD': if (S.sceneT > 0.35){ SFX.whistleShort(); prepShot(); } return;
     case 'QUESTION': {
       if (S.qResolved) return;
@@ -1999,10 +2061,10 @@ function pickAnswer(i){
 function applyQuestion(){
   if (S.qWasRight){
     S.streak = Math.min(5, S.streak + 1); S.triviaRight++;
-    SFX.correct(); S.inflate = 0.55;
+    SFX.correct(); S.inflate = 0.55; buzz(22); pushFeedback('CORRECT',C.GREEN); tapFeedback(tapDownX||-1,tapDownY||-1,'good');
     setTimeout(()=>{ if (audioOn && AC) SFX.inflate(); }, 200);
   } else {
-    S.streak = 0; SFX.wrong(); S.streakBreak = 0.5; S.shake = 2;
+    S.streak = 0; SFX.wrong(); buzz([25,45,25]); pushFeedback('WRONG',C.RED); tapFeedback(tapDownX||-1,tapDownY||-1,'bad'); S.streakBreak = 0.5; S.shake = 2;
   }
   if (S.oppWasRight){ S.opp.streak = Math.min(5, S.opp.streak + 1); S.opp.right++; }
   else S.opp.streak = 0;
@@ -2315,11 +2377,27 @@ function effectiveDailyStreak(){
 
 /* ── haptics — a tiny but disproportionate chunk of "feel" ──── */
 function buzz(ms){
-  if (S.reduceMotion || S.audioMuted) return;
+  if (S.reduceMotion) return;
   try { if (navigator.vibrate) navigator.vibrate(ms); } catch(e){}
 }
 
-const SAVE_KEY = 'kickup_save_v1';
+/* Micro-feedback: restrained touch rings and score callouts. */
+function tapFeedback(x,y,kind='tap'){ if(x<0||y<0)return; S.tapFX={x,y,t:0,kind}; }
+function pushFeedback(text,color=C.GOLD2){
+  const live=document.getElementById('srStatus'); if(live) live.textContent=text;
+  S.feedbackQueue.push({text,color,t:0}); if(S.feedbackQueue.length>3) S.feedbackQueue.shift();
+}
+function drawTapFX(){
+  if(!S.tapFX||S.reduceMotion)return; const f=S.tapFX,t=Math.min(1,f.t/.34),e=1-Math.pow(1-t,3),r=4+e*13;
+  b.save(); b.globalAlpha=(1-t)*.72; b.strokeStyle=f.kind==='bad'?C.RED:(f.kind==='good'?C.GOLD2:C.WHITE); b.lineWidth=1;
+  b.beginPath(); b.arc(f.x,f.y,r,0,Math.PI*2); b.stroke(); b.globalAlpha=(1-t)*.35; b.fillStyle=f.kind==='bad'?C.RED:C.GOLD; b.fillRect(f.x-1,f.y-1,2,2); b.restore();
+}
+function drawFeedback(){
+  if(!S.feedbackQueue.length)return; S.feedbackQueue=S.feedbackQueue.filter(f=>f.t<.82);
+  S.feedbackQueue.forEach((f,i)=>{const t=f.t,k=Math.min(1,t/.18),out=t>.58?(t-.58)/.24:0,y=118-i*14-k*4; b.save(); b.globalAlpha=(1-Math.min(1,out))*.92; b.font='bold 9px ui-monospace, Menlo, Consolas, monospace'; b.textAlign='center'; b.textBaseline='middle'; b.fillStyle='#000b'; b.fillText(f.text,W/2+1,y+2); b.fillStyle=f.color; b.fillText(f.text,W/2,y); b.restore();});
+}
+
+const SAVE_KEY = 'kick-off_save_v1';
 function saveGame(){
   try{
     localStorage.setItem(SAVE_KEY, JSON.stringify({
@@ -2332,7 +2410,8 @@ function saveGame(){
       language: S.language,
       playerName: S.playerName,
       playerNumber: S.playerNumber,
-      profile: S.profile
+      profile: S.profile,
+      hoolMeta: S.hoolMeta
     }));
     return true;
   } catch(e){ return false; }
@@ -2366,6 +2445,15 @@ function loadGame(){
     rebuildMoneyLabels();
     if (typeof d.playerName === 'string') S.playerName = d.playerName;
     if (typeof d.playerNumber === 'number') S.playerNumber = d.playerNumber;
+    if (d.hoolMeta && typeof d.hoolMeta === 'object'){
+      if (typeof d.hoolMeta.tokens==='number') S.hoolMeta.tokens=d.hoolMeta.tokens;
+      if (typeof d.hoolMeta.bestTime==='number') S.hoolMeta.bestTime=d.hoolMeta.bestTime;
+      if (typeof d.hoolMeta.bestWave==='number') S.hoolMeta.bestWave=d.hoolMeta.bestWave;
+      if (typeof d.hoolMeta.totalKills==='number') S.hoolMeta.totalKills=d.hoolMeta.totalKills;
+      if (typeof d.hoolMeta.kickball==='boolean') S.hoolMeta.kickball=d.hoolMeta.kickball;
+      if (d.hoolMeta.crew) Object.assign(S.hoolMeta.crew,d.hoolMeta.crew);
+      if (d.hoolMeta.perm) Object.assign(S.hoolMeta.perm,d.hoolMeta.perm);
+    }
     S.hair = HAIRS[S.character.hairIdx];
     S.skin = SKINS[S.character.skinIdx];
   } catch(e){ /* storage unavailable — start fresh */ }
@@ -2408,16 +2496,30 @@ function scrollAdd(delta){
 // behind it shouldn't move the list underneath
 function hubOverlayBlocksScroll(){ return S.scene==='HUB' && !!S.hub.openItem; }
 function scrollGateOpen(){ return SCROLLABLE_SCENES.includes(S.scene) && !S.achDetail && !hubOverlayBlocksScroll(); }
+// HOOLIGAN_RUN's virtual joystick lives entirely inside these three
+// listeners, gated on scene===HOOLIGAN_RUN and the press starting below the
+// HUD (y>=52, so the top-left quit / top-right shop buttons always win).
+// It never touches tapDownX/tapDownY/tapMoved or the scroll/tap pipeline
+// used by every other scene — HOOLIGAN_INTRO/LEVELUP/SHOP/OVER and all
+// non-HOOLIGAN scenes still go through the exact same tapAt() path as before.
 cv.addEventListener('pointerdown', e=>{
   e.preventDefault();
   const [x,y] = toBuf(e);
-  tapDownX = x; tapDownY = y; tapMoved = 0;
+  tapDownX = x; tapDownY = y; tapMoved = 0; S.press={x,y,t:0};
+  if (S.scene==='HOOLIGAN_RUN' && S.hool){
+    if (y>=52){ const j=S.hool.joystick; j.active=true; j.originX=x; j.originY=y; j.curX=x; j.curY=y; buzz(8); return; }
+    return;   // HUD area (y<52): fall through to the plain tap-on-release path below, no drag/scroll setup needed in this mode
+  }
   if (scrollGateOpen()){ dragY = y; dragMoved = 0; dragLastT = performance.now(); scrollVel = 0; }
 }, {passive:false});
 cv.addEventListener('pointermove', e=>{
   if (tapDownX === null) return;
   const [x,y] = toBuf(e);
   tapMoved = Math.max(tapMoved, Math.hypot(x-tapDownX, y-tapDownY));
+  if (S.scene==='HOOLIGAN_RUN' && S.hool){
+    if (S.hool.joystick.active){ S.hool.joystick.curX=x; S.hool.joystick.curY=y; }
+    return;
+  }
   if (!scrollGateOpen() || dragY===null) return;
   e.preventDefault();
   const now = performance.now(), vdt = Math.max(0.001, (now-dragLastT)/1000);
@@ -2427,11 +2529,16 @@ cv.addEventListener('pointermove', e=>{
   scrollVel = scrollVel*0.72 + (-dy/vdt)*0.28;
 }, {passive:false});
 cv.addEventListener('pointerup', e=>{
-  if (tapDownX !== null && tapMoved < TAP_MOVE_THRESHOLD) tapAt(tapDownX, tapDownY);
-  tapDownX = null; tapDownY = null; dragY = null;
+  if (S.scene==='HOOLIGAN_RUN' && S.hool){
+    S.hool.joystick.active=false;
+    if (tapDownY!==null && tapDownY<52 && tapMoved<TAP_MOVE_THRESHOLD){ tapFeedback(tapDownX,tapDownY,'tap'); tapAt(tapDownX,tapDownY); }
+    tapDownX=null; tapDownY=null; dragY=null; S.press=null; return;
+  }
+  if(tapDownX!==null&&tapMoved<TAP_MOVE_THRESHOLD){tapFeedback(tapDownX,tapDownY,'tap');tapAt(tapDownX,tapDownY);}
+  tapDownX=null;tapDownY=null;dragY=null;S.press=null;
 });
 ['pointercancel','pointerleave'].forEach(ev =>
-  cv.addEventListener(ev, ()=>{ tapDownX = null; tapDownY = null; dragY = null; }));   // scrollVel is left as-is — that's the momentum
+  cv.addEventListener(ev, ()=>{ if(S.hool) S.hool.joystick.active=false; tapDownX=null; tapDownY=null; dragY=null; S.press=null; }));   // scrollVel is left as-is — that's the momentum
 cv.addEventListener('wheel', e=>{
   if (!SCROLLABLE_SCENES.includes(S.scene) || hubOverlayBlocksScroll()) return;
   e.preventDefault();
@@ -2469,6 +2576,340 @@ window.addEventListener('keydown', e=>{
 }, {passive:false});
 
 /* ═══════════════════════════════════════════════════════════
+   HOOLIGAN MODE — football-skinned survivor loop
+   Inspired by the genre's readable, timer-driven horde structure:
+   enemies pursue directly, XP gems magnetise, level-ups pause the run,
+   and periodic waves escalate without ever letting the live entity count
+   become an unreadable wall. The theme, names and balance are original.
+   ═══════════════════════════════════════════════════════════ */
+const H_MAX_ENEMIES=280, H_MAX_GEMS=420, H_MAX_PROJS=100, H_MAX_FX=90;
+const H_ARENA={x:0,y:50,w:W,h:H-50};
+const H_PLAYER={r:7,baseSpeed:48,baseHP:100};
+// the run camera zooms in 33% (visible world scaled to 75% linear size) and
+// tracks the player, so the world needs to be bigger than the old fixed
+// H_ARENA box or the zoomed-in view would show void past its edges. The
+// camera position itself is also clamped to H_WORLD (see hoolUpdateRun),
+// so even at the player's own clamp limits nothing outside H_WORLD is drawn.
+const H_ZOOM = 4/3;
+const H_WORLD = { x0:-60, y0:H_ARENA.y-60, x1:W+60, y1:H+60 };
+const H_DESPAWN_DIST = 440;   // scaled up from the old fixed-camera 330 to match the larger world
+const H_WAVES=[
+  {min:12, interval:.72, team:'LOWER', types:['fan','fan','runner']},
+  {min:18, interval:.62, team:'MIDTABLE', types:['fan','runner','bruiser']},
+  {min:28, interval:.54, team:'MIDTABLE', types:['runner','bruiser','fan']},
+  {min:40, interval:.46, team:'GIANTS', types:['fan','runner','bruiser','charger']},
+  {min:56, interval:.39, team:'GIANTS', types:['runner','bruiser','charger','thrower']},
+  {min:74, interval:.34, team:'ELITE', types:['bruiser','charger','thrower','fan']},
+  {min:96, interval:.29, team:'ELITE', types:['charger','thrower','bruiser','hool']},
+  {min:118,interval:.25, team:'NATIONAL',types:['hool','charger','thrower','bruiser']},
+  {min:145,interval:.21, team:'NATIONAL',types:['hool','charger','thrower','hool']},
+  {min:175,interval:.18, team:'ICONIC', types:['hool','charger','thrower','bruiser']}
+];
+const H_TEAMS={LOWER:'#6d778d',MIDTABLE:'#4ea8ff',GIANTS:'#e8402c',ELITE:'#7b5cff',NATIONAL:'#ff8a3d',ICONIC:'#ffc93c'};
+/* Club progression for Hooligan Mode. This deliberately reuses the canonical
+   Club Legends roster above: the run starts with the three lowest-performing
+   clubs from 2025/26 and climbs through stronger sides, finishing with the
+   2025/26 champions. Within a wave we mix clubs from the same performance tier
+   so the terrace never becomes visually monotonous. */
+const H_WAVE_CLUBS=[
+  ['WOLVES'],
+  ['BURNLEY'],
+  ['WESTHAM'],
+  ['TOTTENHAM'],
+  ['NOTTMFOREST'],
+  ['LEEDS','EVERTON'],
+  ['NEWCASTLE','CHELSEA'],
+  ['LIVERPOOL'],
+  ['MANCITY','MANUTD'],
+  ['ARSENAL']
+];
+const H_WAVE_NAMES=H_WAVE_CLUBS.map(ids=>ids.map(id=>CLUB_BY_ID[id]?.short||id).join(' · '));
+/* Secondary kit colours are presentation-only colour pairings derived from the
+   same club identities used by Club Legends. No crests or licensed artwork are
+   needed: the hooligans are original pixel humans wearing colour-block kits. */
+const H_CLUB_KITS={
+  WOLVES:{primary:'#fdb913',secondary:'#111318'},
+  BURNLEY:{primary:'#6c1d45',secondary:'#f4f1e4'},
+  WESTHAM:{primary:'#7a263a',secondary:'#4aa3df'},
+  TOTTENHAM:{primary:'#f4f1e4',secondary:'#132257'},
+  NOTTMFOREST:{primary:'#dd0000',secondary:'#f4f1e4'},
+  LEEDS:{primary:'#f4f1e4',secondary:'#1d3f8f'},
+  EVERTON:{primary:'#003399',secondary:'#f4f1e4'},
+  NEWCASTLE:{primary:'#242424',secondary:'#f4f1e4'},
+  CHELSEA:{primary:'#034694',secondary:'#f4f1e4'},
+  LIVERPOOL:{primary:'#c8102e',secondary:'#f4f1e4'},
+  MANCITY:{primary:'#6cabdd',secondary:'#f4f1e4'},
+  MANUTD:{primary:'#da291c',secondary:'#f4f1e4'},
+  ARSENAL:{primary:'#ef0107',secondary:'#f4f1e4'}
+};
+function hoolClubKit(id){return H_CLUB_KITS[id]||{primary:CLUB_BY_ID[id]?.color||C.GREY,secondary:'#f4f1e4'};}
+const H_ENEMIES={
+  fan:{r:5,hp:20,spd:20,dmg:7,xp:1,col:'#71809b',gold:1},
+  runner:{r:4.5,hp:16,spd:31,dmg:6,col:'#4ea8ff',xp:1,gold:1},
+  bruiser:{r:7,hp:62,spd:13,dmg:13,col:'#e8402c',xp:3,gold:2},
+  charger:{r:5.5,hp:42,spd:25,dmg:10,col:'#ff8a3d',xp:2,gold:2,charge:true},
+  thrower:{r:5,hp:34,spd:16,dmg:9,col:'#c95cf0',xp:3,gold:3,thrower:true},
+  hool:{r:8,hp:105,spd:18,dmg:18,col:'#ffc93c',xp:6,gold:5,bossy:true}
+};
+const H_WEAPONS={
+  shoulder:{id:'shoulder',name:'SHOULDER CHARGE',lvl:1,max:8,cd:.78,damage:28,range:22,count:1,kind:'melee'},
+  kickball:{id:'kickball',name:'KICK FOOTBALL',lvl:1,max:8,cd:1.15,damage:32,range:120,count:1,speed:105,kind:'ball'}
+};
+const H_PASSIVES={
+  speed:{id:'speed',name:'TRAINERS',desc:'+12% MOVE SPEED',max:5},
+  magnet:{id:'magnet',name:'SCARF MAGNET',desc:'+18 MAGNET',max:5},
+  damage:{id:'damage',name:'MEGAPHONE',desc:'+12% DAMAGE',max:5},
+  cooldown:{id:'cooldown',name:'QUICK BOOTS',desc:'-7% COOLDOWN',max:5},
+  hp:{id:'hp',name:'BOVRIL',desc:'+18 MAX HP',max:5}
+};
+const H_CREW={
+  scarf:{name:'SCARF CREW',cost:12,damage:16,cd:1.05,range:48,col:'#4ea8ff'},
+  drum:{name:'DRUMMER',cost:24,damage:25,cd:1.45,range:68,col:'#e8402c'},
+  flag:{name:'FLAG WAVER',cost:40,damage:42,cd:1.8,range:82,col:'#ffc93c'}
+};
+const H_WAVE_TEAMS=['LOWER','LOWER','LOWER','MIDTABLE','MIDTABLE','GIANTS','GIANTS','ELITE','NATIONAL','ICONIC'];
+function hoolFresh(){
+  return {t:0,wave:1,waveT:0,spawnT:0,bossT:0,level:1,xp:0,nextXp:7,hp:100,maxhp:100,damage:1,speed:1,magnet:28,cooldown:1,
+    x:W/2,y:270,dx:0,dy:0,invuln:0,hitFlash:0,shake:0,kills:0,tokens:0,gemPull:0,shopOpen:false,levelChoices:[],
+    weapons:[{id:'shoulder',level:1,cdT:.25}], passives:[], crew:[], enemies:[],gems:[],projectiles:[],enemyShots:[],particles:[],bosses:[],flashes:[],
+    freeEnemies:[],freeGems:[],freeProjectiles:[],
+    camX:W/2, camY:270, zoom:H_ZOOM,
+    joystick:{active:false,originX:0,originY:0,curX:0,curY:0},
+    waveClearT:0,toast:[],gameover:false,reason:'',bossSpawned:false,chest:null,runScore:0};
+}
+function hoolWeapon(id){return S.hool.weapons.find(w=>w.id===id);}
+function hoolPassive(id){return S.hool.passives.find(w=>w.id===id);}
+function hoolMetaCrewCount(){return Object.values(S.hoolMeta.crew).reduce((a,b)=>a+b,0);}
+function hoolDamageMult(){return S.hool.damage*(1+0.12*S.hoolMeta.perm.damage);}
+function hoolCooldownMult(){return Math.max(.52,S.hool.cooldown*(1-0.07*S.hoolMeta.perm.cooldown));}
+function hoolSpeed(){return H_PLAYER.baseSpeed*S.hool.speed*(1+0.12*S.hoolMeta.perm.speed);}
+function hoolMagnet(){return S.hool.magnet+18*S.hoolMeta.perm.magnet;}
+function hoolMaxHP(){return H_PLAYER.baseHP+S.hool.maxhp+18*S.hoolMeta.perm.maxhp;}
+function beginHooligan(){
+  srand((SEED ^ 0x51f15e7)>>>0); S.mode='HOOLIGAN'; S.hool=hoolFresh();
+  S.hool.maxhp=hoolMaxHP()-H_PLAYER.baseHP; S.hool.hp=S.hool.maxhp+H_PLAYER.baseHP;
+  S.hool.speed=1; S.hool.magnet=28; S.hool.damage=1; S.hool.cooldown=1;
+  S.hool.tokens=S.hoolMeta.tokens; S.hoolMeta.tokens=0; S.hool.crew=[];
+  for(const id of Object.keys(S.hoolMeta.crew)) for(let i=0;i<S.hoolMeta.crew[id];i++) S.hool.crew.push({id,ang:rnd()*6.2832,cdT:rnd()*.8,level:1+Math.floor(i/3)});
+  if(S.hoolMeta.kickball) S.hool.weapons.push({id:'kickball',level:1,cdT:.4});
+  S.crowdHype=.35; S.gloom=0; S.shake=0; S.flash=0;
+  gotoScene('HOOLIGAN_INTRO');
+}
+function hoolEnemySpawn(type,force=false){
+  const h=S.hool; if(!h||(!force&&h.enemies.length>=H_MAX_ENEMIES))return;
+  const d=H_ENEMIES[type]||H_ENEMIES.fan, ang=rnd()*6.2832, dist=168+rrange(0,65);
+  const scale=1+Math.max(0,h.t/60)*.085+Math.max(0,h.wave-1)*.035;
+  const e=h.freeEnemies.pop()||{};
+  const clubs=H_WAVE_CLUBS[Math.max(0,h.wave-1)]||H_WAVE_CLUBS[H_WAVE_CLUBS.length-1];
+  const clubId=clubs[rint(0,clubs.length-1)];
+  Object.assign(e,{type,clubId,x:h.x+Math.cos(ang)*dist,y:h.y+Math.sin(ang)*dist,r:d.r,hp:d.hp*scale,maxhp:d.hp*scale,spd:d.spd*(1+Math.max(0,h.t/90)*.10),dmg:d.dmg*(1+h.wave*.035),col:d.col,xp:d.xp,gold:d.gold,hit:0,charge:0,shotT:rrange(1.2,2.7),boss:false});
+  h.enemies.push(e);
+}
+function hoolGem(x,y,xp){const h=S.hool;if(h.gems.length>=H_MAX_GEMS)return;const g=h.freeGems.pop()||{};Object.assign(g,{x,y,xp,col:xp>=5?C.RED:xp>=2?C.GREEN:C.BLUE,r:xp>=5?3.2:2.2,p:0});h.gems.push(g);}
+function hoolBurst(x,y,col,n=5){const h=S.hool;if(!h)return;for(let i=0;i<n&&h.particles.length<H_MAX_FX;i++){const a=rnd()*6.2832,sp=18+rnd()*48;h.particles.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,t:0,d:.25+rnd()*.45,col});}}
+// death-only feedback (never fires on a plain hit) — tiered by enemy weight
+// so a mob of fans still feels light while a bruiser/charger/thrower clear
+// lands with real weight, and the boss layers on top of its existing chest cue
+function hoolTier(e){ return e.type==='hool' ? 'boss' : (e.type==='bruiser'||e.type==='charger'||e.type==='thrower') ? 'mid' : 'small'; }
+function hoolHitEnemy(e,damage){e.hp-=damage;e.hit=.08;if(e.hp<=0){
+  const h=S.hool;h.kills++;h.tokens+=e.gold||1;hoolGem(e.x,e.y,e.xp||1);
+  const tier=hoolTier(e);
+  hoolBurst(e.x,e.y,e.col,tier==='boss'?22:tier==='mid'?10:6);
+  if(h.flashes.length<40) h.flashes.push({x:e.x,y:e.y,t:0,tier});
+  SFX.hoolClear(tier);
+  S.shake=Math.max(S.shake,tier==='boss'?4.5:tier==='mid'?2.2:1.1);
+  if(e.type==='hool'){h.chest={x:e.x,y:e.y,t:0};SFX.boom();S.shake=Math.max(S.shake,3.5);S.flash=.12;pushFeedback(t('hooligan_boss_chest'),C.GOLD2);}
+}}
+function hoolNearest(range){const h=S.hool;let best=null,bd=range*range;for(const e of h.enemies){const dx=e.x-h.x,dy=e.y-h.y,d=dx*dx+dy*dy;if(d<bd){bd=d;best=e;}}return best;}
+function hoolFireWeapon(w){const h=S.hool, target=hoolNearest(w.range||100);if(w.kind==='melee'){if(!target)return;const dx=target.x-h.x,dy=target.y-h.y,d=Math.hypot(dx,dy)||1;for(const e of h.enemies){const ex=e.x-h.x,ey=e.y-h.y;if(ex*dx+ey*dy>0&&Math.hypot(ex,ey)<w.range+e.r)hoolHitEnemy(e,w.damage*hoolDamageMult());}hoolBurst(h.x+dx/d*9,h.y+dy/d*9,C.GOLD2,5);SFX.boom();S.shake=Math.max(S.shake,1.6);return;}
+  if(w.kind==='ball'&&target){
+    const dx=target.x-h.x,dy=target.y-h.y,d=Math.hypot(dx,dy)||1;
+    const count=Math.min(4,1+Math.floor((w.level-1)/2));
+    for(let n=0;n<count&&h.projectiles.length<H_MAX_PROJS;n++){
+      const spread=(n-(count-1)/2)*.12,cs=Math.cos(spread),sn=Math.sin(spread);
+      const vx=(dx/d)*cs-(dy/d)*sn,vy=(dx/d)*sn+(dy/d)*cs;
+      const p=h.freeProjectiles.pop()||{};
+      Object.assign(p,{x:h.x,y:h.y,vx:vx*w.speed,vy:vy*w.speed,damage:w.damage*hoolDamageMult(),life:2.2,bounce:w.level>=5?1:0,blast:w.level>=7?18:0,curve:w.level>=4?.65:0});
+      h.projectiles.push(p);
+    }
+    SFX.hoolKick();hoolBurst(h.x,h.y,C.WHITE,3+count);S.shake=Math.max(S.shake,1);
+  }
+}
+function hoolFireCrew(c){const h=S.hool;const spec=H_CREW[c.id],ang=c.ang;const cx=h.x+Math.cos(ang)*18,cy=h.y+Math.sin(ang)*18,target=hoolNearest(spec.range+18);if(target){const dx=target.x-cx,dy=target.y-cy,d=Math.hypot(dx,dy)||1;if(h.projectiles.length<H_MAX_PROJS){const p=h.freeProjectiles.pop()||{};Object.assign(p,{x:cx,y:cy,vx:dx/d*95,vy:dy/d*95,damage:spec.damage*c.level*hoolDamageMult(),life:1.4,bounce:0,blast:c.id==='flag'?12:0,curve:0});h.projectiles.push(p);}hoolBurst(cx,cy,spec.col,2);}}
+function hoolAddXP(n){const h=S.hool;h.xp+=n;while(h.xp>=h.nextXp){h.xp-=h.nextXp;h.level++;h.nextXp=Math.round(7+h.level*3.2);h.levelChoices=hoolMakeChoices();gotoScene('HOOLIGAN_LEVELUP');SFX.rankUp();buzz(25);break;}}
+function hoolEligibleChoices(){const h=S.hool, out=[];for(const id of Object.keys(H_WEAPONS)){const w=hoolWeapon(id);if(!w&&h.weapons.length<6)out.push({kind:'weapon',id});else if(w&&w.level<w.max)out.push({kind:'weapon',id});}for(const id of Object.keys(H_PASSIVES)){const p=hoolPassive(id);if(!p&&h.passives.length<6)out.push({kind:'passive',id});else if(p&&p.level<p.max)out.push({kind:'passive',id});}return out;}
+function hoolMakeChoices(){const pool=hoolEligibleChoices().slice();const out=[];while(out.length<4&&pool.length){const i=rint(0,pool.length-1);out.push(pool.splice(i,1)[0]);}while(out.length<4)out.push(out.length%2?{kind:'gold'}:{kind:'heal'});return out;}
+function hoolApplyChoice(ch){const h=S.hool;if(ch.kind==='heal'){h.hp=Math.min(h.maxhp, h.hp+Math.round(h.maxhp*.28));SFX.inflate();return;}if(ch.kind==='gold'){h.tokens+=18;SFX.hoolCoin();return;}if(ch.kind==='weapon'){let w=hoolWeapon(ch.id);if(w){w.level++;w.cdT=0;}else{const base=H_WEAPONS[ch.id];h.weapons.push({id:ch.id,level:1,cdT:0});if(ch.id==='kickball')S.hoolMeta.kickball=true;}SFX.correct();S.flash=.14;return;}let p=hoolPassive(ch.id);if(p)p.level++;else h.passives.push({id:ch.id,level:1});if(ch.id==='speed')h.speed*=1.12;if(ch.id==='magnet')h.magnet+=18;if(ch.id==='damage')h.damage*=1.12;if(ch.id==='cooldown')h.cooldown*=.93;if(ch.id==='hp'){h.maxhp+=18;h.hp+=18;}SFX.correct();}
+function hoolWave(){const h=S.hool;h.wave=Math.min(10,Math.floor(h.t/60)+1);h.waveT=h.t%60;h.bossSpawned=false;const w=H_WAVES[h.wave-1]||H_WAVES[9];h.spawnT=0;SFX.crowdRoar(Math.min(1,h.wave/7));hoolBurst(h.x,h.y,H_TEAMS[H_WAVE_TEAMS[h.wave-1]],14);pushFeedback(t('hooligan_wave')+' '+h.wave+' · '+H_WAVE_NAMES[h.wave-1],C.GOLD2);}
+function hoolSpawnBoss(){const h=S.hool;if(h.bossSpawned||h.wave<3)return;h.bossSpawned=true;hoolEnemySpawn('hool',true);const e=h.enemies[h.enemies.length-1];if(e){e.r=13;e.hp*=3.8;e.maxhp=e.hp;e.spd*=.72;e.dmg*=1.8;e.boss=true;}pushFeedback(t('hooligan_boss'),C.RED);SFX.tootToot();S.shake=4;}
+function hoolUpdateRun(dt){
+  const h=S.hool;if(!h)return;
+  h.t+=dt;h.waveT=h.t%60;h.invuln=Math.max(0,h.invuln-dt);h.hitFlash=Math.max(0,h.hitFlash-dt);h.shake=Math.max(0,h.shake-dt*4);
+  const targetWave=Math.min(10,Math.floor(h.t/60)+1);if(targetWave!==h.wave)hoolWave();
+  if(h.waveT>28&&h.waveT<30&&h.wave>=3)hoolSpawnBoss();
+  const wd=H_WAVES[h.wave-1]||H_WAVES[9];h.spawnT-=dt;
+  const density=Math.min(2.8,1+h.t/95);
+  while(h.spawnT<=0&&h.enemies.length<H_MAX_ENEMIES){h.spawnT+=wd.interval/density;const type=wd.types[rint(0,wd.types.length-1)];hoolEnemySpawn(type);if(rnd()<Math.min(.35,h.t/240))hoolEnemySpawn(type);}
+  // Maintain the wave's minimum quota, but only add a few per tick so a sudden
+  // camera move never creates a giant CPU spike.
+  for(let q=0;q<4&&h.enemies.length<Math.min(H_MAX_ENEMIES,wd.min);q++) hoolEnemySpawn(wd.types[rint(0,wd.types.length-1)]);
+  // player input: virtual joystick (offset from where the finger went down,
+  // not from the player — a real stick, not "walk toward wherever I tapped"),
+  // then keyboard, with a soft deadzone and linear ramp to full speed
+  let ix=0,iy=0;
+  if (h.joystick.active){
+    const maxR=36, dead=6;
+    const jdx=h.joystick.curX-h.joystick.originX, jdy=h.joystick.curY-h.joystick.originY;
+    const mag=Math.hypot(jdx,jdy);
+    if (mag>dead){ const jt=Math.min(1,(mag-dead)/(maxR-dead)); ix=(jdx/mag)*jt; iy=(jdy/mag)*jt; }
+  }
+  if(H_KEYS['ArrowLeft']||H_KEYS['a'])ix-=1;if(H_KEYS['ArrowRight']||H_KEYS['d'])ix+=1;if(H_KEYS['ArrowUp']||H_KEYS['w'])iy-=1;if(H_KEYS['ArrowDown']||H_KEYS['s'])iy+=1;const il=Math.hypot(ix,iy);if(il>1){ix/=il;iy/=il;}const sp=hoolSpeed();h.dx=ix*sp;h.dy=iy*sp;h.x=Math.max(H_WORLD.x0+10,Math.min(H_WORLD.x1-10,h.x+h.dx*dt));h.y=Math.max(H_WORLD.y0+10,Math.min(H_WORLD.y1-10,h.y+h.dy*dt));
+  // camera: smooth-follow the player, then clamp so the zoomed window never shows past H_WORLD
+  { const camHalfW=(W/2)/h.zoom, camHalfH=((H-H_ARENA.y)/2)/h.zoom;
+    h.camX += (h.x-h.camX)*Math.min(1,8*dt); h.camY += (h.y-h.camY)*Math.min(1,8*dt);
+    h.camX = Math.max(H_WORLD.x0+camHalfW, Math.min(H_WORLD.x1-camHalfW, h.camX));
+    h.camY = Math.max(H_WORLD.y0+camHalfH, Math.min(H_WORLD.y1-camHalfH, h.camY)); }
+  for(const f of h.flashes) f.t+=dt; h.flashes=h.flashes.filter(f=>f.t<.3);
+  for(const e of h.enemies){const dx=h.x-e.x,dy=h.y-e.y,d=Math.hypot(dx,dy)||1;let spd=e.spd;if(e.charge){e.charge+=dt;if(e.charge>3){spd*=2.25;e.charge=0;hoolBurst(e.x,e.y,C.ORANGE,3);}}e.x+=dx/d*spd*dt;e.y+=dy/d*spd*dt;e.hit=Math.max(0,e.hit-dt);if(e.thrower){e.shotT-=dt;if(e.shotT<=0){e.shotT=2.3;if(h.enemyShots.length<45)h.enemyShots.push({x:e.x,y:e.y,vx:dx/d*38,vy:dy/d*38,life:3,damage:e.dmg*.7});}}const dist=Math.hypot(e.x-h.x,e.y-h.y);if(dist<e.r+H_PLAYER.r&&h.invuln<=0){h.hp-=e.dmg;h.invuln=.45;h.hitFlash=.25;S.shake=2.4;SFX.block();hoolBurst(h.x,h.y,C.RED,4);if(h.hp<=0){h.gameover=true;h.reason='CONTACT';gotoScene('HOOLIGAN_OVER');return;}}}
+  {const alive=[];for(const e of h.enemies){if(e.hp>0&&Math.hypot(e.x-h.x,e.y-h.y)<H_DESPAWN_DIST)alive.push(e);else if(h.freeEnemies.length<80)h.freeEnemies.push(e);}h.enemies=alive;}
+  for(const p of h.enemyShots){p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;if(Math.hypot(p.x-h.x,p.y-h.y)<H_PLAYER.r+4&&h.invuln<=0){h.hp-=p.damage;h.invuln=.45;SFX.wrong();S.shake=2;if(h.hp<=0){h.gameover=true;gotoScene('HOOLIGAN_OVER');return;}}}h.enemyShots=h.enemyShots.filter(p=>p.life>0);
+  for(const p of h.projectiles){p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;for(const e of h.enemies){if(e.hp>0&&Math.hypot(e.x-p.x,e.y-p.y)<e.r+4){hoolHitEnemy(e,p.damage);if(p.blast){for(const q of h.enemies)if(q!==e&&Math.hypot(q.x-e.x,q.y-e.y)<p.blast)hoolHitEnemy(q,p.damage*.38);}if(p.bounce>0){p.bounce--;p.vx=-p.vx*.9;p.vy=-p.vy*.9;}else p.life=0;break;}}} {const live=[];for(const p of h.projectiles){if(p.life>0)live.push(p);else if(h.freeProjectiles.length<80)h.freeProjectiles.push(p);}h.projectiles=live;}
+  for(const w of h.weapons){w.cdT-=dt;if(w.cdT<=0){const base=H_WEAPONS[w.id];const cd=base.cd*Math.pow(.91,w.level-1)*hoolCooldownMult();w.cdT=cd;hoolFireWeapon({...base,level:w.level,count:1});}}
+  for(const c of h.crew){c.ang+=dt*(c.id==='drum'?.8:1.1);c.cdT-=dt;if(c.cdT<=0){const sp=H_CREW[c.id];c.cdT=sp.cd*Math.pow(.92,c.level-1)*hoolCooldownMult();hoolFireCrew(c);}}
+  for(const g of h.gems){const dx=h.x-g.x,dy=h.y-g.y,d=Math.hypot(dx,dy)||1;if(d<hoolMagnet()){const pull=Math.min(150,70+(hoolMagnet()-d)*5);g.x+=dx/d*pull*dt;g.y+=dy/d*pull*dt;}g.p+=dt;if(d<10){hoolAddXP(g.xp);g.x=9999;}}
+  {const live=[];for(const g of h.gems){if(g.x<900)live.push(g);else if(h.freeGems.length<120)h.freeGems.push(g);}h.gems=live;}
+  if(h.chest){h.chest.t+=dt;if(Math.hypot(h.chest.x-h.x,h.chest.y-h.y)<14){h.chest=null;h.tokens+=12;const opts=hoolEligibleChoices();if(opts.length){hoolApplyChoice(opts[rint(0,opts.length-1)]);}pushFeedback('CHEST + UPGRADE',C.GOLD2);spawnConfetti(18);SFX.rankUp();S.shake=3;}}
+  for(const p of h.particles){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=.96;p.vy*=.96;p.t+=dt;}h.particles=h.particles.filter(p=>p.t<.7);
+  h.runScore=h.kills*10+Math.floor(h.t*2)+h.wave*100;
+  S.crowdHype=Math.min(1,.2+h.kills/220);S.hoolMeta.totalKills=Math.max(S.hoolMeta.totalKills,h.kills);
+}
+function hoolBuy(kind){const h=S.hool,meta=S.hoolMeta;if(kind==='kickball'){if(meta.kickball)return false;if(h.tokens<28)return false;h.tokens-=28;meta.kickball=true;h.weapons.push({id:'kickball',level:1,cdT:0});}else if(kind==='crew:'+kind){return false;}else if(H_CREW[kind]){const spec=H_CREW[kind];if(h.tokens<spec.cost)return false;h.tokens-=spec.cost;meta.crew[kind]++;h.crew.push({id:kind,ang:rnd()*6.2832,cdT:.05,level:1+Math.floor(meta.crew[kind]/3)});pushFeedback(t('hooligan_crew'),C.GOLD2);spawnConfetti(10);S.shake=1.5;SFX.hoolCoin();pushFeedback(t('hooligan_extra'),C.GOLD2);buzz(35);}else if(H_PASSIVES[kind]){const p=hoolPassive(kind);if(p&&p.level>=p.max)return false;const cost=10+(p?p.level:0)*8;if(h.tokens<cost)return false;h.tokens-=cost; hoolApplyChoice({kind:'passive',id:kind});SFX.correct();}else return false;saveGame();return true;}
+function hoolShopItems(){return ['kickball','scarf','drum','flag','speed','damage','magnet','cooldown','hp'];}
+function hoolShopRect(i){return [14,94+i*30,W-28,26];}
+function hoolOpenShop(){S.hool.shopOpen=true;gotoScene('HOOLIGAN_SHOP');}
+function hoolEnd(){const h=S.hool;if(!h)return;S.hoolMeta.tokens+=h.tokens;S.hoolMeta.bestTime=Math.max(S.hoolMeta.bestTime,h.t);S.hoolMeta.bestWave=Math.max(S.hoolMeta.bestWave,h.wave);saveGame();}
+
+const H_KEYS=Object.create(null);
+window.addEventListener('keydown',e=>{H_KEYS[e.key]=true;H_KEYS[e.code]=true;if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Space'].includes(e.code)&&S.scene.indexOf('HOOLIGAN_')===0)e.preventDefault();},{passive:false});
+window.addEventListener('keyup',e=>{H_KEYS[e.key]=false;H_KEYS[e.code]=false;});
+
+function hoolTap(px,py){
+  const h=S.hool;if(!h)return;
+  if(S.scene==='HOOLIGAN_INTRO'){beginHooliganRun();return;}
+  if(S.scene==='HOOLIGAN_RUN'){
+    if(py<52&&px>W-74){hoolOpenShop();return;}
+    if(py<52&&px<70){hoolEnd();gotoScene('TITLE');return;}
+    return;
+  }
+  if(S.scene==='HOOLIGAN_LEVELUP'){
+    for(let i=0;i<h.levelChoices.length;i++){const r=[12+i*69,120,64,118];if(px>=r[0]&&px<=r[0]+r[2]&&py>=r[1]&&py<=r[1]+r[3]){hoolApplyChoice(h.levelChoices[i]);gotoScene('HOOLIGAN_RUN');return;}}return;
+  }
+  if(S.scene==='HOOLIGAN_SHOP'){
+    if(py<60){gotoScene('HOOLIGAN_RUN');return;}
+    const items=hoolShopItems();for(let i=0;i<items.length;i++){const r=hoolShopRect(i);if(px>=r[0]&&px<=r[0]+r[2]&&py>=r[1]&&py<=r[1]+r[3]){const id=items[i];const ok=hoolBuy(id);if(ok)pushFeedback(id==='kickball'?t('hooligan_kickball'):t('hooligan_crew'),C.GOLD2);return;}}return;
+  }
+  if(S.scene==='HOOLIGAN_OVER'){if(py>315){const again=px<W/2;hoolEnd();if(again){beginHooligan();beginHooliganRun();}else gotoScene('TITLE');}return;}
+}
+function beginHooliganRun(){const h=S.hool;if(!h)return;gotoScene('HOOLIGAN_RUN');SFX.whistleShort();pushFeedback(t('hooligan_wave')+' 1',C.GOLD2);}
+function drawHoolPlayer(){const h=S.hool,kit=playerKit(),blink=h.invuln>0&&Math.floor(S.t*18)%2; if(blink)return;const bob=Math.sin(S.t*7)*.6,x=h.x,y=h.y+bob; b.save();b.globalAlpha=.25; b.fillStyle='#04140b';b.beginPath();b.ellipse(x,y+8,9,3,0,0,6.2832);b.fill();b.restore();
+  rect(x-5,y-5,10,10,kit.shirt);circ(x,y-8,3.6,S.skin);rect(x-3.5,y-11,7,3,S.hair);rect(x-7,y-3,3,2,kit.socks);rect(x+4,y-3,3,2,kit.socks);rect(x-5,y+5,3,2,kit.shoe);rect(x+2,y+5,3,2,kit.shoe);txt(String(S.playerNumber),x,y-3,kit.num,5,'center');
+}
+// the joystick itself is drawn in screen space at the finger's origin (see
+// drawHoolJoystick, called from drawHoolRun after the camera transform is
+// restored) — no ring around the player anymore, since the player no longer
+// walks "toward" a touch point, it moves by stick offset
+function drawHoolJoystick(){
+  if (S.scene!=='HOOLIGAN_RUN') return;   // drawHoolRun() is also the backdrop for LEVELUP/SHOP/OVER — the stick belongs to RUN only
+  const j=S.hool&&S.hool.joystick; if(!j||!j.active) return;
+  const maxR=36, dx=j.curX-j.originX, dy=j.curY-j.originY, mag=Math.hypot(dx,dy);
+  const kx = mag>maxR ? dx/mag*maxR : dx, ky = mag>maxR ? dy/mag*maxR : dy;
+  b.save();
+  b.globalAlpha=.28; circ(j.originX,j.originY,maxR+8,C.PANEL); b.globalAlpha=1;
+  ring(j.originX,j.originY,maxR,C.GOLD2,1.4);
+  b.globalAlpha=.55; ring(j.originX,j.originY,maxR*0.55,C.GREYDK,1);
+  b.globalAlpha=1; circ(j.originX+kx,j.originY+ky,13,C.GOLDDK);
+  ring(j.originX+kx,j.originY+ky,13,C.GOLD2,1.6);
+  circ(j.originX+kx,j.originY+ky,4,C.GOLD2);
+  b.restore();
+}
+function drawHoolArena(){
+  // floodlit pitch/terrace field; used as a static (non-camera) backdrop by
+  // HOOLIGAN_INTRO, which has no run in progress yet to follow
+  rect(0,50,W,H-50,C.TURFLO);for(let x=0;x<W;x+=32)line(x,50,x,H,'#16502f');for(let y=50;y<H;y+=28)line(0,y,W,y,'#16502f');
+  b.save();b.globalAlpha=.25;for(let i=0;i<7;i++){const x=25+i*42;line(x,54,x+18,H,C.TURF2);}b.restore();
+  ring(W/2,252,38,'#2a7c50',1);line(W/2,214,W/2,290,'#2a7c50');
+  drawHoolTerrace();
+}
+// the terrace strip is a decorative stand backdrop glued to the top of the
+// playfield — screen-space, drawn the same whether or not a camera is active
+function drawHoolTerrace(){
+  rect(0,50,W,12,C.STAND);rect(0,56,W,2,C.GOLD);for(let x=4;x<W;x+=12)rect(x,52,7,3,[C.RED,C.BLUE,C.GREYDK,C.GOLD][(x/12)%4|0]);
+}
+// the RUN pitch spans the whole (larger-than-viewport) H_WORLD rect, drawn
+// under the camera transform — this is what makes the zoomed-in view feel
+// like an open arena rather than a small box scaled up
+function drawHoolPitchWorld(){
+  rect(H_WORLD.x0,H_WORLD.y0,H_WORLD.x1-H_WORLD.x0,H_WORLD.y1-H_WORLD.y0,C.TURFLO);
+  for(let x=Math.floor(H_WORLD.x0/32)*32;x<H_WORLD.x1;x+=32) line(x,H_WORLD.y0,x,H_WORLD.y1,'#16502f');
+  for(let y=Math.floor(H_WORLD.y0/28)*28;y<H_WORLD.y1;y+=28) line(H_WORLD.x0,y,H_WORLD.x1,y,'#16502f');
+  b.save();b.globalAlpha=.25;for(let i=0;i<7;i++){const x=25+i*42;line(x,54,x+18,H_WORLD.y1,C.TURF2);}b.restore();
+  ring(W/2,252,38,'#2a7c50',1);line(W/2,214,W/2,290,'#2a7c50');
+}
+function drawHoolEnemy(e){
+  const kit=hoolClubKit(e.clubId), bob=Math.sin(S.t*7+e.x*.03+e.y*.02)*.45, x=e.x, y=e.y+bob;
+  const s=Math.max(.72,Math.min(1.55,e.r/5.4)), hurt=e.hit>0;
+  const skin=['#e8b88c','#c98b5e','#9c6238','#6f4426','#4a2d1a'][Math.abs((e.clubId||'').length+Math.floor(x+y))%5];
+  const hair=['#181210','#3a2414','#5a3a1c','#8a6a38'][Math.abs((e.clubId||'').charCodeAt(0)||0)%4];
+  b.save(); b.translate(x,y); b.scale(s,s);
+  b.globalAlpha=.22; b.fillStyle='#04140b'; b.beginPath(); b.ellipse(0,8.5,8.5,2.8,0,0,6.2832); b.fill(); b.globalAlpha=1;
+  /* Original human sprite: head, hair, block shirt in the club's colours,
+     shorts, socks and boots. The tiny badge-like chest dot is intentionally
+     abstract rather than a club crest. */
+  rect(-4.8,-4.8,9.6,10,hurt?'#f4f1e4':kit.primary);
+  rect(-4.8,-4.8,9.6,2.2,kit.secondary);
+  circ(0,-8,3.25,skin);
+  rect(-3.25,-10.7,6.5,2.7,hair);
+  rect(-6,-3.2,2.2,3.8,kit.primary); rect(3.8,-3.2,2.2,3.8,kit.primary);
+  rect(-4.1,5.0,3.1,3.2,kit.secondary); rect(1.0,5.0,3.1,3.2,kit.secondary);
+  rect(-4.3,8.0,3.5,1.8,'#111318'); rect(.8,8.0,3.5,1.8,'#111318');
+  circ(0,-5.2,1.05,kit.secondary); circ(0,-5.2,.45,kit.primary);
+  if(e.type==='hool'||e.boss){rect(-6.2,-13,12.4,2.1,kit.secondary);rect(-5.2,-15,10.4,2.1,kit.primary);}
+  else if(e.type==='thrower'){rect(-6.3,-12,12.6,1.7,kit.secondary);}
+  else if(e.type==='charger'){rect(-6,-11.8,3.2,2,kit.primary);rect(2.8,-11.8,3.2,2,kit.primary);}
+  b.restore();
+}
+function drawHoolRun(){const h=S.hool;
+  // world layer only — arena, entities, effects — under the camera transform.
+  // HUD, joystick and every screen-space overlay are drawn after b.restore(),
+  // so LEVELUP/SHOP/OVER (which all call drawHoolRun() first as their
+  // backdrop, then draw their own screen-space UI on top) are unaffected.
+  b.save();
+  const camCx=W/2, camCy=H_ARENA.y+(H-H_ARENA.y)/2;
+  b.translate(camCx,camCy); b.scale(h.zoom,h.zoom); b.translate(-h.camX,-h.camY);
+  drawHoolPitchWorld();
+  for(const f of h.flashes){const p=f.t/.3,r=(f.tier==='boss'?24:f.tier==='mid'?14:9)*(0.3+p*1.4);b.save();b.globalAlpha=Math.max(0,1-p)*.9;ring(f.x,f.y,r,f.tier==='boss'?C.GOLD:C.WHITE,f.tier==='boss'?2.4:1.6);b.restore();}
+  for(const g of h.gems){b.save();b.globalAlpha=.85+.15*Math.sin(S.t*8+g.p);circ(g.x,g.y,g.r,g.col);circ(g.x-1,g.y-1,g.r*.35,C.WHITE);b.restore();}
+  for(const p of h.projectiles){drawBall(p.x,p.y,4);if(p.curve){b.save();b.globalAlpha=.25;line(p.x-p.vx*.05,p.y-p.vy*.05,p.x,p.y,C.WHITE);b.restore();}}
+  for(const p of h.enemyShots){circ(p.x,p.y,2.4,C.RED);}
+  if(h.chest){const k=1+.12*Math.sin(S.t*8);b.save();b.translate(h.chest.x,h.chest.y);b.scale(k,k);rect(-7,-5,14,10,C.GOLD);rect(-6,-4,12,3,'#5a3d08');rect(-2,-2,4,4,C.WHITE);b.restore();}
+  for(const e of h.enemies){const kit=hoolClubKit(e.clubId), glow=e.boss?C.GOLD:kit.primary; b.save();b.globalAlpha=.20;circ(e.x,e.y,e.r+3,glow);b.restore();drawHoolEnemy(e);if(e.hp<e.maxhp){rect(e.x-e.r,e.y-e.r-4,e.r*2,2,'#18233a');rect(e.x-e.r,e.y-e.r-4,e.r*2*Math.max(0,e.hp/e.maxhp),2,e.boss?C.GOLD:C.GREEN);}if(e.boss)txt('BOSS',e.x,e.y-e.r-13,C.GOLD2,5,'center');}
+  for(const c of h.crew){const spec=H_CREW[c.id],x=h.x+Math.cos(c.ang)*18,y=h.y+Math.sin(c.ang)*18;circ(x,y,5,spec.col);rect(x-3,y-2,6,2,'#f4f1e4');}
+  drawHoolPlayer();for(const p of h.particles){b.save();b.globalAlpha=Math.max(0,1-p.t/.7);circ(p.x,p.y,1.5,p.col);b.restore();}
+  b.restore();
+  drawHoolTerrace();
+  // HUD
+  rect(0,0,W,50,C.INK);rect(0,49,W,1,C.PANELED);txt(t('mode_hooligan'),4,3,C.GOLD,11);txtFit(H_WAVE_NAMES[h.wave-1],4,17,C.GREYDK,5,82);txt('W'+h.wave+' · '+Math.floor(h.t/60)+':'+String(Math.floor(h.t%60)).padStart(2,'0'),W/2,3,C.WHITE,9,'center');txt(String(h.kills),W-4,3,C.GOLD2,12,'right');txt(t('hooligan_kills'),W-4,17,C.GREYDK,5,'right');
+  const hp=Math.max(0,h.hp/h.maxhp);rect(4,22,90,6,C.PANELED);rect(5,23,88*hp,4,hp<.3?C.RED:C.GREEN);txt(Math.ceil(h.hp)+'/'+h.maxhp,4,31,C.GREY,6);txt(t('hooligan_tokens')+' '+h.tokens,106,31,C.GOLD,7);txt('LV '+h.level,190,31,C.WHITE,7);txt('SHOP',W-4,31,C.GOLD2,7,'right');
+  const xp=h.xp/h.nextXp;rect(106,41,150,4,C.PANELED);rect(107,42,148*xp,2,C.GOLD2);
+  if(h.waveT<3){b.save();b.globalAlpha=Math.max(0,1-h.waveT/3);txt(t('hooligan_wave_clear'),W/2,88,C.GOLD2,14,'center');txtFit(H_WAVE_NAMES[h.wave-1],W/2,104,C.WHITE,7,W-28,'center');b.restore();}
+  drawHoolJoystick();
+}
+function drawHoolIntro(){drawHoolArena();b.save();b.globalAlpha=.68;rect(0,50,W,H-50,C.INK);b.restore();txt(t('hooligan_title'),W/2,92,C.GOLD,19,'center');txtFit(t('hooligan_sub'),W/2,118,C.GOLD2,8,W-40,'center');txt('MOVE ANYWHERE',W/2,157,C.WHITE,9,'center');txt('NO AIM',W/2,173,C.GREY,8,'center');txt('AUTO ATTACK',W/2,189,C.GREY,8,'center');txt('WAVES · XP · LEVELS · CREW',W/2,214,C.GREYDK,7,'center');txt(t('hooligan_best')+' '+Math.floor(S.hoolMeta.bestTime/60)+':'+String(Math.floor(S.hoolMeta.bestTime%60)).padStart(2,'0')+' · '+t('hooligan_wave')+' '+S.hoolMeta.bestWave,W/2,250,C.GREY,7,'center');rect(32,292,W-64,32,C.GOLD);rect(33,293,W-66,30,'#2b2005');txt(t('hooligan_start'),W/2,303,C.GOLD2,10,'center');txt(t('hooligan_touch'),W/2,345,C.GREYDK,7,'center');}
+function drawHoolLevel(){drawHoolRun();b.save();b.globalAlpha=.82;rect(0,50,W,H-50,C.INK);b.restore();txt(t('hooligan_level'),W/2,72,C.GOLD,17,'center');txt('LEVEL '+S.hool.level,W/2,94,C.WHITE,8,'center');for(let i=0;i<S.hool.levelChoices.length;i++){const c=S.hool.levelChoices[i],r=[12+i*69,120,64,118];rect(r[0],r[1],r[2],r[3],C.PANELED);rect(r[0]+1,r[1]+1,r[2]-2,r[3]-2,C.PANEL);let title,desc;if(c.kind==='weapon'){const w=H_WEAPONS[c.id];title=w.name;desc='LV '+(hoolWeapon(c.id)?.level||0)+' → '+(hoolWeapon(c.id)?.level+1||1);if(!hoolWeapon(c.id))desc='NEW WEAPON';}else if(c.kind==='passive'){const p=H_PASSIVES[c.id];title=p.name;desc=p.desc;}else if(c.kind==='gold'){title='18 TOKENS';desc='TAKE THE CASH';}else{title=t('hooligan_heal');desc='RESTORE HP';}txtFit(title,r[0]+r[2]/2,r[1]+12,C.GOLD2,7,r[2]-8,'center');wrapTextClamped(desc,r[2]-12,6,4).forEach((l,j)=>txt(l,r[0]+r[2]/2,r[1]+38+j*9,C.GREY,6,'center'));txt('▸',r[0]+r[2]/2,r[1]+92,C.WHITE,12,'center');}txt('4 CHOICES · PAUSED',W/2,254,C.GREYDK,6,'center');}
+function drawHoolShop(){drawHoolRun();b.save();b.globalAlpha=.94;rect(0,50,W,H-50,C.INK);b.restore();txt(t('hooligan_shop'),W/2,62,C.GOLD,16,'center');txt(t('hooligan_tokens')+' '+S.hool.tokens,W-14,63,C.GOLD2,7,'right');txt(t('hooligan_shop_hint'),W/2,80,C.GREYDK,6,'center');txt(t('hooligan_extra'),W/2,88,Math.sin(S.t*7)>0?C.GOLD2:C.GREYDK,5,'center');const items=hoolShopItems();items.forEach((id,i)=>{const r=hoolShopRect(i),owned=id==='kickball'?S.hoolMeta.kickball:H_CREW[id]?S.hoolMeta.crew[id]:0;let label,sub,cost;if(id==='kickball'){label=t('hooligan_kickball');sub=S.hoolMeta.kickball?'OWNED · LEVEL UP IN RUN':'AUTO RANGED BALL';cost=28;}else if(H_CREW[id]){label=t('hooligan_crew_'+id);sub='+'+H_CREW[id].damage+' DAMAGE';cost=H_CREW[id].cost;}else{const p=H_PASSIVES[id],own=hoolPassive(id),lv=own?own.level:0;label=p.name;sub=p.desc;cost=10+lv*8;}const affordable=S.hool.tokens>=cost;rect(r[0],r[1],r[2],r[3],affordable?C.GOLD:C.PANELED);rect(r[0]+1,r[1]+1,r[2]-2,r[3]-2,affordable?'#241a06':C.PANEL);txtFit(label,r[0]+8,r[1]+6,affordable?C.GOLD2:C.GREYDK,7,r[2]-58);txtFit(sub,r[0]+8,r[1]+16,C.GREY,5,r[2]-58);txt(String(cost),r[0]+r[2]-8,r[1]+8,affordable?C.GOLD2:C.GREYDK,8,'right');});txt('TAP TOP TO RETURN',W/2,390,C.GREYDK,6,'center');}
+function drawHoolOver(){drawHoolRun();b.save();b.globalAlpha=.84;rect(0,50,W,H-50,C.INK);b.restore();txt(t('hooligan_gameover'),W/2,102,C.RED,19,'center');txt(t('hooligan_final')+' · '+Math.floor(S.hool.t/60)+':'+String(Math.floor(S.hool.t%60)).padStart(2,'0'),W/2,132,C.GREY,8,'center');txt(t('hooligan_wave')+' '+S.hool.wave+' · '+t('hooligan_kills')+' '+S.hool.kills,W/2,151,C.WHITE,9,'center');txt(t('hooligan_tokens')+' '+S.hool.tokens,W/2,168,C.GOLD2,10,'center');txt('SCORE '+S.hool.runScore,W/2,187,C.GOLD,11,'center');rect(28,238,W/2-34,34,C.GOLD);rect(W/2+6,238,W/2-34,34,C.PANELED);txt(t('hooligan_again'),W/4,250,C.GOLD2,8,'center');txt(t('hooligan_menu'),W*3/4,250,C.GREY,8,'center');txt('TAP LEFT / RIGHT',W/2,300,C.GREYDK,6,'center');}
+
+/* ═══════════════════════════════════════════════════════════
    UPDATE — fixed timestep
    ═══════════════════════════════════════════════════════════ */
 const DT = 1/120;
@@ -2480,6 +2921,8 @@ function update(dt){
   S.t += dt; S.sceneT += dt;
   updateAchToasts(dt);
   S.shareFlashT = Math.max(0, S.shareFlashT - dt*0.7);
+  if(S.tapFX){S.tapFX.t+=dt;if(S.tapFX.t>.36)S.tapFX=null;}
+  for(const f of S.feedbackQueue)f.t+=dt;
   S.clubHintT = Math.max(0, S.clubHintT - dt*0.7);
   // momentum scroll: only once the finger's lifted (dragY===null) and there's
   // still some velocity left on the badge grids — decays smoothly to a stop
@@ -2551,6 +2994,10 @@ function update(dt){
     updateKeepyups(dt);
     return;
   }
+
+  if (S.scene==='HOOLIGAN_INTRO'){ return; }
+  if (S.scene==='HOOLIGAN_RUN'){ hoolUpdateRun(dt); return; }
+  if (S.scene==='HOOLIGAN_LEVELUP' || S.scene==='HOOLIGAN_SHOP' || S.scene==='HOOLIGAN_OVER'){ return; }
 
   if (S.keeperOn && S.scene!=='QUESTION' && S.scene!=='ROUNDCARD' && S.scene!=='RESOLVE')
     S.keeperU = keeperAt(S.t);
@@ -2700,6 +3147,11 @@ function draw(){
   if (S.scene === 'MATCHEND'){ drawMatchEnd(); finishDraw(); return; }
   if (S.scene === 'KU_INTRO'){ drawKUIntro(); finishDraw(); return; }
   if (S.scene === 'KU_CHEST'){ drawKUChest(); finishDraw(); return; }
+  if (S.scene === 'HOOLIGAN_INTRO'){ drawHoolIntro(); finishDraw(); return; }
+  if (S.scene === 'HOOLIGAN_LEVELUP'){ drawHoolLevel(); finishDraw(); return; }
+  if (S.scene === 'HOOLIGAN_SHOP'){ drawHoolShop(); finishDraw(); return; }
+  if (S.scene === 'HOOLIGAN_OVER'){ drawHoolOver(); finishDraw(); return; }
+  if (S.scene === 'HOOLIGAN_RUN'){ drawHoolRun(); finishDraw(); return; }
 
   if (S.scene==='KU_READY' || S.scene==='KU_PLAY' || S.scene==='KU_HATTRICK' ||
       S.scene==='KU_SAFETYNET' || S.scene==='KU_BICYCLE' || S.scene==='KU_OVER'){
@@ -2956,6 +3408,7 @@ function drawGoalAndTarget(){
     const bl = S.ball, k = Math.min(1, bl.t/bl.dur);
     const x = bl.from.x + (bl.to.x-bl.from.x)*k + Math.sin(k*Math.PI)*bl.curl*140;
     const y = bl.from.y + (bl.to.y-bl.from.y)*k - Math.sin(k*Math.PI)*10;
+    b.save();b.globalAlpha=.22;b.fillStyle='#02060a';b.beginPath();b.ellipse(x,y+7,Math.max(2,5-k*2),1.5,0,0,Math.PI*2);b.fill();b.restore();
     drawBall(x, y, 8 - k*3.4);
   } else if (S.scene!=='RESOLVE'){
     const jig = S.scene==='STRIKE' ? Math.sin(S.sceneT*90)*0.5 : 0;
@@ -3438,7 +3891,7 @@ function buildShareText(){
     rows.unshift(row);
   }
   const grid = rows.join('\n');
-  const head = 'KICKUP' + (S.isDaily ? ' DAILY ' + todayKey() : '') +
+  const head = 'KICK-OFF' + (S.isDaily ? ' DAILY ' + todayKey() : '') +
                '  ' + MONEY_LABELS[Math.max(0,ku.best-1)] + (ku.best?'':'—') +
                '  ' + ku.best + '/15';
   return head + '\n' + grid.trim();
@@ -4375,7 +4828,7 @@ function drawLanguage(){
 
   const glow = 0.5 + 0.5*Math.sin(S.t*1.2);
   b.save(); b.globalAlpha = 0.5 + glow*0.5;
-  txt('KICKUP', W/2, 34, C.GOLD, 20, 'center');
+  txt('KICK-OFF', W/2, 34, C.GOLD, 20, 'center');
   b.restore();
   txt(t('lang_title'), W/2, 66, C.WHITE, 12, 'center');
   txt(t('lang_subtitle'), W/2, 80, C.GREYDK, 8, 'center');
@@ -4589,7 +5042,7 @@ function drawTitle(){
   if (!backdrop) makeBackdrop();
   b.drawImage(backdrop, 0, 0);
 
-  txt('KICKUP', W/2, 8, C.GOLD, 22, 'center');
+  txt('KICK-OFF', W/2, 8, C.GOLD, 22, 'center');
   txtFit(t('tagline'), W/2, 32, C.GREY, 7, W-40, 'center');
 
   drawPlayerCard(14, 46, W-28);
@@ -4622,19 +5075,20 @@ function drawTitle(){
   // ── free play: pick a mode, then a category group ──
   txt('FREE PLAY', 14, 168, C.GREYDK, 7);
   MODE_RECTS = [];
-  const modes = [[t('mode_keepyups'),'KEEPYUPS'], [t('mode_shootout'),'SHOOTOUT']];
+  const modes = [[t('mode_keepyups'),'KEEPYUPS'], [t('mode_shootout'),'SHOOTOUT'], [t('mode_hooligan'),'HOOLIGAN']];
   modes.forEach(([label,key],i)=>{
-    const w = (W-28-10)/2, h = 22, x = 14 + i*(w+10), y = 180;
+    const w = (W-28-20)/3, h = 22, x = 14 + i*(w+10), y = 180;
     MODE_RECTS.push([x,y,w,h,key]);
     const on = S.menuMode === key;
     rect(x,y,w,h, on?C.GOLD:C.PANELED); rect(x+1,y+1,w-2,h-2, on?'#3a2c06':C.PANEL);
     txtFit(label, x+w/2, y+7, on?C.GOLD2:C.GREYDK, 9, w-10, 'center');
   });
+  if (S.menuMode==='HOOLIGAN') txt('MOVE · AUTO ATTACK · SURVIVE THE TERRACE',W/2,205,C.GOLD2,6,'center');
 
   // world teams (nations), club legends (clubs), and news & fixtures —
   // each its own row, opening its own spacious screen rather than being
   // crammed in here
-  const cgy = 210;
+  const cgy = 220;
   WORLDTEAMS_RECT = [14, cgy, W-28, 26];
   rect(14, cgy, W-28, 26, C.PANELED); rect(15, cgy+1, W-30, 24, C.PANEL);
   drawAchIcon('globe', 30, cgy+13, 8, C.GOLD2);
@@ -5014,8 +5468,8 @@ function fetchWithTimeout(url, ms){
 
 function hubFixturesCacheKey(){
   const followed = S.profile.followedTeams;
-  if (followed.length) return 'kickup_fixtures_team_v2:'+followed.slice().sort().join('|');
-  return 'kickup_fixtures_comp_v2:'+COMPETITIONS[S.hub.compIdx].id;
+  if (followed.length) return 'kick-off_fixtures_team_v2:'+followed.slice().sort().join('|');
+  return 'kick-off_fixtures_comp_v2:'+COMPETITIONS[S.hub.compIdx].id;
 }
 // a followed team's OWN next fixtures — across every competition it's in,
 // home or away, domestic or continental — is how "overseas away games"
@@ -5105,7 +5559,7 @@ function filterByFollowed(items){
   });
 }
 async function fetchNews(force){
-  const h = S.hub, key = 'kickup_news_v2';
+  const h = S.hub, key = 'kick-off_news_v2';
   const cached = hubLoadCache(key);
   if (cached && !force && Date.now()-cached.t < HUB_CACHE_MAX_AGE){ h.news = cached.data; h.newsStatus = 'ok'; return; }
   h.newsStatus = 'loading'; h.newsErr = '';
@@ -5119,7 +5573,7 @@ async function fetchNews(force){
   }
 }
 async function fetchTransfers(force){
-  const h = S.hub, key = 'kickup_transfers_v1';
+  const h = S.hub, key = 'kick-off_transfers_v1';
   const cached = hubLoadCache(key);
   if (cached && !force && Date.now()-cached.t < HUB_CACHE_MAX_AGE){ h.transfers = cached.data; h.transfersStatus = 'ok'; return; }
   h.transfersStatus = 'loading'; h.transfersErr = '';
@@ -5586,6 +6040,7 @@ function handleSettingsTap(px,py){
   else if (key === 'quit'){
     if (S.settingsConfirmQuit){
       S.settingsOpen = false; S.settingsConfirmQuit = false;
+      if (S.scene.indexOf('HOOLIGAN_')===0) hoolEnd();
       S.ku = null; S.mode = 'SHOOTOUT';
       gotoScene('TITLE');
     } else { S.settingsConfirmQuit = true; SFX.wrong(); }
@@ -5885,6 +6340,7 @@ function drawAchToast(){
 }
 
 function finishDraw(){
+  drawTapFX(); drawFeedback();
   drawAchToast();
   drawTransition();
   if (S.settingsOpen){ if (S.cheatMenuOpen) drawCheatMenu(); else drawSettings(); }
@@ -5927,7 +6383,8 @@ function post(){
   }
   ctx.imageSmoothingEnabled = false;
 
-  if (S.flash > 0.01){ ctx.globalAlpha = Math.min(0.7, S.flash); ctx.fillStyle='#fff'; ctx.fillRect(0,0,W,H); ctx.globalAlpha=1; }
+  if(S.flash>0.01){const f=Math.min(.7,S.flash);ctx.globalAlpha=f;ctx.fillStyle=(S.gloom>.1)?'#dbe8ff':'#fff8df';ctx.fillRect(0,0,W,H);ctx.globalAlpha=f*.28;ctx.fillStyle='#ffc93c';ctx.fillRect(W*.12,H*.18,W*.76,1);ctx.globalAlpha=1;}
+  if(S.crowdHype>.55&&!S.reduceMotion){const g=ctx.createRadialGradient(W*.18,H*.16,0,W*.18,H*.16,26);g.addColorStop(0,'rgba(255,245,190,.16)');g.addColorStop(1,'rgba(255,245,190,0)');ctx.fillStyle=g;ctx.fillRect(0,0,W,H);}
 
   // the roar warms the whole picture
   if (S.crowdHype > 0.3){
