@@ -587,12 +587,16 @@ function t(key, vars){
   return s;
 }
 const LANGUAGES = [
-  { code:'en', name:'ENGLISH',  pattern:'cross', colors:['#ffffff','#ce1124'] },        // St George's Cross — the flag England fans actually fly
-  { code:'fr', name:'FRANÇAIS', pattern:'v3',    colors:['#0055a4','#ffffff','#ef4135'] },
-  { code:'es', name:'ESPAÑOL',  pattern:'h3w',   colors:['#aa151b','#f1bf00'] },
-  { code:'de', name:'DEUTSCH',  pattern:'h3',    colors:['#000000','#dd0000','#ffce00'] },
-  { code:'it', name:'ITALIANO', pattern:'v3',    colors:['#009246','#ffffff','#ce2b37'] },
+  { code:'en', name:'ENGLISH',  pattern:'cross', colors:['#ffffff','#ce1124'], currency:'£' },        // St George's Cross — the flag England fans actually fly
+  { code:'fr', name:'FRANÇAIS', pattern:'v3',    colors:['#0055a4','#ffffff','#ef4135'], currency:'€' },
+  { code:'es', name:'ESPAÑOL',  pattern:'h3w',   colors:['#aa151b','#f1bf00'], currency:'€' },
+  { code:'de', name:'DEUTSCH',  pattern:'h3',    colors:['#000000','#dd0000','#ffce00'], currency:'€' },
+  { code:'it', name:'ITALIANO', pattern:'v3',    colors:['#009246','#ffffff','#ce2b37'], currency:'€' },
 ];
+function curSym(){ const l = LANGUAGES.find(l=>l.code===S.language); return l ? l.currency : '£'; }
+// swap a hardcoded '£' in an otherwise-untranslated English string (achievement/
+// cheat descriptions, etc.) for whatever currency the chosen language uses
+function localizeMoney(str){ return curSym()==='£' ? str : str.replace(/£/g, curSym()); }
 
 /* ═══════════════════════════════════════════════════════════
    QUESTIONS — text only. See design doc §9.1 on why never images.
@@ -1216,6 +1220,7 @@ const S = {
   runSummary:null,             // xp breakdown for the results screen
   profileScroll:0,
   clubsScroll:0, clubHintMsg:'', clubHintT:0,
+  achDetail:null,   // id of the achievement whose detail card is open, PROFILE only
   transition:{ t:0, dur:0, pending:null },
   shareFlashT:0,
   chestReward:null,            // the cheat won this run, shown by KU_CHEST
@@ -1295,7 +1300,18 @@ function contactX(type, side){ return type==='head' ? 0 : (side===0 ? -5 : 5); }
    the run, and spends that checkpoint's one-time save (gold→blue).
    A second failure against a spent checkpoint, or any wrong answer
    before rank 5 is secured, ends the run. Rank 15 is the win.       */
-const MONEY_LABELS = ['£100','£200','£300','£500','£1K','£2K','£4K','£8K','£16K','£32K','£64K','£125K','£250K','£500K','£1M'];
+const MONEY_VALUES = [100,200,300,500,1000,2000,4000,8000,16000,32000,64000,125000,250000,500000,1000000];
+function fmtMoney(v){
+  const s = curSym();
+  if (v >= 1000000) return s + (v/1000000) + 'M';
+  if (v >= 1000) return s + (v/1000) + 'K';
+  return s + v;
+}
+// rebuilt whenever S.language changes, so every rank label on the ladder
+// reflects the chosen language's currency without touching any call site —
+// they all just read MONEY_LABELS[rank-1] as before
+function rebuildMoneyLabels(){ MONEY_LABELS = MONEY_VALUES.map(fmtMoney); }
+let MONEY_LABELS = MONEY_VALUES.map(v => '£'+(v>=1000000?(v/1000000)+'M':v>=1000?(v/1000)+'K':v));
 
 function shuffledPool(cat){
   const pool = questionBankFor(cat).slice();
@@ -1824,7 +1840,7 @@ function tapAt(px, py){
     case 'LANGUAGE': {
       const code = langHit(px, py);
       if (!code) return;
-      SFX.lock(0, true); S.language = code; gotoScene('NAME');
+      SFX.lock(0, true); S.language = code; rebuildMoneyLabels(); gotoScene('NAME');
       return;
     }
     case 'NAME': {
@@ -1852,6 +1868,9 @@ function tapAt(px, py){
       return;
     }
     case 'PROFILE':
+      if (S.achDetail){ S.achDetail = null; SFX.lock(0,true); return; }   // any tap dismisses the card
+      { const hit = ACH_RECTS.find(r=>px>=r[0]&&px<=r[0]+r[2]&&py>=r[1]&&py<=r[1]+r[3]);
+        if (hit){ S.achDetail = hit[4]; SFX.lock(0,true); return; } }
       if (PROFILE_BACK && px>=PROFILE_BACK[0] && px<=PROFILE_BACK[0]+PROFILE_BACK[2] &&
           py>=PROFILE_BACK[1] && py<=PROFILE_BACK[1]+PROFILE_BACK[3]){
         SFX.lock(0,true); gotoScene('TITLE');
@@ -2329,6 +2348,7 @@ function loadGame(){
     if (typeof d.bestEverRank === 'number') S.bestEverRank = d.bestEverRank;
     else if (typeof d.bestEverStreak === 'number') S.bestEverRank = Math.min(15, d.bestEverStreak); // migrate old saves
     if (I18N[d.language]) S.language = d.language;
+    rebuildMoneyLabels();
     if (typeof d.playerName === 'string') S.playerName = d.playerName;
     if (typeof d.playerNumber === 'number') S.playerNumber = d.playerNumber;
     S.hair = HAIRS[S.character.hairIdx];
@@ -2345,19 +2365,26 @@ function toBuf(e){
 cv.addEventListener('pointerdown', e=>{ e.preventDefault(); const [x,y]=toBuf(e); tapAt(x,y); }, {passive:false});
 /* Drag-to-scroll for the badge grids. Only the career and Club Legends
    screens scroll, so a drag anywhere else stays a plain tap and nothing
-   else changes. */
-let dragY = null, dragMoved = 0;
+   else changes. Lifting your finger doesn't kill the motion dead — the
+   scroll keeps gliding on whatever velocity it had and eases out, same
+   as any native scroll view, instead of stopping the instant you let go. */
+let dragY = null, dragMoved = 0, dragLastT = 0, scrollVel = 0;
 const SCROLLABLE_SCENES = ['PROFILE','CLUBS'];
-cv.addEventListener('pointerdown', e=>{ if (SCROLLABLE_SCENES.includes(S.scene)){ dragY = toBuf(e)[1]; dragMoved = 0; } });
+cv.addEventListener('pointerdown', e=>{
+  if (SCROLLABLE_SCENES.includes(S.scene) && !S.achDetail){ dragY = toBuf(e)[1]; dragMoved = 0; dragLastT = performance.now(); scrollVel = 0; }
+});
 cv.addEventListener('pointermove', e=>{
   if (!SCROLLABLE_SCENES.includes(S.scene) || dragY===null) return;
   e.preventDefault();
   const y = toBuf(e)[1];
-  const dy = y - dragY; dragMoved += Math.abs(dy); dragY = y;
+  const now = performance.now(), vdt = Math.max(0.001, (now-dragLastT)/1000);
+  const dy = y - dragY; dragMoved += Math.abs(dy); dragY = y; dragLastT = now;
   if (S.scene==='PROFILE') S.profileScroll -= dy; else S.clubsScroll -= dy;
+  // smoothed instantaneous velocity — this is what the release carries forward
+  scrollVel = scrollVel*0.72 + (-dy/vdt)*0.28;
 }, {passive:false});
 ['pointerup','pointercancel','pointerleave'].forEach(ev =>
-  cv.addEventListener(ev, ()=>{ dragY = null; }));
+  cv.addEventListener(ev, ()=>{ dragY = null; }));   // scrollVel is left as-is — that's the momentum
 cv.addEventListener('wheel', e=>{
   if (!SCROLLABLE_SCENES.includes(S.scene)) return;
   e.preventDefault();
@@ -2407,6 +2434,14 @@ function update(dt){
   updateAchToasts(dt);
   S.shareFlashT = Math.max(0, S.shareFlashT - dt*0.7);
   S.clubHintT = Math.max(0, S.clubHintT - dt*0.7);
+  // momentum scroll: only once the finger's lifted (dragY===null) and there's
+  // still some velocity left on the badge grids — decays smoothly to a stop
+  // rather than the drag just cutting off dead at release
+  if (dragY === null && SCROLLABLE_SCENES.includes(S.scene) && Math.abs(scrollVel) > 1){
+    if (S.scene==='PROFILE') S.profileScroll += scrollVel*dt; else S.clubsScroll += scrollVel*dt;
+    scrollVel *= Math.pow(0.02, dt);
+    if (Math.abs(scrollVel) < 1) scrollVel = 0;
+  }
   if (S.transition.dur > 0){
     S.transition.t += dt;
     const half = S.transition.dur/2;
@@ -4625,19 +4660,22 @@ function drawProfile(){
   S.profileScroll = Math.max(0, Math.min(maxScroll, S.profileScroll));
 
   b.save(); b.beginPath(); b.rect(0, gTop, W, gBot-gTop); b.clip();
+  ACH_RECTS = [];
   ACHIEVEMENTS.forEach((a,i)=>{
     const col = i%cols, row = Math.floor(i/cols);
     const cx = 14 + col*cell + cell/2, cy = gTop + 22 + row*54 - S.profileScroll;
     if (cy < gTop-40 || cy > gBot+40) return;
+    ACH_RECTS.push([cx-cell/2, cy-27, cell, 54, a.id]);
     const on = !!p.achievements[a.id];
     b.save(); b.globalAlpha = on ? 1 : 0.32;
     circ(cx, cy, 15, on ? '#241a06' : C.PANEL);
     ring(cx, cy, 15, on ? C.GOLD : C.PANELED, 1);
-    drawAchIcon(a.icon, cx, cy, 8, on ? C.GOLD : C.GREYDK);
+    drawAchIcon(on ? a.icon : 'lock', cx, cy, 8, on ? C.GOLD : C.GREYDK);
     b.restore();
     b.save(); b.globalAlpha = on ? 1 : 0.45;
     txtClip(on ? a.name : '???', cx, cy+19, on?C.WHITE:C.GREYDK, 6, cell-6, 'center');
-    txtClip(a.desc, cx, cy+27, C.GREYDK, 5, cell-4, 'center');
+    // locked achievements stay fully secret — no name, no hint of what earns them
+    txtClip(on ? localizeMoney(a.desc) : '???', cx, cy+27, C.GREYDK, 5, cell-4, 'center');
     b.restore();
   });
   b.restore();
@@ -4653,8 +4691,42 @@ function drawProfile(){
   rect(PROFILE_BACK[0], PROFILE_BACK[1], 92, 20, C.GOLDDK);
   rect(PROFILE_BACK[0]+1, PROFILE_BACK[1]+1, 90, 18, '#241a06');
   txt('BACK', W/2, 402, C.GOLD2, 9, 'center');
+
+  if (S.achDetail) drawAchDetailCard(S.achDetail);
 }
-let PROFILE_BACK = null;
+let PROFILE_BACK = null, ACH_RECTS = [];
+
+/* ── tap an achievement badge to see it full-size: trophy, title, and
+   (once earned) exactly when it was earned. Locked ones stay as much
+   a mystery here as they are in the grid — no free hint. ──────────── */
+function drawAchDetailCard(id){
+  const a = ACH_BY_ID[id];
+  if (!a) return;
+  const on = !!S.profile.achievements[id];
+  b.save(); b.globalAlpha = 0.72; rect(0,0,W,H,C.INK); b.restore();
+
+  const cw = W-56, ch = 140, cx0 = 28, cy0 = H/2-ch/2;
+  panel(cx0, cy0, cw, ch);
+  const mx = cx0+cw/2, iconY = cy0+34;
+  b.save();
+  circ(mx, iconY, 22, on ? '#241a06' : C.PANEL);
+  ring(mx, iconY, 22, on ? C.GOLD : C.PANELED, 1.6);
+  drawAchIcon(on ? a.icon : 'lock', mx, iconY, 12, on ? C.GOLD : C.GREYDK);
+  b.restore();
+
+  txtFit(on ? a.name : '???', mx, cy0+64, on?C.WHITE:C.GREYDK, 13, cw-32, 'center');
+  txtFit(on ? localizeMoney(a.desc) : 'Keep playing to discover this one', mx, cy0+82, C.GREYDK, 8, cw-32, 'center');
+
+  if (on){
+    const d = new Date(S.profile.achievements[id]);
+    const dateStr = d.toLocaleDateString(undefined, { day:'numeric', month:'short', year:'numeric' });
+    const timeStr = d.toLocaleTimeString(undefined, { hour:'2-digit', minute:'2-digit' });
+    txt('UNLOCKED  '+dateStr+'  ·  '+timeStr, mx, cy0+102, C.GOLD2, 7, 'center');
+  } else {
+    txt('LOCKED', mx, cy0+102, C.GREYDK, 7, 'center');
+  }
+  txtFit('TAP ANYWHERE TO CLOSE', mx, cy0+ch-14, C.GREYDK, 6, cw-32, 'center');
+}
 
 /* ── club badges — plain shield shapes in a solid team colour with
    initials, no crest linework, same policy as the player's own kit
@@ -4766,7 +4838,7 @@ function handleClubsTap(px, py){
     SFX.whistleShort(); S.isDaily = false;
     transitionTo(()=> beginKeepyups(club.id));
   } else if (club.hasContent){
-    S.clubHintMsg = 'Win £1,000,000 in Keepy-Ups with a team you haven’t used yet to unlock '+club.name+'.';
+    S.clubHintMsg = 'Win '+curSym()+'1,000,000 in Keepy-Ups with a team you haven’t used yet to unlock '+club.name+'.';
     S.clubHintT = 2.6; SFX.lock(0,false);
   } else {
     S.clubHintMsg = club.name+' — coming soon.';
@@ -4965,6 +5037,7 @@ function handleSettingsTap(px,py){
   else if (key === 'language'){
     const i = LANGUAGES.findIndex(l=>l.code===S.language);
     S.language = LANGUAGES[(i+1)%LANGUAGES.length].code;
+    rebuildMoneyLabels();
   }
   else if (key === 'cheats'){ S.cheatMenuOpen = true; SFX.lock(0,true); }
   else if (key === 'save'){ const ok = saveGame(); S.saveFlashT = ok ? 1.4 : 0; SFX.correct(); }
@@ -5152,7 +5225,7 @@ function drawDevMenu(){
     DEVMENU_RECTS.push([rx,ry,rw,rh-4,c.key]);
     rect(rx,ry,rw,rh-4, on?C.GOLDDK:C.PANELED); rect(rx+1,ry+1,rw-2,rh-6, on?'#241a06':C.PANEL);
     txt(c.name, rx+8, ry+4, on?C.GOLD2:C.WHITE, 9);
-    txtFit(c.desc, rx+8, ry+15, C.GREYDK, 6, rw-52);
+    txtFit(localizeMoney(c.desc), rx+8, ry+15, C.GREYDK, 6, rw-52);
     if (c.blocksClubUnlock) txt('⚠ BLOCKS CLUB UNLOCK', rx+8, ry+23, C.RED, 5);
     txt(on?'ON':'OFF', rx+rw-22, ry+9, on?C.GREEN:C.GREYDK, 8, 'center');
     ry += rh;
@@ -5214,6 +5287,11 @@ function drawAchIcon(kind, cx, cy, r, col){
       rect(cx-r*0.85, cy-r*0.15, r*1.7, r*0.95, col);
       rect(cx-r*0.85, cy-r*0.7, r*1.7, r*0.55, col);
       rect(cx-r*0.15, cy-r*0.25, r*0.3, r*0.45, '#0e1526'); break;
+    case 'lock':
+      rect(cx-r*0.65, cy-r*0.05, r*1.3, r*0.95, col);
+      b.strokeStyle = col; b.lineWidth = Math.max(1.4, r*0.24); b.lineCap = 'round';
+      b.beginPath(); b.arc(cx, cy-r*0.05, r*0.5, Math.PI, 0); b.stroke();
+      circ(cx, cy+r*0.25, Math.max(1.2, r*0.14), '#0e1526'); break;
     default:  // 'ball'
       drawLadderBall(cx, cy, r, 'plain');
   }
@@ -5256,7 +5334,7 @@ function drawAchToast(){
   drawAchIcon(a.icon, tx+17, ty+th/2, 9, C.GOLD);
   txt('ACHIEVEMENT UNLOCKED', tx+32, ty+6, C.GOLD2, 6);
   txtFit(a.name, tx+32, ty+15, C.WHITE, 10, tw-40);
-  txtFit(a.desc, tx+32, ty+26, C.GREYDK, 6, tw-40);
+  txtFit(localizeMoney(a.desc), tx+32, ty+26, C.GREYDK, 6, tw-40);
   b.restore();
 }
 
