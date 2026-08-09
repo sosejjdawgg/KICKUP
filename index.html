@@ -17,7 +17,15 @@
     font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
     -webkit-tap-highlight-color:transparent;touch-action:manipulation}
   #wrap{height:100%;display:flex;align-items:center;justify-content:center}
-  canvas{display:block;cursor:pointer;
+  /* the body's touch-action:manipulation still lets a real touchscreen's
+     native gesture recognizer intercept a sustained drag (e.g. the
+     HOOLIGAN joystick, or the achievements/hub momentum-scroll) before our
+     own pointermove handlers ever see it — mouse input (and Playwright's
+     synthetic mouse events) never goes through that gesture recognizer, so
+     this only shows up on a real touchscreen. touch-action:none on the
+     canvas hands 100% of touch handling to our own JS, which is what every
+     interaction on this canvas already assumes. */
+  canvas{display:block;cursor:pointer;touch-action:none;
     box-shadow:0 0 0 1px #1b2438, 0 0 60px -10px #1a3a6b}
   @media (prefers-reduced-motion:reduce){canvas{box-shadow:0 0 0 1px #1b2438}}
   #menuBtn{position:fixed;top:8px;left:8px;z-index:5;
@@ -2504,6 +2512,10 @@ function scrollGateOpen(){ return SCROLLABLE_SCENES.includes(S.scene) && !S.achD
 // non-HOOLIGAN scenes still go through the exact same tapAt() path as before.
 cv.addEventListener('pointerdown', e=>{
   e.preventDefault();
+  // once a press starts, keep receiving its move/up events even if the
+  // finger drifts past the canvas's visible edge mid-drag (a real-device
+  // touch failure mode desktop mouse testing can't reproduce)
+  try { cv.setPointerCapture(e.pointerId); } catch(err){}
   const [x,y] = toBuf(e);
   tapDownX = x; tapDownY = y; tapMoved = 0; S.press={x,y,t:0};
   if (S.scene==='HOOLIGAN_RUN' && S.hool){
