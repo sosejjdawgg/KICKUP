@@ -1221,6 +1221,7 @@ const S = {
   profileScroll:0,
   clubsScroll:0, clubHintMsg:'', clubHintT:0,
   achDetail:null,   // id of the achievement whose detail card is open, PROFILE only
+  hub:{ tab:'FIXTURES', news:null, newsStatus:'idle', newsErr:'', fixtures:null, fixturesStatus:'idle', fixturesErr:'', scroll:0, teamCycleIdx:0 },
   transition:{ t:0, dur:0, pending:null },
   shareFlashT:0,
   chestReward:null,            // the cheat won this run, shown by KU_CHEST
@@ -1878,6 +1879,7 @@ function tapAt(px, py){
       return;
     case 'CLUBS': handleClubsTap(px, py); return;
     case 'WORLDTEAMS': handleWorldTeamsTap(px, py); return;
+    case 'HUB': handleHubTap(px, py); return;
     case 'TITLE':
       // edit player, career card, daily, mode toggle, then category grid
       if (editHit(px, py)){ SFX.lock(0, true); resetCreateShow(); gotoScene('CREATE'); return; }
@@ -1897,6 +1899,12 @@ function tapAt(px, py){
       if (CLUBS_RECT && px>=CLUBS_RECT[0] && px<=CLUBS_RECT[0]+CLUBS_RECT[2] &&
           py>=CLUBS_RECT[1] && py<=CLUBS_RECT[1]+CLUBS_RECT[3]){
         SFX.lock(0,true); S.clubsScroll = 0; gotoScene('CLUBS'); return;
+      }
+      if (HUB_RECT && px>=HUB_RECT[0] && px<=HUB_RECT[0]+HUB_RECT[2] &&
+          py>=HUB_RECT[1] && py<=HUB_RECT[1]+HUB_RECT[3]){
+        SFX.lock(0,true); S.hub.scroll = 0; gotoScene('HUB');
+        fetchFixtures(); fetchNews();
+        return;
       }
       return;
     case 'ROUNDCARD': if (S.sceneT > 0.35){ SFX.whistleShort(); prepShot(); } return;
@@ -1996,7 +2004,7 @@ function applyQuestion(){
 }
 
 // hit regions
-let ANSWER_RECTS = [], CAT_RECTS = [], MODE_RECTS = [], CREATE_RECTS = [], EDIT_RECT = null, CLUBS_RECT = null, WORLDTEAMS_RECT = null;
+let ANSWER_RECTS = [], CAT_RECTS = [], MODE_RECTS = [], CREATE_RECTS = [], EDIT_RECT = null, CLUBS_RECT = null, WORLDTEAMS_RECT = null, HUB_RECT = null;
 function answerHit(px,py){ for (let i=0;i<ANSWER_RECTS.length;i++){ const r=ANSWER_RECTS[i];
   if (px>=r[0]&&px<=r[0]+r[2]&&py>=r[1]&&py<=r[1]+r[3]) return i; } return -1; }
 function catHit(px,py){ for (const r of CAT_RECTS){ if (px>=r[0]&&px<=r[0]+r[2]&&py>=r[1]&&py<=r[1]+r[3]) return r[4]; } return null; }
@@ -2154,7 +2162,8 @@ function freshProfile(){
     dailyStreak:0, dailyBest:0, lastDaily:'', dailyBestRank:0,
     achievements:{},
     wonTeams:[], unlockedCheats:[],    // the cheat vault — see openChest()
-    clubsUnlocked: CLUB_STARTERS.slice(), clubUnlockFundsUsed:[], clubsPlayed:[]
+    clubsUnlocked: CLUB_STARTERS.slice(), clubUnlockFundsUsed:[], clubsPlayed:[],
+    favoriteClub:''                    // News & Fixtures filter, '' = show everyone
   };
 }
 
@@ -2369,7 +2378,14 @@ cv.addEventListener('pointerdown', e=>{ e.preventDefault(); const [x,y]=toBuf(e)
    scroll keeps gliding on whatever velocity it had and eases out, same
    as any native scroll view, instead of stopping the instant you let go. */
 let dragY = null, dragMoved = 0, dragLastT = 0, scrollVel = 0;
-const SCROLLABLE_SCENES = ['PROFILE','CLUBS'];
+const SCROLLABLE_SCENES = ['PROFILE','CLUBS','HUB'];
+// one shared spot each scrollable scene's drag/momentum reads and writes,
+// rather than repeating a three-way branch at every call site
+function scrollAdd(delta){
+  if (S.scene==='PROFILE') S.profileScroll += delta;
+  else if (S.scene==='CLUBS') S.clubsScroll += delta;
+  else if (S.scene==='HUB') S.hub.scroll += delta;
+}
 cv.addEventListener('pointerdown', e=>{
   if (SCROLLABLE_SCENES.includes(S.scene) && !S.achDetail){ dragY = toBuf(e)[1]; dragMoved = 0; dragLastT = performance.now(); scrollVel = 0; }
 });
@@ -2379,7 +2395,7 @@ cv.addEventListener('pointermove', e=>{
   const y = toBuf(e)[1];
   const now = performance.now(), vdt = Math.max(0.001, (now-dragLastT)/1000);
   const dy = y - dragY; dragMoved += Math.abs(dy); dragY = y; dragLastT = now;
-  if (S.scene==='PROFILE') S.profileScroll -= dy; else S.clubsScroll -= dy;
+  scrollAdd(-dy);
   // smoothed instantaneous velocity — this is what the release carries forward
   scrollVel = scrollVel*0.72 + (-dy/vdt)*0.28;
 }, {passive:false});
@@ -2388,7 +2404,7 @@ cv.addEventListener('pointermove', e=>{
 cv.addEventListener('wheel', e=>{
   if (!SCROLLABLE_SCENES.includes(S.scene)) return;
   e.preventDefault();
-  if (S.scene==='PROFILE') S.profileScroll += e.deltaY*0.5; else S.clubsScroll += e.deltaY*0.5;
+  scrollAdd(e.deltaY*0.5);
 }, {passive:false});
 document.getElementById('menuBtn').addEventListener('click', e=>{
   e.preventDefault(); e.stopPropagation();
@@ -2438,7 +2454,7 @@ function update(dt){
   // still some velocity left on the badge grids — decays smoothly to a stop
   // rather than the drag just cutting off dead at release
   if (dragY === null && SCROLLABLE_SCENES.includes(S.scene) && Math.abs(scrollVel) > 1){
-    if (S.scene==='PROFILE') S.profileScroll += scrollVel*dt; else S.clubsScroll += scrollVel*dt;
+    scrollAdd(scrollVel*dt);
     scrollVel *= Math.pow(0.02, dt);
     if (Math.abs(scrollVel) < 1) scrollVel = 0;
   }
@@ -2630,6 +2646,7 @@ function draw(){
   if (S.scene === 'PROFILE'){ drawProfile(); finishDraw(); return; }
   if (S.scene === 'CLUBS'){ drawClubsScene(); finishDraw(); return; }
   if (S.scene === 'WORLDTEAMS'){ drawWorldTeamsScene(); finishDraw(); return; }
+  if (S.scene === 'HUB'){ drawHubScene(); finishDraw(); return; }
   if (S.scene === 'CREATE'){ drawCreate(); finishDraw(); return; }
   if (S.scene === 'TITLE'){ drawTitle(); finishDraw(); return; }
   if (S.scene === 'MATCHEND'){ drawMatchEnd(); finishDraw(); return; }
@@ -4566,25 +4583,33 @@ function drawTitle(){
     txtFit(label, x+w/2, y+7, on?C.GOLD2:C.GREYDK, 9, w-10, 'center');
   });
 
-  // world teams (nations) and club legends (clubs) — each its own row,
-  // opening its own spacious picker rather than being crammed in here
-  const cgy = 214;
-  WORLDTEAMS_RECT = [14, cgy, W-28, 28];
-  rect(14, cgy, W-28, 28, C.PANELED); rect(15, cgy+1, W-30, 26, C.PANEL);
-  drawAchIcon('globe', 30, cgy+14, 8, C.GOLD2);
+  // world teams (nations), club legends (clubs), and news & fixtures —
+  // each its own row, opening its own spacious screen rather than being
+  // crammed in here
+  const cgy = 210;
+  WORLDTEAMS_RECT = [14, cgy, W-28, 26];
+  rect(14, cgy, W-28, 26, C.PANELED); rect(15, cgy+1, W-30, 24, C.PANEL);
+  drawAchIcon('globe', 30, cgy+13, 8, C.GOLD2);
   txt('WORLD TEAMS', 44, cgy+9, C.WHITE, 9);
   txt(CATS.length+' NATIONS ▸', W-20, cgy+10, C.GREYDK, 6, 'right');
 
-  const cly = cgy + 36, unlockedCount = S.profile.clubsUnlocked.length, totalContent = CLUB_STARTERS.length + CLUB_UNLOCK_ORDER.length;
-  CLUBS_RECT = [14, cly, W-28, 28];
-  rect(14, cly, W-28, 28, C.PANELED); rect(15, cly+1, W-30, 26, C.PANEL);
-  drawClubBadge(30, cly+14, 8, '#8a7a3a', '', false);
+  const cly = cgy + 34, unlockedCount = S.profile.clubsUnlocked.length, totalContent = CLUB_STARTERS.length + CLUB_UNLOCK_ORDER.length;
+  CLUBS_RECT = [14, cly, W-28, 26];
+  rect(14, cly, W-28, 26, C.PANELED); rect(15, cly+1, W-30, 24, C.PANEL);
+  drawClubBadge(30, cly+13, 8, '#8a7a3a', '', false);
   txt('CLUB LEGENDS', 44, cly+9, C.GOLD2, 9);
   txt(unlockedCount+'/'+totalContent+' UNLOCKED ▸', W-20, cly+10, C.GREYDK, 6, 'right');
 
+  const hby = cly + 34;
+  HUB_RECT = [14, hby, W-28, 26];
+  rect(14, hby, W-28, 26, C.PANELED); rect(15, hby+1, W-30, 24, C.PANEL);
+  drawAchIcon('news', 30, hby+13, 7, C.GOLD2);
+  txt('NEWS & FIXTURES', 44, hby+9, C.WHITE, 9);
+  txt('LIVE ▸', W-20, hby+10, C.GREYDK, 6, 'right');
+
   // ── career strip ──
-  const p = S.profile, sy = 294;
-  rect(14, sy, W-28, 40, C.PANELED); rect(15, sy+1, W-30, 38, C.PANEL);
+  const p = S.profile, sy = hby + 34;
+  rect(14, sy, W-28, 36, C.PANELED); rect(15, sy+1, W-30, 34, C.PANEL);
   const stats = [
     ['BEST', p.bestRank+'/15'],
     ['RUNS', String(p.runs)],
@@ -4593,14 +4618,12 @@ function drawTitle(){
   ];
   stats.forEach(([label,val],i)=>{
     const cw = (W-30)/4, cx = 15 + i*cw + cw/2;
-    txt(val, cx, sy+8, C.WHITE, 11, 'center');
-    txtFit(label, cx, sy+24, C.GREYDK, 6, cw-4, 'center');
+    txt(val, cx, sy+6, C.WHITE, 11, 'center');
+    txtFit(label, cx, sy+22, C.GREYDK, 6, cw-4, 'center');
   });
 
-  txt('seed '+SEED.toString(16).slice(0,8), W/2, 368, C.GREYDK, 6, 'center');
-
   // how-to, compact, at the very bottom
-  const hy = 384;
+  const hy = sy + 48;
   txtFit(t('how_perfect'), W/2, hy, C.GOLD2, 7, W-28, 'center');
   txtFit(t('how_wind'), W/2, hy+11, C.ORANGE, 7, W-28, 'center');
 }
@@ -4883,6 +4906,228 @@ function handleWorldTeamsTap(px, py){
   SFX.whistleShort();
   S.isDaily = false;
   if (S.menuMode === 'KEEPYUPS') beginKeepyups(pick); else beginMatch(pick);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   NEWS & FIXTURES — the one part of this file that talks to the
+   outside world. Two free, keyless, CORS-open public endpoints:
+     - TheSportsDB (shared test key "3") for English Premier League
+       fixtures — https://www.thesportsdb.com/api.php
+     - rss2json.com bridging the BBC Sport football RSS feed for news
+   Neither is ours to guarantee: no backend, no signup, no API key of
+   our own to rate-limit-protect, because this is a single static file
+   people can open straight from disk or itch.io. If either is slow,
+   down, or rate-limited, the UI says so and offers a retry — it never
+   fabricates a headline or a kick-off time. Team crests aren't fetched
+   or drawn (see the Club Legends badge policy above) — only text.
+   Last successful pull is cached in localStorage so a later offline
+   launch still shows *something* instead of a blank screen.        ── */
+const EPL_LEAGUE_ID = '4328';
+const NEWS_RSS_URL = 'http://feeds.bbci.co.uk/sport/football/rss.xml';
+const HUB_CACHE_MAX_AGE = 30*60*1000;   // re-fetch if our cache is older than this
+const HUB_FETCH_TIMEOUT = 10000;
+
+function hubLoadCache(key){
+  try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : null; } catch(e){ return null; }
+}
+function hubSaveCache(key, data){
+  try { localStorage.setItem(key, JSON.stringify({ t: Date.now(), data })); } catch(e){}
+}
+function fetchWithTimeout(url, ms){
+  const ctrl = new AbortController();
+  const id = setTimeout(()=>ctrl.abort(), ms);
+  return fetch(url, { signal: ctrl.signal }).finally(()=>clearTimeout(id));
+}
+
+async function fetchFixtures(force){
+  const h = S.hub, cached = hubLoadCache('kickup_fixtures_v1');
+  if (cached && !force && Date.now()-cached.t < HUB_CACHE_MAX_AGE){
+    h.fixtures = cached.data; h.fixturesStatus = 'ok'; return;
+  }
+  h.fixturesStatus = 'loading'; h.fixturesErr = '';
+  try {
+    const res = await fetchWithTimeout('https://www.thesportsdb.com/api/v1/json/3/eventsnextleague.php?id='+EPL_LEAGUE_ID, HUB_FETCH_TIMEOUT);
+    if (!res.ok) throw new Error('HTTP '+res.status);
+    const json = await res.json();
+    const events = (json.events||[]).map(e => ({
+      home: e.strHomeTeam, away: e.strAwayTeam, date: e.dateEvent, time: e.strTime, venue: e.strVenue
+    })).filter(e => e.home && e.away);
+    h.fixtures = events;
+    h.fixturesStatus = events.length ? 'ok' : 'empty';
+    if (events.length) hubSaveCache('kickup_fixtures_v1', events);
+  } catch(err){
+    if (cached){ h.fixtures = cached.data; h.fixturesStatus = 'stale'; }
+    else { h.fixturesStatus = 'error'; h.fixturesErr = "Couldn't load fixtures — check your connection."; }
+  }
+}
+async function fetchNews(force){
+  const h = S.hub, cached = hubLoadCache('kickup_news_v1');
+  if (cached && !force && Date.now()-cached.t < HUB_CACHE_MAX_AGE){
+    h.news = cached.data; h.newsStatus = 'ok'; return;
+  }
+  h.newsStatus = 'loading'; h.newsErr = '';
+  try {
+    const res = await fetchWithTimeout('https://api.rss2json.com/v1/api.json?rss_url='+encodeURIComponent(NEWS_RSS_URL), HUB_FETCH_TIMEOUT);
+    if (!res.ok) throw new Error('HTTP '+res.status);
+    const json = await res.json();
+    if (json.status !== 'ok') throw new Error('feed error');
+    const items = (json.items||[]).slice(0, 20).map(it => ({
+      title: it.title, link: it.link, pubDate: it.pubDate,
+      desc: (it.description||'').replace(/<[^>]+>/g,'').trim()
+    }));
+    h.news = items;
+    h.newsStatus = items.length ? 'ok' : 'empty';
+    if (items.length) hubSaveCache('kickup_news_v1', items);
+  } catch(err){
+    if (cached){ h.news = cached.data; h.newsStatus = 'stale'; }
+    else { h.newsStatus = 'error'; h.newsErr = "Couldn't load news — check your connection."; }
+  }
+}
+function relTime(dateStr){
+  const ms = Date.now() - new Date(dateStr.replace(' ','T')+'Z').getTime();
+  const min = Math.floor(ms/60000);
+  if (min < 1) return 'just now';
+  if (min < 60) return min+'m ago';
+  const hr = Math.floor(min/60);
+  if (hr < 24) return hr+'h ago';
+  return Math.floor(hr/24)+'d ago';
+}
+function fixtureLabel(f){
+  const d = new Date(f.date+'T00:00:00');
+  const day = d.toLocaleDateString(undefined, { weekday:'short', day:'numeric', month:'short' });
+  const time = (f.time||'').slice(0,5);
+  return day + (time ? '  ·  ' + time : '');
+}
+
+let HUB_BACK = null, HUB_TAB_RECTS = [], HUB_TEAM_RECT = null, HUB_RETRY_RECT = null, HUB_ITEM_RECTS = [];
+function drawHubScene(){
+  if (!backdrop) makeBackdrop();
+  b.drawImage(backdrop, 0, 0);
+  b.save(); b.globalAlpha = 0.72; rect(0,0,W,H,C.INK); b.restore();
+
+  const h = S.hub;
+  txt('NEWS & FIXTURES', W/2, 8, C.GOLD, 15, 'center');
+  txtFit('LIVE FROM THE WEB  ·  UK FOOTBALL FOCUS', W/2, 24, C.GREYDK, 6, W-28, 'center');
+
+  // tabs
+  HUB_TAB_RECTS = [];
+  const tabs = [['FIXTURES','FIXTURES'],['NEWS','NEWS']];
+  tabs.forEach(([label,key],i)=>{
+    const w = (W-28-8)/2, x = 14+i*(w+8), y = 34, th = 20;
+    HUB_TAB_RECTS.push([x,y,w,th,key]);
+    const on = h.tab === key;
+    rect(x,y,w,th, on?C.GOLD:C.PANELED); rect(x+1,y+1,w-2,th-2, on?'#3a2c06':C.PANEL);
+    txtFit(label, x+w/2, y+6, on?C.GOLD2:C.GREYDK, 8, w-10, 'center');
+  });
+
+  const gTop = 60, gBot = 386;
+
+  if (h.tab === 'FIXTURES'){
+    // favourite-team filter, built from whatever clubs are actually in the
+    // live fixture list — always in sync with reality, never hardcoded
+    const allTeams = h.fixtures ? [...new Set(h.fixtures.flatMap(f=>[f.home,f.away]))].sort() : [];
+    HUB_TEAM_RECT = [14, gTop, W-28, 18];
+    rect(14, gTop, W-28, 18, C.PANEL); rect(15, gTop+1, W-30, 16, '#0a1220');
+    const followLabel = S.profile.favoriteClub ? 'FOLLOWING: '+S.profile.favoriteClub : 'FOLLOWING: ALL PREMIER LEAGUE';
+    txtFit('◂  '+followLabel+'  ▸', W/2, gTop+5, C.GOLD2, 7, W-40, 'center');
+
+    const listTop = gTop + 24;
+    b.save(); b.beginPath(); b.rect(0, listTop, W, gBot-listTop); b.clip();
+    HUB_ITEM_RECTS = [];
+    if (h.fixturesStatus === 'loading' || h.fixturesStatus === 'idle'){
+      txt('Loading fixtures…', W/2, listTop+20, C.GREYDK, 8, 'center');
+    } else if (h.fixturesStatus === 'error'){
+      txtFit(h.fixturesErr, W/2, listTop+20, C.RED, 8, W-40, 'center');
+      HUB_RETRY_RECT = [W/2-40, listTop+36, 80, 20];
+      rect(HUB_RETRY_RECT[0],HUB_RETRY_RECT[1],80,20,C.PANELED); rect(HUB_RETRY_RECT[0]+1,HUB_RETRY_RECT[1]+1,78,18,C.PANEL);
+      txt('RETRY', W/2, listTop+42, C.WHITE, 8, 'center');
+    } else {
+      if (h.fixturesStatus === 'stale') txtFit('Showing last saved fixtures — offline', W/2, listTop+2, C.ORANGE, 6, W-40, 'center');
+      const rows = (h.fixtures||[]).filter(f => !S.profile.favoriteClub || f.home===S.profile.favoriteClub || f.away===S.profile.favoriteClub);
+      const maxScroll = Math.max(0, rows.length*44 - (gBot-listTop) + 14);
+      h.scroll = Math.max(0, Math.min(maxScroll, h.scroll));
+      const rowTop = h.fixturesStatus==='stale' ? listTop+12 : listTop;
+      if (!rows.length) txt('No upcoming fixtures found.', W/2, rowTop+20, C.GREYDK, 8, 'center');
+      rows.forEach((f,i)=>{
+        const y = rowTop + i*44 - h.scroll;
+        if (y < listTop-44 || y > gBot+10) return;
+        HUB_ITEM_RECTS.push([14,y,W-28,40,i]);
+        rect(14,y,W-28,40,C.PANELED); rect(15,y+1,W-30,38,C.PANEL);
+        txtFit(f.home+'  vs  '+f.away, W/2, y+7, C.WHITE, 9, W-44, 'center');
+        txtFit(fixtureLabel(f), W/2, y+21, C.GOLD2, 7, W-44, 'center');
+        if (f.venue) txtFit(f.venue, W/2, y+31, C.GREYDK, 6, W-44, 'center');
+      });
+      txtFit('Broadcaster info isn\'t available from a free source — check your local TV listings.', W/2, gBot-10, C.GREYDK, 5, W-32, 'center');
+    }
+    b.restore();
+  } else {
+    b.save(); b.beginPath(); b.rect(0, gTop, W, gBot-gTop); b.clip();
+    HUB_ITEM_RECTS = [];
+    if (h.newsStatus === 'loading' || h.newsStatus === 'idle'){
+      txt('Loading headlines…', W/2, gTop+20, C.GREYDK, 8, 'center');
+    } else if (h.newsStatus === 'error'){
+      txtFit(h.newsErr, W/2, gTop+20, C.RED, 8, W-40, 'center');
+      HUB_RETRY_RECT = [W/2-40, gTop+36, 80, 20];
+      rect(HUB_RETRY_RECT[0],HUB_RETRY_RECT[1],80,20,C.PANELED); rect(HUB_RETRY_RECT[0]+1,HUB_RETRY_RECT[1]+1,78,18,C.PANEL);
+      txt('RETRY', W/2, gTop+42, C.WHITE, 8, 'center');
+    } else {
+      const items = h.news||[];
+      const maxScroll = Math.max(0, items.length*58 - (gBot-gTop) + 14);
+      h.scroll = Math.max(0, Math.min(maxScroll, h.scroll));
+      const rowTop = h.newsStatus==='stale' ? gTop+12 : gTop;
+      if (h.newsStatus === 'stale') txtFit('Showing last saved headlines — offline', W/2, gTop+2, C.ORANGE, 6, W-40, 'center');
+      items.forEach((it,i)=>{
+        const y = rowTop + i*58 - h.scroll;
+        if (y < gTop-58 || y > gBot+10) return;
+        HUB_ITEM_RECTS.push([14,y,W-28,54,i]);
+        rect(14,y,W-28,54,C.PANELED); rect(15,y+1,W-30,52,C.PANEL);
+        txtFit(it.title, W/2, y+6, C.WHITE, 8, W-44, 'center');
+        txtFit(it.desc, W/2, y+20, C.GREYDK, 6, W-44, 'center');
+        txt(relTime(it.pubDate)+'  ·  BBC SPORT  ·  TAP TO READ', W/2, y+42, C.GOLD2, 6, 'center');
+      });
+      if (!items.length) txt('No headlines right now.', W/2, gTop+20, C.GREYDK, 8, 'center');
+    }
+    b.restore();
+  }
+
+  HUB_BACK = [W/2-46, 396, 92, 20];
+  rect(HUB_BACK[0], HUB_BACK[1], 92, 20, C.GOLDDK);
+  rect(HUB_BACK[0]+1, HUB_BACK[1]+1, 90, 18, '#241a06');
+  txt('BACK', W/2, 402, C.GOLD2, 9, 'center');
+}
+function handleHubTap(px, py){
+  const h = S.hub;
+  if (HUB_BACK && px>=HUB_BACK[0] && px<=HUB_BACK[0]+HUB_BACK[2] && py>=HUB_BACK[1] && py<=HUB_BACK[1]+HUB_BACK[3]){
+    SFX.lock(0,true); gotoScene('TITLE'); return;
+  }
+  const tabHit = HUB_TAB_RECTS.find(r=>px>=r[0]&&px<=r[0]+r[2]&&py>=r[1]&&py<=r[1]+r[3]);
+  if (tabHit){
+    if (h.tab !== tabHit[4]){ h.tab = tabHit[4]; h.scroll = 0; SFX.lock(0,true); }
+    return;
+  }
+  if (h.tab === 'FIXTURES' && HUB_TEAM_RECT && px>=HUB_TEAM_RECT[0] && px<=HUB_TEAM_RECT[0]+HUB_TEAM_RECT[2] &&
+      py>=HUB_TEAM_RECT[1] && py<=HUB_TEAM_RECT[1]+HUB_TEAM_RECT[3]){
+    const allTeams = h.fixtures ? [...new Set(h.fixtures.flatMap(f=>[f.home,f.away]))].sort() : [];
+    const opts = [''].concat(allTeams);   // '' = follow everyone
+    const cur = opts.indexOf(S.profile.favoriteClub);
+    S.profile.favoriteClub = opts[(Math.max(0,cur)+1) % opts.length];
+    saveGame(); SFX.tick(true); h.scroll = 0;
+    return;
+  }
+  if ((h.fixturesStatus === 'error' && h.tab==='FIXTURES') || (h.newsStatus === 'error' && h.tab==='NEWS')){
+    if (HUB_RETRY_RECT && px>=HUB_RETRY_RECT[0] && px<=HUB_RETRY_RECT[0]+HUB_RETRY_RECT[2] &&
+        py>=HUB_RETRY_RECT[1] && py<=HUB_RETRY_RECT[1]+HUB_RETRY_RECT[3]){
+      SFX.tick(true);
+      if (h.tab==='FIXTURES') fetchFixtures(true).then(draw); else fetchNews(true).then(draw);
+      return;
+    }
+  }
+  if (h.tab === 'NEWS'){
+    const hit = HUB_ITEM_RECTS.find(r=>px>=r[0]&&px<=r[0]+r[2]&&py>=r[1]&&py<=r[1]+r[3]);
+    if (hit && h.news && h.news[hit[4]] && h.news[hit[4]].link){
+      window.open(h.news[hit[4]].link, '_blank', 'noopener');
+    }
+  }
 }
 
 function drawMatchEnd(){
@@ -5292,6 +5537,10 @@ function drawAchIcon(kind, cx, cy, r, col){
       b.strokeStyle = col; b.lineWidth = Math.max(1.4, r*0.24); b.lineCap = 'round';
       b.beginPath(); b.arc(cx, cy-r*0.05, r*0.5, Math.PI, 0); b.stroke();
       circ(cx, cy+r*0.25, Math.max(1.2, r*0.14), '#0e1526'); break;
+    case 'news':
+      rect(cx-r*0.85, cy-r*0.85, r*1.7, r*1.7, col);
+      for (let i=0;i<3;i++) rect(cx-r*0.6, cy-r*0.5+i*r*0.5, r*1.2, r*0.16, '#0e1526');
+      break;
     default:  // 'ball'
       drawLadderBall(cx, cy, r, 'plain');
   }
