@@ -1221,7 +1221,13 @@ const S = {
   profileScroll:0,
   clubsScroll:0, clubHintMsg:'', clubHintT:0,
   achDetail:null,   // id of the achievement whose detail card is open, PROFILE only
-  hub:{ tab:'FIXTURES', news:null, newsStatus:'idle', newsErr:'', fixtures:null, fixturesStatus:'idle', fixturesErr:'', scroll:0, teamCycleIdx:0 },
+  hub:{
+    tab:'FIXTURES', compIdx:0,
+    fixtures:null, fixturesStatus:'idle', fixturesErr:'',
+    news:null, newsStatus:'idle', newsErr:'',
+    transfers:null, transfersStatus:'idle', transfersErr:'',
+    scroll:0, teamPicker:false, teamPickerScroll:0, openItem:null
+  },
   transition:{ t:0, dur:0, pending:null },
   shareFlashT:0,
   chestReward:null,            // the cheat won this run, shown by KU_CHEST
@@ -2163,7 +2169,7 @@ function freshProfile(){
     achievements:{},
     wonTeams:[], unlockedCheats:[],    // the cheat vault — see openChest()
     clubsUnlocked: CLUB_STARTERS.slice(), clubUnlockFundsUsed:[], clubsPlayed:[],
-    favoriteClub:''                    // News & Fixtures filter, '' = show everyone
+    followedTeams:[]                   // News & Fixtures filter, empty = show everyone
   };
 }
 
@@ -2384,10 +2390,16 @@ const SCROLLABLE_SCENES = ['PROFILE','CLUBS','HUB'];
 function scrollAdd(delta){
   if (S.scene==='PROFILE') S.profileScroll += delta;
   else if (S.scene==='CLUBS') S.clubsScroll += delta;
-  else if (S.scene==='HUB') S.hub.scroll += delta;
+  else if (S.scene==='HUB'){
+    if (S.hub.teamPicker) S.hub.teamPickerScroll += delta;
+    else S.hub.scroll += delta;
+  }
 }
+// the article-summary popup is a static card, not a scroll view — dragging
+// behind it shouldn't move the list underneath
+function hubOverlayBlocksScroll(){ return S.scene==='HUB' && !!S.hub.openItem; }
 cv.addEventListener('pointerdown', e=>{
-  if (SCROLLABLE_SCENES.includes(S.scene) && !S.achDetail){ dragY = toBuf(e)[1]; dragMoved = 0; dragLastT = performance.now(); scrollVel = 0; }
+  if (SCROLLABLE_SCENES.includes(S.scene) && !S.achDetail && !hubOverlayBlocksScroll()){ dragY = toBuf(e)[1]; dragMoved = 0; dragLastT = performance.now(); scrollVel = 0; }
 });
 cv.addEventListener('pointermove', e=>{
   if (!SCROLLABLE_SCENES.includes(S.scene) || dragY===null) return;
@@ -2402,7 +2414,7 @@ cv.addEventListener('pointermove', e=>{
 ['pointerup','pointercancel','pointerleave'].forEach(ev =>
   cv.addEventListener(ev, ()=>{ dragY = null; }));   // scrollVel is left as-is — that's the momentum
 cv.addEventListener('wheel', e=>{
-  if (!SCROLLABLE_SCENES.includes(S.scene)) return;
+  if (!SCROLLABLE_SCENES.includes(S.scene) || hubOverlayBlocksScroll()) return;
   e.preventDefault();
   scrollAdd(e.deltaY*0.5);
 }, {passive:false});
@@ -2453,7 +2465,7 @@ function update(dt){
   // momentum scroll: only once the finger's lifted (dragY===null) and there's
   // still some velocity left on the badge grids — decays smoothly to a stop
   // rather than the drag just cutting off dead at release
-  if (dragY === null && SCROLLABLE_SCENES.includes(S.scene) && Math.abs(scrollVel) > 1){
+  if (dragY === null && SCROLLABLE_SCENES.includes(S.scene) && !hubOverlayBlocksScroll() && Math.abs(scrollVel) > 1){
     scrollAdd(scrollVel*dt);
     scrollVel *= Math.pow(0.02, dt);
     if (Math.abs(scrollVel) < 1) scrollVel = 0;
@@ -2622,15 +2634,32 @@ function txtFit(s,x,y,c,maxSize,maxWidth,align,weight){
   while (size > 5 && b.measureText(s).width > maxWidth) size--, b.font=(weight||'bold')+' '+size+'px ui-monospace, Menlo, Consolas, monospace';
   txt(s,x,y,c,size,align,weight);
 }
-function wrapText(s, max){
-  const words = s.split(' '); const lines=[]; let cur='';
-  b.font='bold 9px ui-monospace, Menlo, Consolas, monospace';
+function wrapText(s, max, size){
+  const words = (s||'').split(' '); const lines=[]; let cur='';
+  b.font='bold '+(size||9)+'px ui-monospace, Menlo, Consolas, monospace';
   for (const w of words){
     const test = cur ? cur+' '+w : w;
     if (b.measureText(test).width > max && cur){ lines.push(cur); cur=w; } else cur=test;
   }
   if (cur) lines.push(cur);
   return lines;
+}
+// wrapText(), but hard-capped at maxLines — the last line gets ellipsized
+// instead of quietly overflowing past its box, which is what txtFit's
+// font-shrinking used to do once it hit its minimum size floor
+function wrapTextClamped(s, max, size, maxLines){
+  const lines = wrapText(s, max, size);
+  if (lines.length <= maxLines) return lines;
+  const out = lines.slice(0, maxLines);
+  let last = out[maxLines-1];
+  b.font='bold '+(size||9)+'px ui-monospace, Menlo, Consolas, monospace';
+  while (last.length > 1 && b.measureText(last+'…').width > max) last = last.slice(0,-1);
+  out[maxLines-1] = last+'…';
+  return out;
+}
+function txtBlock(lines, cx, y, c, size, lineH, align){
+  lines.forEach((l,i)=> txt(l, cx, y+i*lineH, c, size, align||'center'));
+  return y + lines.length*lineH;
 }
 function dither(x,y,w,h,c,step){ b.fillStyle=c; const st=step||2;
   for(let j=0;j<h;j+=1) for(let i=(j%st);i<w;i+=st) b.fillRect(Math.round(x+i),Math.round(y+j),1,1); }
@@ -4910,22 +4939,47 @@ function handleWorldTeamsTap(px, py){
 
 /* ═══════════════════════════════════════════════════════════
    NEWS & FIXTURES — the one part of this file that talks to the
-   outside world. Two free, keyless, CORS-open public endpoints:
-     - TheSportsDB (shared test key "3") for English Premier League
-       fixtures — https://www.thesportsdb.com/api.php
-     - rss2json.com bridging the BBC Sport football RSS feed for news
-   Neither is ours to guarantee: no backend, no signup, no API key of
-   our own to rate-limit-protect, because this is a single static file
-   people can open straight from disk or itch.io. If either is slow,
-   down, or rate-limited, the UI says so and offers a retry — it never
-   fabricates a headline or a kick-off time. Team crests aren't fetched
-   or drawn (see the Club Legends badge policy above) — only text.
-   Last successful pull is cached in localStorage so a later offline
-   launch still shows *something* instead of a blank screen.        ── */
-const EPL_LEAGUE_ID = '4328';
-const NEWS_RSS_URL = 'http://feeds.bbci.co.uk/sport/football/rss.xml';
+   outside world. Free, keyless, CORS-open public endpoints only:
+     - TheSportsDB (shared test key "3") for fixtures — cycled across
+       ten UK/European competitions, or a followed team's own next
+       fixtures (which naturally include away and continental trips)
+     - rss2json.com bridging The Guardian's football + transfer-window
+       RSS feeds, and Sky Sports' Premier League News RSS feed
+   None of these are ours to guarantee: no backend, no signup, no API
+   key of our own to rate-limit-protect, because this is a single
+   static file people can open straight from disk or itch.io. If a
+   source is slow, down, or rate-limited, the UI says so and offers a
+   retry — it never fabricates a headline, a summary, or a kick-off
+   time. Team crests aren't fetched or drawn (see the Club Legends
+   badge policy above) — only text. Last successful pull per view is
+   cached in localStorage so a later offline launch still shows
+   *something* instead of a blank screen.                          ── */
+const COMPETITIONS = [
+  { id:'4328', label:'PREMIER LEAGUE' },
+  { id:'4329', label:'CHAMPIONSHIP' },
+  { id:'4396', label:'LEAGUE ONE' },
+  { id:'4397', label:'LEAGUE TWO' },
+  { id:'4482', label:'FA CUP' },
+  { id:'4570', label:'CARABAO CUP' },
+  { id:'4330', label:'SCOTTISH PREMIERSHIP' },
+  { id:'4480', label:'CHAMPIONS LEAGUE' },
+  { id:'4481', label:'EUROPA LEAGUE' },
+  { id:'4497', label:'EUROPA CONFERENCE LEAGUE' }
+];
+const NEWS_SOURCES = [
+  { label:'THE GUARDIAN', url:'https://www.theguardian.com/football/rss' },
+  { label:'SKY SPORTS',   url:'https://www.skysports.com/rss/11661' }
+];
+const TRANSFER_SOURCES = [
+  { label:'THE GUARDIAN', url:'https://www.theguardian.com/football/transfer-window/rss' }
+];
 const HUB_CACHE_MAX_AGE = 30*60*1000;   // re-fetch if our cache is older than this
 const HUB_FETCH_TIMEOUT = 10000;
+const MAX_FOLLOWED_FOR_FIXTURES = 5;    // bound outbound requests if someone follows a lot of teams
+// the follow list is every real club already in the game's Club Legends
+// roster (index.html:800) — one canonical UK club dataset, reused rather
+// than inventing a second one, sorted alphabetically for browsing
+const FOLLOW_TEAM_LIST = CLUBS.map(c=>c.name).slice().sort();
 
 function hubLoadCache(key){
   try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : null; } catch(e){ return null; }
@@ -4939,48 +4993,124 @@ function fetchWithTimeout(url, ms){
   return fetch(url, { signal: ctrl.signal }).finally(()=>clearTimeout(id));
 }
 
+function hubFixturesCacheKey(){
+  const followed = S.profile.followedTeams;
+  if (followed.length) return 'kickup_fixtures_team_v2:'+followed.slice().sort().join('|');
+  return 'kickup_fixtures_comp_v2:'+COMPETITIONS[S.hub.compIdx].id;
+}
+// a followed team's OWN next fixtures — across every competition it's in,
+// home or away, domestic or continental — is how "overseas away games"
+// show up here, with no separate European-fixtures code path needed
+async function fetchTeamFixtures(name){
+  try {
+    const sRes = await fetchWithTimeout('https://www.thesportsdb.com/api/v1/json/3/searchteams.php?t='+encodeURIComponent(name), HUB_FETCH_TIMEOUT);
+    if (!sRes.ok) return [];
+    const sJson = await sRes.json();
+    const team = (sJson.teams||[])[0];
+    if (!team) return [];
+    const eRes = await fetchWithTimeout('https://www.thesportsdb.com/api/v1/json/3/eventsnext.php?id='+team.idTeam, HUB_FETCH_TIMEOUT);
+    if (!eRes.ok) return [];
+    const eJson = await eRes.json();
+    return (eJson.events||[]).map(e => ({
+      home:e.strHomeTeam, away:e.strAwayTeam, date:e.dateEvent, time:e.strTime, venue:e.strVenue, comp:e.strLeague
+    }));
+  } catch(e){ return []; }
+}
 async function fetchFixtures(force){
-  const h = S.hub, cached = hubLoadCache('kickup_fixtures_v1');
+  const h = S.hub, key = hubFixturesCacheKey();
+  const cached = hubLoadCache(key);
   if (cached && !force && Date.now()-cached.t < HUB_CACHE_MAX_AGE){
     h.fixtures = cached.data; h.fixturesStatus = 'ok'; return;
   }
   h.fixturesStatus = 'loading'; h.fixturesErr = '';
   try {
-    const res = await fetchWithTimeout('https://www.thesportsdb.com/api/v1/json/3/eventsnextleague.php?id='+EPL_LEAGUE_ID, HUB_FETCH_TIMEOUT);
-    if (!res.ok) throw new Error('HTTP '+res.status);
-    const json = await res.json();
-    const events = (json.events||[]).map(e => ({
-      home: e.strHomeTeam, away: e.strAwayTeam, date: e.dateEvent, time: e.strTime, venue: e.strVenue
-    })).filter(e => e.home && e.away);
+    const followed = S.profile.followedTeams;
+    let events;
+    if (followed.length){
+      const groups = await Promise.all(followed.slice(0, MAX_FOLLOWED_FOR_FIXTURES).map(fetchTeamFixtures));
+      events = groups.flat().filter(e => e.home && e.away);
+      // two followed teams playing each other would otherwise show up once
+      // per team's own fetch — collapse to a single card per real fixture
+      const seenFixtures = new Set();
+      events = events.filter(e => {
+        const key = e.date+'|'+e.time+'|'+e.home+'|'+e.away;
+        if (seenFixtures.has(key)) return false;
+        seenFixtures.add(key); return true;
+      });
+      events.sort((a,b) => (a.date+' '+a.time).localeCompare(b.date+' '+b.time));
+    } else {
+      const comp = COMPETITIONS[h.compIdx];
+      const res = await fetchWithTimeout('https://www.thesportsdb.com/api/v1/json/3/eventsnextleague.php?id='+comp.id, HUB_FETCH_TIMEOUT);
+      if (!res.ok) throw new Error('HTTP '+res.status);
+      const json = await res.json();
+      events = (json.events||[]).map(e => ({
+        home:e.strHomeTeam, away:e.strAwayTeam, date:e.dateEvent, time:e.strTime, venue:e.strVenue, comp:comp.label
+      })).filter(e => e.home && e.away);
+    }
     h.fixtures = events;
     h.fixturesStatus = events.length ? 'ok' : 'empty';
-    if (events.length) hubSaveCache('kickup_fixtures_v1', events);
+    hubSaveCache(key, events);   // cache even a genuinely-empty result (e.g. a cup between rounds) so it isn't re-fetched every 30s
   } catch(err){
-    if (cached){ h.fixtures = cached.data; h.fixturesStatus = 'stale'; }
+    const stale = hubLoadCache(key);
+    if (stale){ h.fixtures = stale.data; h.fixturesStatus = 'stale'; }
     else { h.fixturesStatus = 'error'; h.fixturesErr = "Couldn't load fixtures — check your connection."; }
   }
 }
+
+async function fetchRssSource(src){
+  try {
+    const res = await fetchWithTimeout('https://api.rss2json.com/v1/api.json?rss_url='+encodeURIComponent(src.url), HUB_FETCH_TIMEOUT);
+    if (!res.ok) return [];
+    const json = await res.json();
+    if (json.status !== 'ok') return [];
+    return (json.items||[]).slice(0, 15).map(it => ({
+      title: it.title, link: it.link, pubDate: it.pubDate,
+      desc: (it.description||'').replace(/<[^>]+>/g,'').replace(/\s+/g,' ').trim(),
+      source: src.label
+    }));
+  } catch(e){ return []; }
+}
+async function fetchArticles(sources){
+  const groups = await Promise.all(sources.map(fetchRssSource));
+  const items = groups.flat();
+  items.sort((a,b) => new Date(b.pubDate) - new Date(a.pubDate));
+  return items.slice(0, 30);
+}
+function filterByFollowed(items){
+  const followed = S.profile.followedTeams;
+  if (!followed.length) return items;
+  const needles = followed.map(n => n.toLowerCase());
+  return items.filter(it => {
+    const hay = (it.title+' '+it.desc).toLowerCase();
+    return needles.some(n => hay.includes(n));
+  });
+}
 async function fetchNews(force){
-  const h = S.hub, cached = hubLoadCache('kickup_news_v1');
-  if (cached && !force && Date.now()-cached.t < HUB_CACHE_MAX_AGE){
-    h.news = cached.data; h.newsStatus = 'ok'; return;
-  }
+  const h = S.hub, key = 'kickup_news_v2';
+  const cached = hubLoadCache(key);
+  if (cached && !force && Date.now()-cached.t < HUB_CACHE_MAX_AGE){ h.news = cached.data; h.newsStatus = 'ok'; return; }
   h.newsStatus = 'loading'; h.newsErr = '';
   try {
-    const res = await fetchWithTimeout('https://api.rss2json.com/v1/api.json?rss_url='+encodeURIComponent(NEWS_RSS_URL), HUB_FETCH_TIMEOUT);
-    if (!res.ok) throw new Error('HTTP '+res.status);
-    const json = await res.json();
-    if (json.status !== 'ok') throw new Error('feed error');
-    const items = (json.items||[]).slice(0, 20).map(it => ({
-      title: it.title, link: it.link, pubDate: it.pubDate,
-      desc: (it.description||'').replace(/<[^>]+>/g,'').trim()
-    }));
-    h.news = items;
-    h.newsStatus = items.length ? 'ok' : 'empty';
-    if (items.length) hubSaveCache('kickup_news_v1', items);
+    const items = await fetchArticles(NEWS_SOURCES);
+    if (!items.length) throw new Error('no items');
+    h.news = items; h.newsStatus = 'ok'; hubSaveCache(key, items);
   } catch(err){
     if (cached){ h.news = cached.data; h.newsStatus = 'stale'; }
     else { h.newsStatus = 'error'; h.newsErr = "Couldn't load news — check your connection."; }
+  }
+}
+async function fetchTransfers(force){
+  const h = S.hub, key = 'kickup_transfers_v1';
+  const cached = hubLoadCache(key);
+  if (cached && !force && Date.now()-cached.t < HUB_CACHE_MAX_AGE){ h.transfers = cached.data; h.transfersStatus = 'ok'; return; }
+  h.transfersStatus = 'loading'; h.transfersErr = '';
+  try {
+    const items = await fetchArticles(TRANSFER_SOURCES);
+    if (!items.length) throw new Error('no items');
+    h.transfers = items; h.transfersStatus = 'ok'; hubSaveCache(key, items);
+  } catch(err){
+    if (cached){ h.transfers = cached.data; h.transfersStatus = 'stale'; }
+    else { h.transfersStatus = 'error'; h.transfersErr = "Couldn't load transfers — check your connection."; }
   }
 }
 function relTime(dateStr){
@@ -4998,134 +5128,282 @@ function fixtureLabel(f){
   const time = (f.time||'').slice(0,5);
   return day + (time ? '  ·  ' + time : '');
 }
+function drawStar(cx, cy, r, filled, col){
+  b.save(); b.translate(cx, cy); b.beginPath();
+  for (let i=0;i<5;i++){
+    const a1 = -Math.PI/2 + i*2*Math.PI/5, a2 = a1 + Math.PI/5;
+    const p1x = Math.cos(a1)*r, p1y = Math.sin(a1)*r;
+    const p2x = Math.cos(a2)*r*0.42, p2y = Math.sin(a2)*r*0.42;
+    if (i===0) b.moveTo(p1x,p1y); else b.lineTo(p1x,p1y);
+    b.lineTo(p2x,p2y);
+  }
+  b.closePath();
+  if (filled){ b.fillStyle = col; b.fill(); } else { b.strokeStyle = col; b.lineWidth = 1.2; b.stroke(); }
+  b.restore();
+}
 
-let HUB_BACK = null, HUB_TAB_RECTS = [], HUB_TEAM_RECT = null, HUB_RETRY_RECT = null, HUB_ITEM_RECTS = [];
+function drawFixtureCard(f, y, h){
+  panel(14, y, W-28, h);
+  if (f.comp) txtClip(f.comp.toUpperCase(), 20, y+4, C.GREYDK, 5, W-40, 'left');
+  const teamLines = wrapTextClamped(f.home+'  vs  '+f.away, W-44, 8.5, 2);
+  let ty = y+13;
+  ty = txtBlock(teamLines, W/2, ty, C.WHITE, 8.5, 10, 'center');
+  txt(fixtureLabel(f), W/2, ty+1, C.GOLD2, 7, 'center'); ty += 12;
+  if (f.venue) txtClip(f.venue, W/2, ty, C.GREYDK, 6, W-44, 'center');
+}
+function drawArticleCard(it, y, h){
+  panel(14, y, W-28, h);
+  const titleLines = wrapTextClamped(it.title, W-44, 8, 2);
+  let ty = txtBlock(titleLines, W/2, y+6, C.WHITE, 8, 10, 'center') + 2;
+  const descLines = wrapTextClamped(it.desc, W-44, 6.5, 2);
+  ty = txtBlock(descLines, W/2, ty, C.GREYDK, 6.5, 8, 'center') + 4;
+  txt(relTime(it.pubDate)+'  ·  '+it.source+'  ·  TAP TO READ', W/2, ty, C.GOLD2, 6, 'center');
+}
+function drawHubFixturesList(gTop, gBot){
+  const h = S.hub;
+  b.save(); b.beginPath(); b.rect(0, gTop, W, gBot-gTop); b.clip();
+  HUB_ITEM_RECTS = [];
+  if (h.fixturesStatus === 'loading' || h.fixturesStatus === 'idle'){
+    txt('Loading fixtures…', W/2, gTop+20, C.GREYDK, 8, 'center');
+  } else if (h.fixturesStatus === 'error'){
+    txtFit(h.fixturesErr, W/2, gTop+20, C.RED, 8, W-40, 'center');
+    HUB_RETRY_RECT = [W/2-40, gTop+38, 80, 20];
+    rect(HUB_RETRY_RECT[0],HUB_RETRY_RECT[1],80,20,C.PANELED); rect(HUB_RETRY_RECT[0]+1,HUB_RETRY_RECT[1]+1,78,18,C.PANEL);
+    txt('RETRY', W/2, HUB_RETRY_RECT[1]+6, C.WHITE, 8, 'center');
+  } else {
+    const CARD_H = 70, GAP = 8, STEP = CARD_H+GAP;
+    let rowTop = gTop+4;
+    if (h.fixturesStatus === 'stale'){ txtFit('Showing last saved fixtures — offline', W/2, gTop+2, C.ORANGE, 6, W-40, 'center'); rowTop += 12; }
+    const rows = h.fixtures||[];
+    const maxScroll = Math.max(0, rows.length*STEP - (gBot-rowTop) + GAP);
+    h.scroll = Math.max(0, Math.min(maxScroll, h.scroll));
+    if (!rows.length) txtFit('No upcoming fixtures found.', W/2, rowTop+20, C.GREYDK, 8, W-40, 'center');
+    rows.forEach((f,i)=>{
+      const y = rowTop + i*STEP - h.scroll;
+      if (y < rowTop-CARD_H || y > gBot+10) return;
+      HUB_ITEM_RECTS.push([14,y,W-28,CARD_H,i]);
+      drawFixtureCard(f, y, CARD_H);
+    });
+  }
+  b.restore();
+  if (h.fixturesStatus !== 'loading' && h.fixturesStatus !== 'idle')
+    txtFit('Broadcaster info isn\'t available from a free source — check your local TV listings.', W/2, gBot+2, C.GREYDK, 5, W-32, 'center');
+}
+function drawHubArticleList(items, status, err, gTop, gBot, kind){
+  const h = S.hub, noun = kind==='NEWS' ? 'headlines' : 'transfer stories';
+  b.save(); b.beginPath(); b.rect(0, gTop, W, gBot-gTop); b.clip();
+  HUB_ITEM_RECTS = [];
+  if (status === 'loading' || status === 'idle'){
+    txt('Loading '+noun+'…', W/2, gTop+20, C.GREYDK, 8, 'center');
+  } else if (status === 'error'){
+    txtFit(err, W/2, gTop+20, C.RED, 8, W-40, 'center');
+    HUB_RETRY_RECT = [W/2-40, gTop+38, 80, 20];
+    rect(HUB_RETRY_RECT[0],HUB_RETRY_RECT[1],80,20,C.PANELED); rect(HUB_RETRY_RECT[0]+1,HUB_RETRY_RECT[1]+1,78,18,C.PANEL);
+    txt('RETRY', W/2, HUB_RETRY_RECT[1]+6, C.WHITE, 8, 'center');
+  } else {
+    const filtered = filterByFollowed(items||[]);
+    const CARD_H = 76, GAP = 8, STEP = CARD_H+GAP;
+    let rowTop = gTop+4;
+    if (status === 'stale'){ txtFit('Showing last saved '+noun+' — offline', W/2, gTop+2, C.ORANGE, 6, W-40, 'center'); rowTop += 12; }
+    const maxScroll = Math.max(0, filtered.length*STEP - (gBot-rowTop) + GAP);
+    h.scroll = Math.max(0, Math.min(maxScroll, h.scroll));
+    if (!filtered.length){
+      const msg = S.profile.followedTeams.length ? 'No '+noun+' for your followed teams right now.' : 'Nothing here right now.';
+      txtFit(msg, W/2, rowTop+20, C.GREYDK, 7, W-40, 'center');
+    }
+    filtered.forEach((it,i)=>{
+      const y = rowTop + i*STEP - h.scroll;
+      if (y < rowTop-CARD_H || y > gBot+10) return;
+      HUB_ITEM_RECTS.push([14,y,W-28,CARD_H,i]);
+      drawArticleCard(it, y, CARD_H);
+    });
+  }
+  b.restore();
+}
+function drawHubItemModal(it){
+  b.save(); b.globalAlpha = 0.8; rect(0,0,W,H,C.INK); b.restore();
+  const cw = W-40, cx0 = 20;
+  const titleLines = wrapTextClamped(it.title, cw-24, 10, 3);
+  const descLines = wrapTextClamped(it.desc, cw-24, 7.5, 7);
+  const ch = 30 + titleLines.length*13 + 16 + descLines.length*10 + 40;
+  const cy0 = Math.max(16, H/2 - ch/2);
+  panel(cx0, cy0, cw, ch);
+  txt(it.source.toUpperCase()+'  ·  '+relTime(it.pubDate), cx0+cw/2, cy0+10, C.GOLD2, 6.5, 'center');
+  let ty = txtBlock(titleLines, cx0+cw/2, cy0+26, C.WHITE, 10, 13, 'center') + 6;
+  txt('SUMMARY', cx0+cw/2, ty, C.GREYDK, 5.5, 'center'); ty += 11;
+  ty = txtBlock(descLines, cx0+cw/2, ty, C.GREY, 7.5, 10, 'center') + 8;
+  HUB_ITEM_LINK_RECT = [cx0+cw/2-62, ty, 124, 20];
+  rect(HUB_ITEM_LINK_RECT[0], HUB_ITEM_LINK_RECT[1], 124, 20, C.GOLD);
+  rect(HUB_ITEM_LINK_RECT[0]+1, HUB_ITEM_LINK_RECT[1]+1, 122, 18, '#3a2c06');
+  txt('SEE FULL ARTICLE ▸', cx0+cw/2, ty+6, C.GOLD2, 7, 'center');
+  txt('TAP ANYWHERE ELSE TO CLOSE', cx0+cw/2, ty+28, C.GREYDK, 5.5, 'center');
+}
+function drawHubTeamPicker(){
+  b.save(); b.globalAlpha = 0.97; rect(0,0,W,H,C.INK); b.restore();
+  txt('FOLLOW TEAMS', W/2, 12, C.GOLD, 13, 'center');
+  txtFit('Filters fixtures, news & transfers to teams you follow', W/2, 28, C.GREYDK, 6, W-40, 'center');
+
+  const listTop = 44, listBot = 386, rowH = 24;
+  b.save(); b.beginPath(); b.rect(0, listTop, W, listBot-listTop); b.clip();
+  HUB_PICKER_ROWS = [];
+  const maxScroll = Math.max(0, FOLLOW_TEAM_LIST.length*rowH - (listBot-listTop));
+  S.hub.teamPickerScroll = Math.max(0, Math.min(maxScroll, S.hub.teamPickerScroll));
+  FOLLOW_TEAM_LIST.forEach((name,i)=>{
+    const y = listTop + i*rowH - S.hub.teamPickerScroll;
+    if (y < listTop-rowH || y > listBot+4) return;
+    const on = S.profile.followedTeams.includes(name);
+    HUB_PICKER_ROWS.push([14,y,W-28,rowH-4,name]);
+    rect(14, y, W-28, rowH-4, on ? '#241a06' : C.PANEL);
+    if (on) ring(28, y+(rowH-4)/2, 6, C.GOLD, 1.2);
+    drawStar(28, y+(rowH-4)/2, 6, on, on ? C.GOLD : C.GREYDK);
+    txtClip(name, 42, y+6, on ? C.GOLD2 : C.WHITE, 8, W-70, 'left');
+  });
+  b.restore();
+
+  HUB_PICKER_DONE = [W/2-46, 398, 92, 20];
+  rect(HUB_PICKER_DONE[0], HUB_PICKER_DONE[1], 92, 20, C.GOLDDK);
+  rect(HUB_PICKER_DONE[0]+1, HUB_PICKER_DONE[1]+1, 90, 18, '#241a06');
+  txt('DONE', W/2, 404, C.GOLD2, 9, 'center');
+}
+
+let HUB_BACK = null, HUB_TAB_RECTS = [], HUB_COMP_RECT = null, HUB_FOLLOW_RECT = null,
+    HUB_RETRY_RECT = null, HUB_ITEM_RECTS = [], HUB_PICKER_ROWS = [], HUB_PICKER_DONE = null,
+    HUB_ITEM_LINK_RECT = null;
 function drawHubScene(){
   if (!backdrop) makeBackdrop();
   b.drawImage(backdrop, 0, 0);
-  b.save(); b.globalAlpha = 0.72; rect(0,0,W,H,C.INK); b.restore();
+  b.save(); b.globalAlpha = 0.74; rect(0,0,W,H,C.INK); b.restore();
 
   const h = S.hub;
-  txt('NEWS & FIXTURES', W/2, 8, C.GOLD, 15, 'center');
-  txtFit('LIVE FROM THE WEB  ·  UK FOOTBALL FOCUS', W/2, 24, C.GREYDK, 6, W-28, 'center');
+  txt('NEWS & FIXTURES', W/2, 6, C.GOLD, 13, 'center');
+  txtFit('LIVE FROM THE WEB  ·  UK FOOTBALL FOCUS', W/2, 20, C.GREYDK, 6, W-28, 'center');
 
   // tabs
   HUB_TAB_RECTS = [];
-  const tabs = [['FIXTURES','FIXTURES'],['NEWS','NEWS']];
+  const tabs = [['FIXTURES','FIXTURES'],['NEWS','NEWS'],['TRANSFERS','TRANSFERS']];
+  const tgap = 5, tw = (W-28-2*tgap)/3, ty0 = 32, tth = 18;
   tabs.forEach(([label,key],i)=>{
-    const w = (W-28-8)/2, x = 14+i*(w+8), y = 34, th = 20;
-    HUB_TAB_RECTS.push([x,y,w,th,key]);
+    const x = 14+i*(tw+tgap);
+    HUB_TAB_RECTS.push([x,ty0,tw,tth,key]);
     const on = h.tab === key;
-    rect(x,y,w,th, on?C.GOLD:C.PANELED); rect(x+1,y+1,w-2,th-2, on?'#3a2c06':C.PANEL);
-    txtFit(label, x+w/2, y+6, on?C.GOLD2:C.GREYDK, 8, w-10, 'center');
+    rect(x,ty0,tw,tth, on?C.GOLD:C.PANELED); rect(x+1,ty0+1,tw-2,tth-2, on?'#3a2c06':C.PANEL);
+    txtFit(label, x+tw/2, ty0+5, on?C.GOLD2:C.GREYDK, 7, tw-8, 'center');
   });
 
-  const gTop = 60, gBot = 386;
-
+  // context row: competition cycler (fixtures, unfollowed) or a status note
+  const cy = 52, ch2 = 16;
+  HUB_COMP_RECT = null;
+  rect(14,cy,W-28,ch2,C.PANEL);
   if (h.tab === 'FIXTURES'){
-    // favourite-team filter, built from whatever clubs are actually in the
-    // live fixture list — always in sync with reality, never hardcoded
-    const allTeams = h.fixtures ? [...new Set(h.fixtures.flatMap(f=>[f.home,f.away]))].sort() : [];
-    HUB_TEAM_RECT = [14, gTop, W-28, 18];
-    rect(14, gTop, W-28, 18, C.PANEL); rect(15, gTop+1, W-30, 16, '#0a1220');
-    const followLabel = S.profile.favoriteClub ? 'FOLLOWING: '+S.profile.favoriteClub : 'FOLLOWING: ALL PREMIER LEAGUE';
-    txtFit('◂  '+followLabel+'  ▸', W/2, gTop+5, C.GOLD2, 7, W-40, 'center');
-
-    const listTop = gTop + 24;
-    b.save(); b.beginPath(); b.rect(0, listTop, W, gBot-listTop); b.clip();
-    HUB_ITEM_RECTS = [];
-    if (h.fixturesStatus === 'loading' || h.fixturesStatus === 'idle'){
-      txt('Loading fixtures…', W/2, listTop+20, C.GREYDK, 8, 'center');
-    } else if (h.fixturesStatus === 'error'){
-      txtFit(h.fixturesErr, W/2, listTop+20, C.RED, 8, W-40, 'center');
-      HUB_RETRY_RECT = [W/2-40, listTop+36, 80, 20];
-      rect(HUB_RETRY_RECT[0],HUB_RETRY_RECT[1],80,20,C.PANELED); rect(HUB_RETRY_RECT[0]+1,HUB_RETRY_RECT[1]+1,78,18,C.PANEL);
-      txt('RETRY', W/2, listTop+42, C.WHITE, 8, 'center');
+    if (S.profile.followedTeams.length){
+      txtFit('Showing fixtures for your followed teams', W/2, cy+4, C.GREYDK, 6, W-40, 'center');
     } else {
-      if (h.fixturesStatus === 'stale') txtFit('Showing last saved fixtures — offline', W/2, listTop+2, C.ORANGE, 6, W-40, 'center');
-      const rows = (h.fixtures||[]).filter(f => !S.profile.favoriteClub || f.home===S.profile.favoriteClub || f.away===S.profile.favoriteClub);
-      const maxScroll = Math.max(0, rows.length*44 - (gBot-listTop) + 14);
-      h.scroll = Math.max(0, Math.min(maxScroll, h.scroll));
-      const rowTop = h.fixturesStatus==='stale' ? listTop+12 : listTop;
-      if (!rows.length) txt('No upcoming fixtures found.', W/2, rowTop+20, C.GREYDK, 8, 'center');
-      rows.forEach((f,i)=>{
-        const y = rowTop + i*44 - h.scroll;
-        if (y < listTop-44 || y > gBot+10) return;
-        HUB_ITEM_RECTS.push([14,y,W-28,40,i]);
-        rect(14,y,W-28,40,C.PANELED); rect(15,y+1,W-30,38,C.PANEL);
-        txtFit(f.home+'  vs  '+f.away, W/2, y+7, C.WHITE, 9, W-44, 'center');
-        txtFit(fixtureLabel(f), W/2, y+21, C.GOLD2, 7, W-44, 'center');
-        if (f.venue) txtFit(f.venue, W/2, y+31, C.GREYDK, 6, W-44, 'center');
-      });
-      txtFit('Broadcaster info isn\'t available from a free source — check your local TV listings.', W/2, gBot-10, C.GREYDK, 5, W-32, 'center');
+      HUB_COMP_RECT = [14,cy,W-28,ch2];
+      rect(15,cy+1,W-30,ch2-2,'#0a1220');
+      txtFit('◂  '+COMPETITIONS[h.compIdx].label+'  ▸', W/2, cy+4, C.GOLD2, 7, W-40, 'center');
     }
-    b.restore();
+  } else if (h.tab === 'NEWS'){
+    txtFit('LIVE FROM THE GUARDIAN & SKY SPORTS', W/2, cy+4, C.GREYDK, 6, W-40, 'center');
   } else {
-    b.save(); b.beginPath(); b.rect(0, gTop, W, gBot-gTop); b.clip();
-    HUB_ITEM_RECTS = [];
-    if (h.newsStatus === 'loading' || h.newsStatus === 'idle'){
-      txt('Loading headlines…', W/2, gTop+20, C.GREYDK, 8, 'center');
-    } else if (h.newsStatus === 'error'){
-      txtFit(h.newsErr, W/2, gTop+20, C.RED, 8, W-40, 'center');
-      HUB_RETRY_RECT = [W/2-40, gTop+36, 80, 20];
-      rect(HUB_RETRY_RECT[0],HUB_RETRY_RECT[1],80,20,C.PANELED); rect(HUB_RETRY_RECT[0]+1,HUB_RETRY_RECT[1]+1,78,18,C.PANEL);
-      txt('RETRY', W/2, gTop+42, C.WHITE, 8, 'center');
-    } else {
-      const items = h.news||[];
-      const maxScroll = Math.max(0, items.length*58 - (gBot-gTop) + 14);
-      h.scroll = Math.max(0, Math.min(maxScroll, h.scroll));
-      const rowTop = h.newsStatus==='stale' ? gTop+12 : gTop;
-      if (h.newsStatus === 'stale') txtFit('Showing last saved headlines — offline', W/2, gTop+2, C.ORANGE, 6, W-40, 'center');
-      items.forEach((it,i)=>{
-        const y = rowTop + i*58 - h.scroll;
-        if (y < gTop-58 || y > gBot+10) return;
-        HUB_ITEM_RECTS.push([14,y,W-28,54,i]);
-        rect(14,y,W-28,54,C.PANELED); rect(15,y+1,W-30,52,C.PANEL);
-        txtFit(it.title, W/2, y+6, C.WHITE, 8, W-44, 'center');
-        txtFit(it.desc, W/2, y+20, C.GREYDK, 6, W-44, 'center');
-        txt(relTime(it.pubDate)+'  ·  BBC SPORT  ·  TAP TO READ', W/2, y+42, C.GOLD2, 6, 'center');
-      });
-      if (!items.length) txt('No headlines right now.', W/2, gTop+20, C.GREYDK, 8, 'center');
-    }
-    b.restore();
+    txtFit('LIVE FROM THE GUARDIAN', W/2, cy+4, C.GREYDK, 6, W-40, 'center');
   }
 
-  HUB_BACK = [W/2-46, 396, 92, 20];
+  // follow bar — always visible, filters all three tabs at once
+  const fy = 70, fh = 15;
+  HUB_FOLLOW_RECT = [14,fy,W-28,fh];
+  rect(14,fy,W-28,fh, C.PANELED); rect(15,fy+1,W-30,fh-2, '#160f2e');
+  const followed = S.profile.followedTeams;
+  const followLabel = followed.length ? '★ FOLLOWING: '+followed.join(', ')+'  ▸' : '☆ FOLLOW A TEAM TO FILTER  ▸';
+  txtClip(followLabel, W/2, fy+4, followed.length?C.GOLD2:C.GREY, 7, W-40, 'center');
+
+  const gTop = 90, gBot = 378;
+  if (h.tab === 'FIXTURES') drawHubFixturesList(gTop, gBot);
+  else if (h.tab === 'NEWS') drawHubArticleList(h.news, h.newsStatus, h.newsErr, gTop, gBot, 'NEWS');
+  else drawHubArticleList(h.transfers, h.transfersStatus, h.transfersErr, gTop, gBot, 'TRANSFERS');
+
+  HUB_BACK = [W/2-46, 398, 92, 20];
   rect(HUB_BACK[0], HUB_BACK[1], 92, 20, C.GOLDDK);
   rect(HUB_BACK[0]+1, HUB_BACK[1]+1, 90, 18, '#241a06');
-  txt('BACK', W/2, 402, C.GOLD2, 9, 'center');
+  txt('BACK', W/2, 404, C.GOLD2, 9, 'center');
+
+  if (h.teamPicker) drawHubTeamPicker();
+  else if (h.openItem) drawHubItemModal(h.openItem);
 }
 function handleHubTap(px, py){
   const h = S.hub;
+
+  if (h.teamPicker){
+    if (HUB_PICKER_DONE && px>=HUB_PICKER_DONE[0] && px<=HUB_PICKER_DONE[0]+HUB_PICKER_DONE[2] &&
+        py>=HUB_PICKER_DONE[1] && py<=HUB_PICKER_DONE[1]+HUB_PICKER_DONE[3]){
+      h.teamPicker = false; SFX.lock(0,true);
+      if (h.tab === 'FIXTURES') fetchFixtures(true).then(draw);
+      return;
+    }
+    const hit = HUB_PICKER_ROWS.find(r=>px>=r[0]&&px<=r[0]+r[2]&&py>=r[1]&&py<=r[1]+r[3]);
+    if (hit){
+      const name = hit[4], idx = S.profile.followedTeams.indexOf(name);
+      if (idx>=0) S.profile.followedTeams.splice(idx,1); else S.profile.followedTeams.push(name);
+      saveGame(); SFX.tick(true);
+    }
+    return;
+  }
+
+  if (h.openItem){
+    if (HUB_ITEM_LINK_RECT && px>=HUB_ITEM_LINK_RECT[0] && px<=HUB_ITEM_LINK_RECT[0]+HUB_ITEM_LINK_RECT[2] &&
+        py>=HUB_ITEM_LINK_RECT[1] && py<=HUB_ITEM_LINK_RECT[1]+HUB_ITEM_LINK_RECT[3]){
+      window.open(h.openItem.link, '_blank', 'noopener');
+      return;
+    }
+    h.openItem = null; SFX.lock(0,true);
+    return;
+  }
+
   if (HUB_BACK && px>=HUB_BACK[0] && px<=HUB_BACK[0]+HUB_BACK[2] && py>=HUB_BACK[1] && py<=HUB_BACK[1]+HUB_BACK[3]){
     SFX.lock(0,true); gotoScene('TITLE'); return;
   }
+
   const tabHit = HUB_TAB_RECTS.find(r=>px>=r[0]&&px<=r[0]+r[2]&&py>=r[1]&&py<=r[1]+r[3]);
   if (tabHit){
-    if (h.tab !== tabHit[4]){ h.tab = tabHit[4]; h.scroll = 0; SFX.lock(0,true); }
-    return;
-  }
-  if (h.tab === 'FIXTURES' && HUB_TEAM_RECT && px>=HUB_TEAM_RECT[0] && px<=HUB_TEAM_RECT[0]+HUB_TEAM_RECT[2] &&
-      py>=HUB_TEAM_RECT[1] && py<=HUB_TEAM_RECT[1]+HUB_TEAM_RECT[3]){
-    const allTeams = h.fixtures ? [...new Set(h.fixtures.flatMap(f=>[f.home,f.away]))].sort() : [];
-    const opts = [''].concat(allTeams);   // '' = follow everyone
-    const cur = opts.indexOf(S.profile.favoriteClub);
-    S.profile.favoriteClub = opts[(Math.max(0,cur)+1) % opts.length];
-    saveGame(); SFX.tick(true); h.scroll = 0;
-    return;
-  }
-  if ((h.fixturesStatus === 'error' && h.tab==='FIXTURES') || (h.newsStatus === 'error' && h.tab==='NEWS')){
-    if (HUB_RETRY_RECT && px>=HUB_RETRY_RECT[0] && px<=HUB_RETRY_RECT[0]+HUB_RETRY_RECT[2] &&
-        py>=HUB_RETRY_RECT[1] && py<=HUB_RETRY_RECT[1]+HUB_RETRY_RECT[3]){
-      SFX.tick(true);
-      if (h.tab==='FIXTURES') fetchFixtures(true).then(draw); else fetchNews(true).then(draw);
-      return;
+    if (h.tab !== tabHit[4]){
+      h.tab = tabHit[4]; h.scroll = 0; SFX.lock(0,true);
+      if (h.tab === 'TRANSFERS' && h.transfersStatus === 'idle') fetchTransfers();
+      else if (h.tab === 'NEWS' && h.newsStatus === 'idle') fetchNews();
     }
+    return;
   }
-  if (h.tab === 'NEWS'){
+
+  if (HUB_FOLLOW_RECT && px>=HUB_FOLLOW_RECT[0] && px<=HUB_FOLLOW_RECT[0]+HUB_FOLLOW_RECT[2] &&
+      py>=HUB_FOLLOW_RECT[1] && py<=HUB_FOLLOW_RECT[1]+HUB_FOLLOW_RECT[3]){
+    h.teamPicker = true; h.teamPickerScroll = 0; SFX.lock(0,true);
+    return;
+  }
+
+  if (h.tab === 'FIXTURES' && HUB_COMP_RECT && px>=HUB_COMP_RECT[0] && px<=HUB_COMP_RECT[0]+HUB_COMP_RECT[2] &&
+      py>=HUB_COMP_RECT[1] && py<=HUB_COMP_RECT[1]+HUB_COMP_RECT[3]){
+    h.compIdx = (h.compIdx+1) % COMPETITIONS.length;
+    h.scroll = 0; SFX.tick(true);
+    fetchFixtures().then(draw);
+    return;
+  }
+
+  const isError = (h.tab==='FIXTURES' && h.fixturesStatus==='error') ||
+                  (h.tab==='NEWS' && h.newsStatus==='error') ||
+                  (h.tab==='TRANSFERS' && h.transfersStatus==='error');
+  if (isError && HUB_RETRY_RECT && px>=HUB_RETRY_RECT[0] && px<=HUB_RETRY_RECT[0]+HUB_RETRY_RECT[2] &&
+      py>=HUB_RETRY_RECT[1] && py<=HUB_RETRY_RECT[1]+HUB_RETRY_RECT[3]){
+    SFX.tick(true);
+    if (h.tab==='FIXTURES') fetchFixtures(true).then(draw);
+    else if (h.tab==='NEWS') fetchNews(true).then(draw);
+    else fetchTransfers(true).then(draw);
+    return;
+  }
+
+  if (h.tab === 'NEWS' || h.tab === 'TRANSFERS'){
     const hit = HUB_ITEM_RECTS.find(r=>px>=r[0]&&px<=r[0]+r[2]&&py>=r[1]&&py<=r[1]+r[3]);
-    if (hit && h.news && h.news[hit[4]] && h.news[hit[4]].link){
-      window.open(h.news[hit[4]].link, '_blank', 'noopener');
+    if (hit){
+      const src = h.tab==='NEWS' ? h.news : h.transfers;
+      const it = filterByFollowed(src||[])[hit[4]];
+      if (it){ h.openItem = it; SFX.lock(0,true); }
     }
   }
 }
