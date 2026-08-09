@@ -451,7 +451,7 @@ const I18N = {
     rank_prefix:"RANK", best_prefix:"BEST", safety_net:"SAFETY NET!",
     hat_trick:"HAT-TRICK", secured_suffix:"SECURED!", solo_keepyups:"SOLO KEEPY-UPS",
     ready_desc:"Answer fast — every correct answer buys {n} more seconds. Ranks 5 and 10 are safety nets — one wrong answer past them sends you back, not out.",
-    your_best:"YOUR BEST", tap_to_start:"TAP TO START", ladder_complete:"LADDER COMPLETE!",
+    your_best:"YOUR BEST", tap_to_start:"TAP TO START", tap_to_skip:"TAP TO SKIP", ladder_complete:"LADDER COMPLETE!",
     run_over:"RUN OVER", rank_reached:"RANK REACHED", answered_prefix:"ANSWERED",
     tap_for_title:"TAP FOR TITLE", wrong:"WRONG", on_correct:"ON CORRECT",
     second_chance:"2ND CHANCE",
@@ -480,7 +480,7 @@ const I18N = {
     rank_prefix:"RANG", best_prefix:"MEILLEUR", safety_net:"FILET DE SÉCURITÉ !",
     hat_trick:"HAT-TRICK", secured_suffix:"SÉCURISÉ !", solo_keepyups:"JONGLAGES SOLO",
     ready_desc:"Réponds vite — chaque bonne réponse ajoute {n} secondes. Les rangs 5 et 10 sont des filets de sécurité — une erreur après eux te renvoie en arrière, sans t'éliminer.",
-    your_best:"TON MEILLEUR", tap_to_start:"APPUIE POUR COMMENCER", ladder_complete:"ÉCHELLE TERMINÉE !",
+    your_best:"TON MEILLEUR", tap_to_start:"APPUIE POUR COMMENCER", tap_to_skip:"APPUIE POUR PASSER", ladder_complete:"ÉCHELLE TERMINÉE !",
     run_over:"PARTIE TERMINÉE", rank_reached:"RANG ATTEINT", answered_prefix:"RÉPONSES",
     tap_for_title:"APPUIE POUR LE MENU", wrong:"FAUX", on_correct:"SI CORRECT",
     second_chance:"2E CHANCE",
@@ -509,7 +509,7 @@ const I18N = {
     rank_prefix:"RANGO", best_prefix:"MEJOR", safety_net:"¡RED DE SEGURIDAD!",
     hat_trick:"TRIPLETE", secured_suffix:"¡ASEGURADO!", solo_keepyups:"TOQUES EN SOLITARIO",
     ready_desc:"Responde rápido — cada acierto suma {n} segundos. Los rangos 5 y 10 son redes de seguridad — un fallo tras ellos te hace retroceder, no te elimina.",
-    your_best:"TU MEJOR", tap_to_start:"TOCA PARA EMPEZAR", ladder_complete:"¡ESCALERA COMPLETA!",
+    your_best:"TU MEJOR", tap_to_start:"TOCA PARA EMPEZAR", tap_to_skip:"TOCA PARA SALTAR", ladder_complete:"¡ESCALERA COMPLETA!",
     run_over:"PARTIDA TERMINADA", rank_reached:"RANGO ALCANZADO", answered_prefix:"RESPONDIDAS",
     tap_for_title:"TOCA PARA EL MENÚ", wrong:"INCORRECTO", on_correct:"SI ACIERTAS",
     second_chance:"2ª OPORTUNIDAD",
@@ -538,7 +538,7 @@ const I18N = {
     rank_prefix:"RANG", best_prefix:"BESTWERT", safety_net:"SICHERHEITSNETZ!",
     hat_trick:"HATTRICK", secured_suffix:"GESICHERT!", solo_keepyups:"SOLO-JONGLIEREN",
     ready_desc:"Antworte schnell — jede richtige Antwort bringt {n} weitere Sekunden. Rang 5 und 10 sind Sicherheitsnetze — ein Fehler danach wirft dich zurück, aber nicht raus.",
-    your_best:"DEIN BESTWERT", tap_to_start:"TIPPEN ZUM START", ladder_complete:"LEITER GESCHAFFT!",
+    your_best:"DEIN BESTWERT", tap_to_start:"TIPPEN ZUM START", tap_to_skip:"TIPPEN ZUM ÜBERSPRINGEN", ladder_complete:"LEITER GESCHAFFT!",
     run_over:"LAUF BEENDET", rank_reached:"ERREICHTER RANG", answered_prefix:"BEANTWORTET",
     tap_for_title:"TIPPEN FÜRS MENÜ", wrong:"FALSCH", on_correct:"BEI RICHTIG",
     second_chance:"2. CHANCE",
@@ -567,7 +567,7 @@ const I18N = {
     rank_prefix:"GRADO", best_prefix:"MIGLIORE", safety_net:"RETE DI SICUREZZA!",
     hat_trick:"TRIPLETTA", secured_suffix:"ASSICURATO!", solo_keepyups:"PALLEGGI IN SOLITARIA",
     ready_desc:"Rispondi in fretta — ogni risposta giusta aggiunge {n} secondi. I gradi 5 e 10 sono reti di sicurezza — un errore dopo di essi ti fa retrocedere, non ti elimina.",
-    your_best:"IL TUO MIGLIORE", tap_to_start:"TOCCA PER INIZIARE", ladder_complete:"SCALA COMPLETATA!",
+    your_best:"IL TUO MIGLIORE", tap_to_start:"TOCCA PER INIZIARE", tap_to_skip:"TOCCA PER SALTARE", ladder_complete:"SCALA COMPLETATA!",
     run_over:"PARTITA FINITA", rank_reached:"GRADO RAGGIUNTO", answered_prefix:"RISPOSTE",
     tap_for_title:"TOCCA PER IL MENU", wrong:"SBAGLIATO", on_correct:"SE CORRETTO",
     second_chance:"2ª CHANCE",
@@ -1329,7 +1329,7 @@ function beginKeepyups(cat){
     clock: KU_START_CLOCK, rank:0, best:0, answered:0, asked:0, qShownClock:KU_START_CLOCK,
     checkpoint5Used:false, checkpoint10Used:false, won:false,
     cycleT:0, foot:0, trickIdx:0, tier:0, contactPop:0, contactType:'foot', celebWord:'', bike:null, bonusFlashT:0,
-    introChimed:0,
+    introChimed:0, introSkip:false, introSkipT:0,
     // set the moment a run-trivialising cheat is seen active (nolose,
     // megabucks, timefreeze); a tainted run still counts for xp and
     // stats, it just can't open a chest or unlock a club
@@ -1453,6 +1453,10 @@ function updateKeepyups(dt){
   const ku = S.ku;
 
   if (S.scene === 'KU_INTRO'){
+    if (ku.introSkip){
+      if (S.sceneT < KU_INTRO_SCROLL) S.sceneT += dt * KU_INTRO_SKIP_BOOST;   // rush, don't jump-cut
+      ku.introSkipT = Math.min(1, ku.introSkipT + dt/KU_INTRO_SKIP_ZOOM_DUR);
+    }
     if (S.sceneT < KU_INTRO_SCROLL){
       const e = kuIntroEase(Math.min(1, S.sceneT/KU_INTRO_SCROLL));
       const frontier = kuIntroCenterRank(e);
@@ -1460,7 +1464,8 @@ function updateKeepyups(dt){
     } else if (ku.introChimed < 15){
       while (ku.introChimed < 15){ ku.introChimed++; kuIntroChime(ku.introChimed); }
     }
-    if (S.sceneT > KU_INTRO_SCROLL + KU_INTRO_HOLD) gotoScene('KU_READY');
+    const holdDur = ku.introSkip ? KU_INTRO_SKIP_HOLD : KU_INTRO_HOLD;
+    if (S.sceneT > KU_INTRO_SCROLL + holdDur) gotoScene('KU_READY');
     return;
   }
 
@@ -1906,7 +1911,6 @@ function tapAt(px, py){
     case 'RESOLVE': if (S.sceneT > 0.5) advance(); return;
     case 'MATCHEND': if (S.sceneT > 0.6){ SEED = (SEED*1664525+1013904223)>>>0; gotoScene('TITLE'); } return;
 
-    case 'KU_INTRO': gotoScene('KU_READY'); return;    // tap skips straight to the tap-to-start screen
     case 'KU_READY': SFX.whistleShort(); nextKUQuestion(); gotoScene('KU_PLAY'); return;
     case 'KU_PLAY': {
       if (S.ku.qResolved) return;
@@ -1914,7 +1918,13 @@ function tapAt(px, py){
       if (i >= 0) pickKUAnswer(i);
       return;
     }
-    case 'KU_HATTRICK': case 'KU_BICYCLE': return;   // these play out on their own
+    case 'KU_HATTRICK': case 'KU_BICYCLE': return;   // these play out on their own — under 3s, no skip needed
+    case 'KU_INTRO': {
+      const ku = S.ku;
+      if (S.sceneT >= KU_INTRO_SCROLL){ gotoScene('KU_READY'); return; }   // already at the summit — go
+      if (!ku.introSkip){ ku.introSkip = true; SFX.lock(0,true); }        // else: kick off the skip-rush
+      return;
+    }
     case 'KU_CHEST':
       // no skipping the rattle — the reveal is the whole point
       if (S.sceneT > CHEST_RATTLE + 0.5){ SFX.lock(0,true); gotoScene('KU_OVER'); }
@@ -3565,6 +3575,11 @@ function drawMoneyLadder(){
    (£1,000,000), chiming as each rung crosses the centre and making a real
    moment of the two "2ND CHANCE" checkpoints and the diamond summit.     ── */
 const KU_INTRO_SCROLL = 9.2, KU_INTRO_HOLD = 2.2, KU_INTRO_ROW_H = 54;
+// tap-to-skip: rather than jump-cutting to the end, the remaining scroll
+// rushes past at this many times normal speed (chimes still fire, just in
+// a quick cascade) while the viewport gets a brief zoom-in whoosh — a fast
+// version of the real animation, not an instant snap.
+const KU_INTRO_SKIP_BOOST = 8, KU_INTRO_SKIP_ZOOM_DUR = 1.0, KU_INTRO_SKIP_HOLD = 0.6;
 function kuIntroLayout(){
   const viewportTop = 92, viewportBottom = 400;
   return { viewportTop, viewportBottom, Hv: viewportBottom - viewportTop };
@@ -3631,6 +3646,13 @@ function drawKUIntro(){
   b.save();
   b.beginPath(); b.rect(0, L.viewportTop, W, L.Hv); b.clip();
 
+  if (ku.introSkipT > 0){
+    // a quick zoom-in-and-back whoosh riding alongside the skip-rush —
+    // reinforces "racing to the end" rather than the scroll just speeding up
+    const zoom = 1 + 0.09*Math.sin(Math.min(1, ku.introSkipT) * Math.PI);
+    b.translate(cx, viewportCenter); b.scale(zoom, zoom); b.translate(-cx, -viewportCenter);
+  }
+
   line(railL, L.viewportTop-KU_INTRO_ROW_H, railL, L.viewportBottom+KU_INTRO_ROW_H, C.PANELED);
   line(railR, L.viewportTop-KU_INTRO_ROW_H, railR, L.viewportBottom+KU_INTRO_ROW_H, C.PANELED);
 
@@ -3675,7 +3697,7 @@ function drawKUIntro(){
   b.fillStyle = fade2; b.fillRect(0,L.viewportBottom-26,W,26);
 
   if (S.confetti.length) drawConfetti();
-  txt(t('tap_to_start'), W/2, 412, Math.sin(S.t*5)>0?C.GREYDK:'transparent', 8, 'center');
+  txt(t(arrived ? 'tap_to_start' : 'tap_to_skip'), W/2, 412, Math.sin(S.t*5)>0?C.GREYDK:'transparent', 8, 'center');
 }
 
 /* ── the chest ────────────────────────────────────────────────
