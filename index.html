@@ -3564,18 +3564,25 @@ function drawMoneyLadder(){
    full 15-rung ladder past a fixed viewport, bottom (£100) to top
    (£1,000,000), chiming as each rung crosses the centre and making a real
    moment of the two "2ND CHANCE" checkpoints and the diamond summit.     ── */
-const KU_INTRO_SCROLL = 4.6, KU_INTRO_HOLD = 2.2, KU_INTRO_ROW_H = 54;
+const KU_INTRO_SCROLL = 9.2, KU_INTRO_HOLD = 2.2, KU_INTRO_ROW_H = 54;
 function kuIntroLayout(){
   const viewportTop = 92, viewportBottom = 400;
   return { viewportTop, viewportBottom, Hv: viewportBottom - viewportTop };
 }
 function kuIntroBallY(rank){ return (15-rank)*KU_INTRO_ROW_H + KU_INTRO_ROW_H/2; }
-// a gentle overshoot-back ease — the ladder doesn't just glide to a stop at
-// the top, it arrives with a little bounce so the £1M summit reads as a
-// genuine, satisfying "we made it" rather than quietly petering out
+// eases in from a standing start, picks up speed through the middle,
+// then decelerates into a little overshoot-bounce at the top — the
+// ladder doesn't just glide to a stop, it arrives with enough of a
+// settle that the £1M summit reads as a genuine "we made it" rather
+// than quietly petering out
 function kuIntroEase(p){
-  const c1 = 1.4, c3 = c1+1, x = p-1;
-  return 1 + c3*x*x*x + c1*x*x;
+  const c1 = 1.4, c2 = c1*1.525;
+  if (p < 0.5){
+    const x = 2*p;
+    return (x*x*((c2+1)*x - c2)) / 2;
+  }
+  const x = 2*p - 2;
+  return (x*x*((c2+1)*x + c2) + 2) / 2;
 }
 // the content-space Y that sits at the viewport's centre right now — this
 // is what both the ball positions AND the chime detection key off, so the
@@ -3639,7 +3646,7 @@ function drawKUIntro(){
     const distFromCenter = Math.abs(cy - viewportCenter);
     const focus = Math.max(0, 1 - distFromCenter/95);
     const finalGlow = (isFinal && arrived) ? 0.5 + 0.5*Math.sin(S.t*3.5) : 0;   // the diamond keeps breathing once home
-    const rr = r * (0.82 + focus*0.3 + finalGlow*0.12);
+    const rr = r * (0.82 + focus*0.3 + finalGlow*0.12 + (isFinal ? 0.3 : 0));   // the summit diamond sits noticeably bigger, always
 
     line(railL, cy, railR, cy, C.PANELED);
     if (focus > 0.05 || finalGlow>0){ b.save(); b.globalAlpha = Math.max(focus*0.5, finalGlow*0.7); ring(cx, cy, rr+5, C.GOLD2, 1.4); b.restore(); }
@@ -3648,6 +3655,7 @@ function drawKUIntro(){
     b.save(); b.globalAlpha = 0.5 + focus*0.5;
     txt(MONEY_LABELS[rank-1], cx + rr + 12, cy-4, focus>0.3?C.WHITE:C.GREYDK, 9);
     if (isCheckpoint) txt(t('second_chance'), cx + rr + 12, cy+6, used?C.BLUE:C.GOLD, 6);
+    if (isFinal) txtFit('UNLOCKS A CLUB & MORE', cx + rr + 12, cy+6, C.GOLD, 6, W-(cx+rr+12)-6);
     b.restore();
   }
   b.restore();
