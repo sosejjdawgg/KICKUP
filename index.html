@@ -2377,12 +2377,21 @@ function toBuf(e){
   const cy = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
   return [ cx * (FRAME_W/rect.width), cy * (FRAME_H/rect.height) - PAD_TOP ];
 }
-cv.addEventListener('pointerdown', e=>{ e.preventDefault(); const [x,y]=toBuf(e); tapAt(x,y); }, {passive:false});
-/* Drag-to-scroll for the badge grids. Only the career and Club Legends
-   screens scroll, so a drag anywhere else stays a plain tap and nothing
-   else changes. Lifting your finger doesn't kill the motion dead — the
-   scroll keeps gliding on whatever velocity it had and eases out, same
-   as any native scroll view, instead of stopping the instant you let go. */
+/* Tap vs. drag-to-scroll, unified in one pointerdown/move/up pipeline.
+   A tap only fires on pointerUP, and only if the finger never travelled
+   past TAP_MOVE_THRESHOLD from where it went down — NOT on pointerdown.
+   (An earlier version called tapAt() straight from pointerdown, which
+   meant the very first pixel of ANY scroll gesture was indistinguishable
+   from a tap — starting a scroll on the News & Fixtures list would open
+   whatever card happened to be under your finger before the drag had a
+   chance to register. Never go back to firing taps on pointerdown.)
+   Only the career, Club Legends and News & Fixtures screens scroll, so a
+   drag anywhere else stays a plain tap-or-nothing and nothing else
+   changes. Lifting your finger doesn't kill scroll motion dead — it
+   keeps gliding on whatever velocity it had and eases out, same as any
+   native scroll view, instead of stopping the instant you let go. */
+const TAP_MOVE_THRESHOLD = 10;   // buffer px of travel allowed before a press stops counting as a tap
+let tapDownX = null, tapDownY = null, tapMoved = 0;
 let dragY = null, dragMoved = 0, dragLastT = 0, scrollVel = 0;
 const SCROLLABLE_SCENES = ['PROFILE','CLUBS','HUB'];
 // one shared spot each scrollable scene's drag/momentum reads and writes,
@@ -2398,21 +2407,31 @@ function scrollAdd(delta){
 // the article-summary popup is a static card, not a scroll view — dragging
 // behind it shouldn't move the list underneath
 function hubOverlayBlocksScroll(){ return S.scene==='HUB' && !!S.hub.openItem; }
+function scrollGateOpen(){ return SCROLLABLE_SCENES.includes(S.scene) && !S.achDetail && !hubOverlayBlocksScroll(); }
 cv.addEventListener('pointerdown', e=>{
-  if (SCROLLABLE_SCENES.includes(S.scene) && !S.achDetail && !hubOverlayBlocksScroll()){ dragY = toBuf(e)[1]; dragMoved = 0; dragLastT = performance.now(); scrollVel = 0; }
-});
-cv.addEventListener('pointermove', e=>{
-  if (!SCROLLABLE_SCENES.includes(S.scene) || dragY===null) return;
   e.preventDefault();
-  const y = toBuf(e)[1];
+  const [x,y] = toBuf(e);
+  tapDownX = x; tapDownY = y; tapMoved = 0;
+  if (scrollGateOpen()){ dragY = y; dragMoved = 0; dragLastT = performance.now(); scrollVel = 0; }
+}, {passive:false});
+cv.addEventListener('pointermove', e=>{
+  if (tapDownX === null) return;
+  const [x,y] = toBuf(e);
+  tapMoved = Math.max(tapMoved, Math.hypot(x-tapDownX, y-tapDownY));
+  if (!scrollGateOpen() || dragY===null) return;
+  e.preventDefault();
   const now = performance.now(), vdt = Math.max(0.001, (now-dragLastT)/1000);
   const dy = y - dragY; dragMoved += Math.abs(dy); dragY = y; dragLastT = now;
   scrollAdd(-dy);
   // smoothed instantaneous velocity — this is what the release carries forward
   scrollVel = scrollVel*0.72 + (-dy/vdt)*0.28;
 }, {passive:false});
-['pointerup','pointercancel','pointerleave'].forEach(ev =>
-  cv.addEventListener(ev, ()=>{ dragY = null; }));   // scrollVel is left as-is — that's the momentum
+cv.addEventListener('pointerup', e=>{
+  if (tapDownX !== null && tapMoved < TAP_MOVE_THRESHOLD) tapAt(tapDownX, tapDownY);
+  tapDownX = null; tapDownY = null; dragY = null;
+});
+['pointercancel','pointerleave'].forEach(ev =>
+  cv.addEventListener(ev, ()=>{ tapDownX = null; tapDownY = null; dragY = null; }));   // scrollVel is left as-is — that's the momentum
 cv.addEventListener('wheel', e=>{
   if (!SCROLLABLE_SCENES.includes(S.scene) || hubOverlayBlocksScroll()) return;
   e.preventDefault();
