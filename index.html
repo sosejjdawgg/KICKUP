@@ -2695,6 +2695,10 @@ const H_PLAYER_SPAWN = { x:H_PITCH_CX-(H_PITCH_CX-H_PITCH.x0)*0.35, y:H_PITCH_CY
 const H_ENEMY_PRESSURE_RANGE = 46;
 const H_SLOW_MULT = 0.55;   // FLAG BEARER's whistle-cone slow
 function hoolConcedeLimit(wave){ return Math.max(1, Math.floor(20*Math.pow(0.9, Math.max(0,wave-1)))); }
+// how long a loose ball sits unclaimable before the pack can pick it up
+// again — wave 1 is deliberately slow (teaches tackle -> SMACK -> restart
+// with nothing else competing), later waves claim almost instantly
+function hoolClaimDelay(wave){ return Math.max(0.08, 0.4-Math.max(0,wave-1)*0.035); }
 // planted-tower leash: how far a striker/flag can drift from where it was
 // dropped to chase a target before being pulled back home. THROW-IN ignores
 // this entirely (fully anchored, see hoolUpdateDefenseUnit)
@@ -2828,7 +2832,12 @@ const H_ENEMIES={
   bruiser:{r:7,hp:62,spd:13,dmg:13,col:'#e8402c',xp:3,gold:2},
   charger:{r:5.5,hp:42,spd:25,dmg:10,col:'#ff8a3d',xp:2,gold:2,charge:true},
   thrower:{r:5,hp:34,spd:16,dmg:9,col:'#c95cf0',xp:3,gold:3,thrower:true},
-  hool:{r:8,hp:105,spd:18,dmg:18,col:'#ffc93c',xp:6,gold:5,bossy:true}
+  hool:{r:8,hp:105,spd:18,dmg:18,col:'#ffc93c',xp:6,gold:5,bossy:true},
+  // pure flood pressure, entirely separate from the squad/ball loop: tiny,
+  // 1-hit, fast, ignores the ball completely and sprints straight for the
+  // player's goal (see hoolRushAim) — a distinct silhouette (drawHoolRush)
+  // so a pour reads instantly as "different threat" at a glance
+  rush:{r:3.5,hp:1,spd:38,dmg:4,col:'#ff3d7a',xp:1,gold:0}
 };
 const H_WEAPONS={
   shoulder:{id:'shoulder',name:'SHOULDER CHARGE',lvl:1,max:8,cd:.78,damage:28,range:46,count:1,kind:'melee'},
@@ -2864,17 +2873,18 @@ function hoolFresh(){
     x:H_PLAYER_SPAWN.x,y:H_PLAYER_SPAWN.y,dx:0,dy:0,invuln:0,hitFlash:0,shake:0,kills:0,tokens:0,gemPull:0,shopOpen:false,levelChoices:[],
     weapons:[{id:'shoulder',level:1,cdT:.25}], passives:[], crew:[], enemies:[],gems:[],projectiles:[],enemyShots:[],particles:[],bosses:[],flashes:[],shockwaves:[],
     freeEnemies:[],freeGems:[],freeProjectiles:[],
-    // possession balls (see hoolSpawnBall/hoolUpdateRun's ball loop) — wave 1
-    // keeps exactly one alive at a time (ballBarrage stays false); ballSpawnT
-    // gates the wave 2+ barrage spawner
-    balls:[],freeBalls:[],ballSpawnT:1.5,ballBarrage:false,
+    // possession balls — the single-ball assault loop (see hoolSpawnBall/
+    // hoolUpdateRun's ball loop): exactly one live (non-cleared) ball at all
+    // times. ballSpawnT gates the delay before a fresh ball is fed out of
+    // the enemy net once the current one is SMACKed or scores.
+    balls:[],freeBalls:[],ballSpawnT:1.5,
     // slide-tackle facing when standing still; wall-weapon shield window +
     // its reflect damage; half-time orange's regen tick — all reset per run
     faceAng:0, wallT:0, wallDmg:0, staminaT:0,
     // Shoulder Barge's lunge-shove-return sequence (see hoolStartBarge/
     // hoolUpdateBarge — shared with Defense units' own barge attack);
     // stationable Throw-In placement; concedes tracked per-wave, reset in
-    // hoolWave() — wave 1 never calls hoolWave() so this 0 is its start
+    // hoolWaveReset() — wave 1 never calls it so this 0 is its start
     barge:null, placeMode:null, conceded:0,
     camX:H_PLAYER_SPAWN.x, camY:H_PLAYER_SPAWN.y, zoom:H_ZOOM,
     joystick:{active:false,originX:0,originY:0,curX:0,curY:0},
@@ -2884,9 +2894,22 @@ function hoolFresh(){
     magnetBoostT:0,
     relegated:[], relegateBanner:null, wave10Relegated:false,
     // per-wave set-piece state (see H_WAVES' event/eventAt/breathAfter) —
-    // reset every wave in hoolWave(); wave 1 never goes through hoolWave()
-    // so the defaults here are what wave 1's own event dispatch runs against
+    // reset every wave in hoolWaveReset(); wave 1 never calls it so the
+    // defaults here are what wave 1's own event dispatch runs against.
+    // waveSpawned counts squad (non-rush) spawns issued this wave, checked
+    // against wd.min to know when the ordinary spawner is done (see
+    // hoolWaveSpawningDone) — the wave itself only clears once that AND
+    // every squad enemy is dead (see hoolWaveClear), never on a ball SMACK.
     eventDone:false, breathT:0, surgeT:0, finalBossPending:false, finalSurgeDone:false,
+    waveSpawned:0,
+    // rush mobs: small 1-hit flood-only pourers, entirely separate from the
+    // squad/ball loop (see hoolRushAim/hoolQueueRushBurst) — rushPourT gates
+    // the next burst, rushQueue holds staggered per-body spawn delays within
+    // a burst so a pour reads as a ragged hop-out, not a single instant clump
+    rushPourT:8, rushQueue:[],
+    // stable per-enemy ring-formation slot (see hoolEnemyAim's ring logic) —
+    // assigned once at spawn time so a body doesn't hop between slots
+    spawnSeq:0,
     waveClearT:0,toast:[],gameover:false,reason:'',bossSpawned:false,chest:null,runScore:0};
 }
 function hoolWeapon(id){return S.hool.weapons.find(w=>w.id===id);}
@@ -2927,30 +2950,51 @@ function hoolEnemySpawn(type,force=false,yOverride){
   const clubId=clubs[rint(0,clubs.length-1)];
   const y = yOverride!=null ? yOverride : H_PITCH_CY+rrange(-H_GOAL_MOUTH_H/2,H_GOAL_MOUTH_H/2);
   const x = H_ENEMY_NET_X + rrange(-8,4);
-  Object.assign(e,{type,clubId,x,y,r:d.r,hp:d.hp*scale,maxhp:d.hp*scale,spd:d.spd*(1+Math.max(0,h.t/90)*.10),dmg:d.dmg*(1+h.wave*.035),col:d.col,xp:d.xp,gold:d.gold,hit:0,charge:0,shotT:rrange(1.2,2.7),boss:false,
+  // rush mobs are a fixed 1-hit kill by design (the whole point is "pop
+  // instantly") — never let the ordinary difficulty scale touch their HP
+  const hp = type==='rush' ? d.hp : d.hp*scale;
+  Object.assign(e,{type,clubId,x,y,r:d.r,hp,maxhp:hp,spd:d.spd*(1+Math.max(0,h.t/90)*.10),dmg:d.dmg*(1+h.wave*.035),col:d.col,xp:d.xp,gold:d.gold,hit:0,charge:0,shotT:rrange(1.2,2.7),boss:false,
     stunT:0,knockT:0,knockVX:0,knockVY:0,slowT:0,
     state:'exit',exitT:0,exitDur:rrange(0.4,0.8),spreadAng:(rnd()-0.5)*1.4,
     // possession AI (see hoolUpdateRun's ball-aware aim selection): pState
     // is the ball-related behaviour layered on top of state/exit-field;
-    // carryingBall is a direct ref to the ball this enemy is holding
-    pState:'advance',onBallT:0,carryingBall:null});
+    // carryingBall is a direct ref to the ball this enemy is holding.
+    // spawnSeq is a stable per-body ring-formation slot (see hoolEnemyAim);
+    // rush never reads it, but every pooled enemy gets a fresh one regardless
+    pState:'advance',onBallT:0,carryingBall:null,spawnSeq:h.spawnSeq++});
   h.enemies.push(e);
+  // rush is pure flood pressure, tracked by its own pour timer — it never
+  // counts toward the wave's squad quota (see hoolWaveSpawningDone)
+  if (type!=='rush') h.waveSpawned++;
+}
+// stagger a burst of N rush mobs hopping out of the enemy net over ~0.6-1s
+// instead of popping in as one instant clump — see hoolUpdateRun's rushQueue
+// drain and hoolClearBall's post-SMACK punish trigger
+function hoolQueueRushBurst(n){
+  const h=S.hool; if(!h) return;
+  for(let i=0;i<n;i++) h.rushQueue.push(i*0.12+rrange(0,0.06));
 }
 // The possession ball. Lives entirely in h.balls; state drives everything
 // else (movement, drawing, collision):
-//   loose   — rolling free, claimable by a nearby enemy, clearable by the
-//             player/a Defense unit on contact
-//   carried — glued to an enemy's carryingBall ref, drawn at a facing-offset
-//   pass    — flying toward a chosen teammate receiver
-//   shot    — flying toward the player's goal — reaching it is a GOAL
-//   cleared — the SMACK arc-out: a short, fast, fading flight with no
-//             collision, purely the "you just dealt with this" beat
-// x/y spawn near the enemy net/half, same idea as hoolEnemySpawn
+//   net_exit — just fed out of the enemy net, sliding onto the pitch,
+//              unclaimable and un-SMACKable for a beat (the "telegraph")
+//   loose    — rolling free, claimable by a nearby enemy, clearable by the
+//              player/a Defense unit on contact
+//   carried  — glued to an enemy's carryingBall ref, drawn at a facing-offset
+//   pass     — flying toward a chosen teammate receiver
+//   shot     — flying toward the player's goal — reaching it is a GOAL
+//   cleared  — the SMACK arc-out: a short, fast, fading flight with no
+//              collision, purely the "you just dealt with this" beat, then
+//              gone forever (see hoolUpdateRun's despawn — no bounce-back)
+// x/y spawn right at the enemy net; hoolUpdateRun's single-ball gate is what
+// guarantees at most one non-cleared ball is ever in play at once, so this
+// itself only needs its pool array as a hard safety cap, not a gameplay rule
 function hoolSpawnBall(x,y){
   const h=S.hool; if(!h||h.balls.length>=H_MAX_BALLS) return null;
   const b=h.freeBalls.pop()||{};
-  Object.assign(b,{x,y,vx:0,vy:0,state:'loose',carrier:null,target:null,bobT:rnd()*6.2832,spin:0,claimCd:.35,clearT:0,arcHeight:0,r:4});
+  Object.assign(b,{x,y,vx:0,vy:0,state:'net_exit',exitT:0,carrier:null,target:null,bobT:rnd()*6.2832,spin:0,claimCd:hoolClaimDelay(h.wave),clearT:0,arcHeight:0,r:4});
   h.balls.push(b);
+  hoolBurst(x,y,C.WHITE,6);
   return b;
 }
 function hoolGem(x,y,xp){const h=S.hool;if(h.gems.length>=H_MAX_GEMS)return;const g=h.freeGems.pop()||{};Object.assign(g,{x,y,xp,col:xp>=5?C.RED:xp>=2?C.GREEN:C.BLUE,r:xp>=5?3.2:2.2,p:0});h.gems.push(g);}
@@ -3005,35 +3049,44 @@ function hoolTier(e){ return e.type==='hool' ? 'boss' : (e.type==='bruiser'||e.t
 // hoolHitEnemy) plain damage all route through here so there's exactly one
 // place that resets the carrier link and scatters the ball
 function hoolDropBall(ball,scatter){
-  if(!ball) return;
+  const h=S.hool; if(!ball) return;
   // the carrier<->ball link is two-way; clearing only one side leaves an
   // enemy permanently "holding" a ball it no longer has, which locks it out
   // of ever claiming another one
   if (ball.carrier){ ball.carrier.carryingBall=null; if(ball.carrier.pState==='on_ball') ball.carrier.pState='press'; }
-  ball.state='loose'; ball.carrier=null; ball.target=null; ball.claimCd=.3;
+  ball.state='loose'; ball.carrier=null; ball.target=null; ball.claimCd=h?hoolClaimDelay(h.wave):.3;
   const a=rnd()*6.2832, sp=scatter||30;
   ball.vx=Math.cos(a)*sp; ball.vy=Math.sin(a)*sp;
 }
-// the SMACK clear — the hero verb. dirX/dirY is where the ball came FROM
-// (player/unit position), so it launches away from them; 'cleared' balls
-// have no collision and just fly off to fade, then get recycled
+// the SMACK clear — the hero verb, the loudest thing in the mode. dirX/dirY
+// is where the ball came FROM (player/unit position), so it launches away
+// from them; 'cleared' balls have no collision and just fly off to fade,
+// then get recycled — they never bounce back into play. Also arms the next
+// ball's net-exit delay (shorter at higher waves) and has a chance to punish
+// a passive clear with an immediate rush pour, per the design brief.
 function hoolClearBall(ball,fromX,fromY){
   const h=S.hool; if(!h||ball.state==='cleared') return;
   const dx=ball.x-fromX, dy=ball.y-fromY, d=Math.hypot(dx,dy)||1;
   if (ball.carrier){ ball.carrier.carryingBall=null; if(ball.carrier.pState==='on_ball') ball.carrier.pState='press'; }
   ball.state='cleared'; ball.carrier=null; ball.target=null;
-  ball.vx=(dx/d)*130+rrange(-20,20); ball.vy=(dy/d)*130+rrange(-20,20);
+  ball.vx=(dx/d)*150+rrange(-24,24); ball.vy=(dy/d)*150+rrange(-24,24);
   ball.clearT=0; ball.arcHeight=0;
-  hoolBurst(ball.x,ball.y,C.WHITE,10);
-  h.shockwaves.push({x:ball.x,y:ball.y,t:0,life:.3,rMax:26,col:C.GOLD});
-  SFX.hoolSmack(); S.shake=Math.max(S.shake,3.2); S.flash=Math.max(S.flash||0,.08);
+  hoolBurst(ball.x,ball.y,C.WHITE,14);
+  h.shockwaves.push({x:ball.x,y:ball.y,t:0,life:.35,rMax:34,col:C.GOLD});
+  h.shockwaves.push({x:ball.x,y:ball.y,t:0,life:.22,rMax:16,col:C.WHITE});
+  if(h.flashes.length<40) h.flashes.push({x:ball.x,y:ball.y,t:0,tier:'boss'});
+  SFX.hoolSmack(); S.shake=Math.max(S.shake,4.5); S.flash=Math.max(S.flash||0,.16);
   pushFeedback(t('hooligan_smack'),C.GOLD2);
+  const dMin=Math.max(0.15,0.5-h.wave*0.03), dMax=Math.max(0.3,0.8-h.wave*0.03);
+  h.ballSpawnT=rrange(dMin,dMax);
+  if(h.wave>=2 && rnd()<0.55) hoolQueueRushBurst(rint(2,4));
 }
 // a projectile or heavy contact knocking a ball out of pass/shot flight —
 // same idea as a drop, but the ball keeps most of its momentum, deflected
 function hoolDeflectBall(ball,fromAng){
+  const h=S.hool;
   if (ball.carrier){ ball.carrier.carryingBall=null; if(ball.carrier.pState==='on_ball') ball.carrier.pState='press'; }
-  ball.state='loose'; ball.carrier=null; ball.target=null; ball.claimCd=.3;
+  ball.state='loose'; ball.carrier=null; ball.target=null; ball.claimCd=h?hoolClaimDelay(h.wave):.3;
   const sp=Math.hypot(ball.vx,ball.vy)*.6+20;
   ball.vx=Math.cos(fromAng)*sp; ball.vy=Math.sin(fromAng)*sp;
   hoolBurst(ball.x,ball.y,C.WHITE,4);
@@ -3166,7 +3219,14 @@ function hoolFireWeapon(w){const h=S.hool, target=hoolNearest(w.range||100);
 // STRIKER's ranged attack — a precise ball toward whatever's nearest to the
 // unit's own position (not the player's), since it now roams independently
 function hoolFireCrew(c){
-  const spec=H_CREW[c.id], target=hoolNearestFrom(c.x,c.y,spec.range);
+  const spec=H_CREW[c.id];
+  // STRIKER prefers the ball carrier over any other target in range — it's
+  // the one role explicitly meant to threaten whoever's holding the ball
+  let target=null;
+  for (const ball of S.hool.balls){
+    if (ball.state==='carried' && ball.carrier && Math.hypot(ball.carrier.x-c.x,ball.carrier.y-c.y)<=spec.range){ target=ball.carrier; break; }
+  }
+  if (!target) target=hoolNearestFrom(c.x,c.y,spec.range);
   if(!target) return;
   const dx=target.x-c.x,dy=target.y-c.y,d=Math.hypot(dx,dy)||1,dmg=spec.damage*c.level*hoolDamageMult();
   hoolSpawnProjectile({x:c.x,y:c.y,vx:dx/d*130,vy:dy/d*130,damage:dmg,life:1.3,kind:'crew',col:spec.col});
@@ -3290,11 +3350,10 @@ function hoolCollectNetChest(nc){
   S.flash=Math.max(S.flash||0,0.12);
   nc.state='cooldown'; nc.cdT=60;
 }
-// "defeated" = the player survived past that club's wave. hoolWave() calls
-// this with the wave that just ended (before h.wave is reassigned to the
-// new one); the wave-10 case is handled separately in hoolUpdateRun since
-// there's no wave-11 transition to trigger it. Guarded so a club is only
-// ever relegated once per run.
+// "defeated" = the player's squad wipe cleared that club's wave.
+// hoolAdvanceWave() calls this with the wave that just cleared (before
+// h.wave is reassigned to the next one, or left at 10 for the endless final
+// stage). Guarded so a club is only ever relegated once per run.
 function hoolRelegate(waveIdx){
   const h=S.hool; if(!h||waveIdx<0) return;
   const ids=H_WAVE_CLUBS[waveIdx]; if(!ids||!ids.length) return;
@@ -3305,19 +3364,55 @@ function hoolRelegate(waveIdx){
   SFX.tootToot();
   S.shake=Math.max(S.shake,2.5);
 }
-function hoolWave(){const h=S.hool;
-  const prevWave = h.wave;
-  h.wave=Math.min(10,Math.floor(h.t/60)+1);h.waveT=h.t%60;h.bossSpawned=false;
-  const wd=H_WAVES[h.wave-1]||H_WAVES[9];
+// resets every per-wave runtime field for whatever h.wave currently is —
+// called at run start (wave 1, via beginHooliganRun) and by hoolAdvanceWave
+// for every wave after. Waves no longer run on a fixed clock: h.waveT is a
+// per-wave elapsed-time counter (ticked in hoolUpdateRun, reset here) used
+// only to time each wave's own set piece, not to decide when the wave ends.
+function hoolWaveReset(){
+  const h=S.hool; if(!h) return;
+  h.waveT=0; h.bossSpawned=false;
   // this wave's set piece (pack/boss/dual_elite/surge/final) hasn't fired
   // yet — these all reset per wave, not per run
   h.eventDone=false; h.breathT=0; h.surgeT=0; h.finalBossPending=false; h.finalSurgeDone=false;
-  h.conceded=0;
-  h.spawnT=0;SFX.crowdRoar(Math.min(1,h.wave/7));hoolBurst(h.x,h.y,H_TEAMS[wd.team],14);
+  h.conceded=0; h.waveSpawned=0; h.spawnT=0;
+  const wd=H_WAVES[h.wave-1]||H_WAVES[9];
+  SFX.crowdRoar(Math.min(1,h.wave/7)); hoolBurst(h.x,h.y,H_TEAMS[wd.team],14);
+}
+// true once this wave's ordinary spawner has issued its full squad quota
+// AND (if the wave has a set piece) that set piece has actually fired —
+// wave 10's own full-time surge is a second independent trigger on top of
+// its boss event, so both have to have gone off before spawning reads "done"
+function hoolWaveSpawningDone(){
+  const h=S.hool; if(!h) return false;
+  const wd=H_WAVES[h.wave-1]||H_WAVES[9];
+  if (h.waveSpawned<wd.min) return false;
+  if (wd.event && wd.event!=='none' && !h.eventDone) return false;
+  if (wd.event==='final' && wd.surgeAt!=null && !h.finalSurgeDone) return false;
+  return true;
+}
+// the wave clears — a squad wipe, never a ball SMACK — once spawning is done,
+// every squad body (anything but a rush mob) is dead, and no breather/surge
+// timer is still running out its own beat
+function hoolWaveClear(){
+  const h=S.hool; if(!h) return false;
+  if (!hoolWaveSpawningDone()) return false;
+  if (h.breathT>0 || h.surgeT>0) return false;
+  // hp>0, not just array membership — a body killed earlier this same frame
+  // still sits in h.enemies until the alive-filter runs later in the tick
+  return !h.enemies.some(e=>e.type!=='rush'&&e.hp>0);
+}
+// advances past the wave that just cleared: relegates its club, then either
+// moves on to the next wave's data or — past wave 10 — keeps replaying wave
+// 10's own data as an endless final stage (there is no wave 11 to reach)
+function hoolAdvanceWave(){
+  const h=S.hool; if(!h) return;
+  hoolRelegate(h.wave-1);
+  if (h.wave<H_WAVES.length) h.wave++;
+  else h.wave10Relegated=true;   // no wave 11 to advance into — flag the final-wave completion for the HUD/tests
+  hoolWaveReset();
   // the big WAVE N / club banner (drawn in drawHoolRun while h.waveT<2.8)
-  // now carries this announcement — no separate toast needed, avoids the
-  // two overlapping at the same screen position the instant a wave turns over
-  hoolRelegate(prevWave-1);
+  // carries the announcement — no separate toast needed
 }
 function hoolSpawnBoss(){const h=S.hool;if(h.bossSpawned||h.wave<3)return;h.bossSpawned=true;hoolEnemySpawn('hool',true);const e=h.enemies[h.enemies.length-1];if(e){e.r=13;e.hp*=3.8;e.maxhp=e.hp;e.spd*=.72;e.dmg*=1.8;e.boss=true;e.exitDur=1.0;}pushFeedback(t('hooligan_boss'),C.RED);SFX.tootToot();S.shake=4;}
 // a tight cluster of enemies spread vertically along the enemy net's mouth
@@ -3392,6 +3487,22 @@ function hoolWaveEvent(wd){
     pushFeedback(t('hooligan_surge'),C.RED); SFX.tootToot(); S.shake=Math.max(S.shake,3);
   }
 }
+// Rush mobs ignore the ball entirely and just sprint the player's goal —
+// pure flood pressure. They'll briefly tag the player or an orbiting
+// Defense unit if one is right in their path, then resume the goal run;
+// they never claim, ring, or otherwise react to a ball (see hoolEnemyAim).
+function hoolRushAim(e){
+  const h=S.hool;
+  let nearest=null, nd=20*20;
+  const pd=(h.x-e.x)*(h.x-e.x)+(h.y-e.y)*(h.y-e.y);
+  if (pd<nd){ nd=pd; nearest={x:h.x,y:h.y}; }
+  for (const c of h.crew){
+    if (c.id!=='defense') continue;
+    const cd=(c.x-e.x)*(c.x-e.x)+(c.y-e.y)*(c.y-e.y);
+    if (cd<nd){ nd=cd; nearest={x:c.x,y:c.y}; }
+  }
+  return nearest ? {x:nearest.x,y:nearest.y,spd:1} : {x:H_PLAYER_GOAL.x,y:H_PLAYER_GOAL.y,spd:1};
+}
 // Ball-aware enemy brain. Returns the point this enemy wants to move toward
 // this frame (plus a speed multiplier), and drives the carrier's periodic
 // drive/pass/hold/shoot decision. Deliberately a small weighted state
@@ -3443,7 +3554,7 @@ function hoolEnemyAim(e,dt){
           ball.carrier=null; e.carryingBall=null;
           ball.state='pass'; ball.target=best; ball.vx=dx/d*115; ball.vy=dy/d*115;
           best.pState='receive';
-          e.pState='support'; SFX.hoolBallTouch(); hoolBurst(ball.x,ball.y,C.CHALKDIM,3);
+          e.pState='ring'; SFX.hoolBallTouch(); hoolBurst(ball.x,ball.y,C.CHALKDIM,3);
         }
       }
       // otherwise: keep driving (fall through)
@@ -3471,16 +3582,21 @@ function hoolEnemyAim(e,dt){
   }
   // press a loose ball that's genuinely near me
   if (loose && looseD<110){ e.pState='press'; return {x:loose.x,y:loose.y,spd:1.12}; }
-  // teammate has it: form the travelling support knot — a loose arc BEHIND
-  // the ball (goal-side is "in front", so behind = toward the enemy net)
+  // teammate has it: form the travelling RING — a moving grunt shield around
+  // the carrier, evenly spaced by each body's stable spawn-order slot (so it
+  // holds its shape instead of jittering) and biased toward the player's
+  // goal, since the ring is escorting the ball forward, not just clustering
   if (carriedBy && carriedBy!==e){
     const d=Math.hypot(carriedBy.x-e.x,carriedBy.y-e.y);
-    if (d<150){
-      e.pState='support';
-      // deterministic per-enemy offset so the cloud holds a stable shape
-      // instead of every unit fighting for the same spot
-      const slot=((Math.abs(Math.floor(e.spreadAng*1000))%3)-1);
-      return { x:carriedBy.x+26+Math.abs(slot)*10, y:carriedBy.y+slot*30, spd:.95 };
+    const ringR=20+Math.min(10,h.wave*1.1);
+    if (d<150+ringR){
+      e.pState='ring';
+      const N=Math.min(7,Math.max(4,4+Math.floor(h.wave/3)));
+      const slot=(e.spawnSeq||0)%N;
+      const goalAng=Math.atan2(H_PLAYER_GOAL.y-carriedBy.y,H_PLAYER_GOAL.x-carriedBy.x);
+      const spread=2.7; // ~155°: a broad arc facing goal-ward, not a full circle
+      const ang=goalAng+(N>1?(slot/(N-1)-0.5):0)*spread;
+      return { x:carriedBy.x+Math.cos(ang)*ringR, y:carriedBy.y+Math.sin(ang)*ringR, spd:1.0 };
     }
   }
   // ── nothing ball-related: the pre-existing pressure/goal-drive behaviour ──
@@ -3492,41 +3608,61 @@ function hoolEnemyAim(e,dt){
 }
 function hoolUpdateRun(dt){
   const h=S.hool;if(!h)return;
-  h.t+=dt;h.waveT=h.t%60;h.invuln=Math.max(0,h.invuln-dt);h.hitFlash=Math.max(0,h.hitFlash-dt);h.shake=Math.max(0,h.shake-dt*4);
-  const targetWave=Math.min(10,Math.floor(h.t/60)+1);if(targetWave!==h.wave)hoolWave();
+  h.t+=dt;h.waveT+=dt;h.invuln=Math.max(0,h.invuln-dt);h.hitFlash=Math.max(0,h.hitFlash-dt);h.shake=Math.max(0,h.shake-dt*4);
   const wd=H_WAVES[h.wave-1]||H_WAVES[9];
   hoolWaveEvent(wd);
   h.spawnT-=dt;
   const density=Math.min(2.8,1+h.t/95);
+  // ── squad spawner — always gated on the wave's total quota, never on
+  // concurrent-alive count, since the wave now only ends on a full wipe ──
   if (h.breathT>0){
-    // just had a set piece — a real lull, not another ramp: no quota top-up,
-    // spawns run at half rate, no bonus double-spawn roll
+    // just had a set piece — a real lull, not another ramp: half rate
     h.breathT=Math.max(0,h.breathT-dt);
-    while(h.spawnT<=0&&h.enemies.length<H_MAX_ENEMIES){h.spawnT+=wd.interval*2;const type=wd.types[rint(0,wd.types.length-1)];hoolEnemySpawn(type);}
+    while(h.spawnT<=0&&h.waveSpawned<wd.min&&h.enemies.length<H_MAX_ENEMIES){h.spawnT+=wd.interval*2;hoolEnemySpawn(wd.types[rint(0,wd.types.length-1)]);}
   } else if (h.surgeT>0){
     h.surgeT=Math.max(0,h.surgeT-dt);
     if (h.surgeT<=0) h.breathT=wd.breathAfter||0;   // surge just ended -> straight into its breather
     const mult=wd.spawnMultDuringEvent||.6;
-    while(h.spawnT<=0&&h.enemies.length<H_MAX_ENEMIES){h.spawnT+=(wd.interval*mult)/density;const type=wd.types[rint(0,wd.types.length-1)];hoolEnemySpawn(type);}
-    for(let q=0;q<4&&h.enemies.length<Math.min(H_MAX_ENEMIES,wd.min);q++) hoolEnemySpawn(wd.types[rint(0,wd.types.length-1)]);
+    while(h.spawnT<=0&&h.waveSpawned<wd.min&&h.enemies.length<H_MAX_ENEMIES){h.spawnT+=(wd.interval*mult)/density;hoolEnemySpawn(wd.types[rint(0,wd.types.length-1)]);}
+    for(let q=0;q<4&&h.waveSpawned<wd.min&&h.enemies.length<H_MAX_ENEMIES;q++) hoolEnemySpawn(wd.types[rint(0,wd.types.length-1)]);
   } else {
-    while(h.spawnT<=0&&h.enemies.length<H_MAX_ENEMIES){h.spawnT+=wd.interval/density;const type=wd.types[rint(0,wd.types.length-1)];hoolEnemySpawn(type);if(rnd()<Math.min(.35,h.t/240))hoolEnemySpawn(type);}
-    // Maintain the wave's minimum quota, but only add a few per tick so a sudden
-    // camera move never creates a giant CPU spike.
-    for(let q=0;q<4&&h.enemies.length<Math.min(H_MAX_ENEMIES,wd.min);q++) hoolEnemySpawn(wd.types[rint(0,wd.types.length-1)]);
+    while(h.spawnT<=0&&h.waveSpawned<wd.min&&h.enemies.length<H_MAX_ENEMIES){
+      h.spawnT+=wd.interval/density; hoolEnemySpawn(wd.types[rint(0,wd.types.length-1)]);
+      if (h.waveSpawned<wd.min && rnd()<Math.min(.35,h.t/240)) hoolEnemySpawn(wd.types[rint(0,wd.types.length-1)]);
+    }
+    // fast top-up toward the wave's quota at the START of a wave (a fresh
+    // pitch shouldn't feel sparse) — only adds up to 4/frame, and only ever
+    // toward the quota, never re-topping-up concurrent count once it's spent
+    for(let q=0;q<4&&h.waveSpawned<wd.min&&h.enemies.length<H_MAX_ENEMIES;q++) hoolEnemySpawn(wd.types[rint(0,wd.types.length-1)]);
   }
-  // ── possession balls ──────────────────────────────────────────────
-  // Wave 1 is the teaching wave: exactly ONE ball alive at a time, so the
-  // whole verb (chase carrier -> tackle -> SMACK) is legible with nothing
-  // else competing. Wave 2+ opens the barrage up to a wave-scaled cap.
-  h.ballBarrage = h.wave>=2;
-  const ballTarget = h.ballBarrage ? Math.min(H_MAX_BALLS, 1+Math.floor(h.wave/3)+1) : 1;
-  h.ballSpawnT-=dt;
-  if (h.balls.length<ballTarget && h.ballSpawnT<=0){
-    // enter from the enemy half, just off their net, so possession always
-    // starts on their side and has to be carried the length of the pitch
-    hoolSpawnBall(H_ENEMY_NET_X-rrange(18,48), H_PITCH_CY+rrange(-70,70));
-    h.ballSpawnT = h.ballBarrage ? rrange(3.5,6) : 1.2;
+  // wave clear is a squad wipe, checked once spawning + set pieces are done
+  // and every non-rush body is dead — SMACKing the ball never ends a wave
+  if (!h.gameover && hoolWaveClear()) hoolAdvanceWave();
+  // ── rush mobs: pure flood pressure, entirely outside the squad/ball loop
+  // — pour from the net in staggered bursts on their own timer, and again
+  // (as a punish) right after a SMACK (see hoolClearBall) ──────────────────
+  { const rushEnabled = h.wave>=2 || h.waveT>40;
+    if (rushEnabled){
+      h.rushPourT-=dt;
+      if (h.rushPourT<=0){
+        hoolQueueRushBurst(rint(3+Math.floor(h.wave/3),6+Math.floor(h.wave/3)));
+        h.rushPourT=Math.max(2.5,9-h.wave*0.6);
+      }
+    }
+    for (let i=h.rushQueue.length-1;i>=0;i--){
+      h.rushQueue[i]-=dt;
+      if (h.rushQueue[i]<=0){ hoolEnemySpawn('rush',true); h.rushQueue.splice(i,1); }
+    }
+  }
+  // ── possession ball ─────────────────────────────────────────────────
+  // Exactly one live (non-cleared) ball at all times: the opposition always
+  // has one, you SMACK it gone forever, and they feed a fresh one from the
+  // net after a short (wave-scaled) delay — see hoolClearBall for the timer.
+  { const activeBall = h.balls.find(b=>b.state!=='cleared');
+    h.ballSpawnT-=dt;
+    if (!activeBall && h.ballSpawnT<=0){
+      hoolSpawnBall(H_ENEMY_NET_X-rrange(4,14), H_PITCH_CY+rrange(-30,30));
+    }
   }
   // Shoulder Barge owns h.x/h.y for its lunge-shove-return duration; while
   // it's running, skip joystick/keyboard input entirely so the jolt reads
@@ -3575,7 +3711,6 @@ function hoolUpdateRun(dt){
     }
   }
   if (h.relegateBanner) h.relegateBanner.t+=dt;
-  if (h.t>=H_WAVES.length*60 && h.wave===H_WAVES.length && !h.wave10Relegated){ h.wave10Relegated=true; hoolRelegate(H_WAVES.length-1); }
   for(const e of h.enemies){
     e.hit=Math.max(0,e.hit-dt); e.slowT=Math.max(0,e.slowT-dt);
     if (e.state==='exit'){
@@ -3596,10 +3731,10 @@ function hoolUpdateRun(dt){
       e.stunT=Math.max(0,e.stunT-dt);
       dx=h.x-e.x; dy=h.y-e.y; d=Math.hypot(dx,dy)||1;
     } else {
-      // ball-aware brain picks the aim point (press / on-ball drive / support
-      // / receive), falling back to the old pressure-or-goal-drive behaviour
-      // when there's no ball worth reacting to
-      const aim=hoolEnemyAim(e,dt);
+      // rush mobs never touch the ball-aware brain — they're pure flood
+      // pressure with one job (sprint the goal), kept fully isolated so they
+      // can never claim/ring the ball (see hoolRushAim)
+      const aim = e.type==='rush' ? hoolRushAim(e) : hoolEnemyAim(e,dt);
       dx=aim.x-e.x; dy=aim.y-e.y; d=Math.hypot(dx,dy)||1;
       let spd=e.spd*(e.slowT>0?H_SLOW_MULT:1)*aim.spd;
       if(e.charge){e.charge+=dt;if(e.charge>3){spd*=2.25;e.charge=0;hoolBurst(e.x,e.y,C.ORANGE,3);}}
@@ -3638,6 +3773,13 @@ function hoolUpdateRun(dt){
     ball.bobT+=dt; ball.claimCd=Math.max(0,ball.claimCd-dt);
     // a carrier that died/despawned this frame orphans its ball
     if (ball.carrier && (ball.carrier.hp<=0 || !h.enemies.includes(ball.carrier))) hoolDropBall(ball, 25);
+    if (ball.state==='net_exit'){
+      // sliding out of the net onto the pitch — the telegraph beat, no
+      // collision/claim/SMACK yet (see hoolSpawnBall)
+      ball.exitT+=dt; ball.x-=10*dt; ball.spin+=dt*4;
+      if (ball.exitT>=0.35){ ball.state='loose'; ball.claimCd=hoolClaimDelay(h.wave); }
+      continue;
+    }
     if (ball.state==='cleared'){
       // the SMACK arc-out: fast, rising, then gone. No collision at all.
       ball.clearT+=dt; ball.x+=ball.vx*dt; ball.y+=ball.vy*dt;
@@ -3687,11 +3829,11 @@ function hoolUpdateRun(dt){
       }
       if (smacked) continue;
     }
-    // ── enemy claims a loose ball ──
+    // ── enemy claims a loose ball (rush mobs never claim — pure flood) ──
     if (ball.state==='loose' && ball.claimCd<=0){
       let best=null,bd=26*26;
       for (const e of h.enemies){
-        if (e.hp<=0||e.state==='exit'||e.stunT>0||e.carryingBall) continue;
+        if (e.hp<=0||e.state==='exit'||e.stunT>0||e.carryingBall||e.type==='rush') continue;
         const d=(e.x-ball.x)*(e.x-ball.x)+(e.y-ball.y)*(e.y-ball.y);
         if (d<bd){ bd=d; best=e; }
       }
@@ -4004,7 +4146,20 @@ function drawHoolPitchWorld(h){
   drawPitchGoal(H_PITCH,'R',H_GOAL_MOUTH_H);
   drawHoolGrass(h);
 }
+// rush mobs get a cheap, distinct silhouette (not the full kit rig) so a
+// pour reads instantly as "different, dangerous, ignore-the-ball" at a
+// glance: a small bright chevron pointed the way it's sprinting, with a
+// faint motion-blur streak trailing it
+function drawHoolRush(e){
+  const ang=Math.atan2(H_PLAYER_GOAL.y-e.y, H_PLAYER_GOAL.x-e.x);
+  b.save(); b.translate(e.x,e.y); b.rotate(ang);
+  b.fillStyle = e.hit>0 ? C.WHITE : H_ENEMIES.rush.col;
+  b.beginPath(); b.moveTo(4.2,0); b.lineTo(-3,-2.8); b.lineTo(-1.2,0); b.lineTo(-3,2.8); b.closePath(); b.fill();
+  if(!S.reduceMotion){ b.save(); b.globalAlpha=.35; b.strokeStyle=H_ENEMIES.rush.col; b.lineWidth=1.3; b.beginPath(); b.moveTo(-3,0); b.lineTo(-9,0); b.stroke(); b.restore(); }
+  b.restore();
+}
 function drawHoolEnemy(e){
+  if (e.type==='rush'){ drawHoolRush(e); return; }
   const kit=hoolClubKit(e.clubId), bob=Math.sin(S.t*7+e.x*.03+e.y*.02)*.45, x=e.x, y=e.y+bob;
   const spawnPop = e.state==='exit' ? Math.min(1,e.exitT/0.15) : 1;
   const s=Math.max(.72,Math.min(1.55,e.r/5.4))*spawnPop, hurt=e.hit>0;
@@ -4165,7 +4320,9 @@ function drawHoolRun(){const h=S.hool;
   drawHoolTerrace();
   drawHoolLadder(h);
   // HUD
-  rect(0,0,W,50,C.INK);rect(0,49,W,1,C.PANELED);txt(t('mode_hooligan'),4,3,C.GOLD,11);txtFit(H_WAVE_NAMES[h.wave-1],4,17,C.GREYDK,5,82);txt('W'+h.wave+' · '+Math.floor(h.t/60)+':'+String(Math.floor(h.t%60)).padStart(2,'0'),W/2,3,C.WHITE,9,'center');txt(String(h.kills),W-4,3,C.GOLD2,12,'right');txt(t('hooligan_kills'),W-4,17,C.GREYDK,5,'right');txt(t('hooligan_defense')+' '+h.crew.length,W-4,26,C.GREYDK,5,'right');
+  const wdHud=H_WAVES[h.wave-1]||H_WAVES[9];
+  const squadLeft=Math.max(0,wdHud.min-h.waveSpawned)+h.enemies.filter(e=>e.type!=='rush').length;
+  rect(0,0,W,50,C.INK);rect(0,49,W,1,C.PANELED);txt(t('mode_hooligan'),4,3,C.GOLD,11);txtFit(H_WAVE_NAMES[h.wave-1],4,17,C.GREYDK,5,82);txt('W'+h.wave+' · '+squadLeft+' LEFT',W/2,3,C.WHITE,9,'center');txt(String(h.kills),W-4,3,C.GOLD2,12,'right');txt(t('hooligan_kills'),W-4,17,C.GREYDK,5,'right');txt(t('hooligan_defense')+' '+h.crew.length,W-4,26,C.GREYDK,5,'right');
   txt(t('hooligan_through_net')+' '+h.conceded+'/'+hoolConcedeLimit(h.wave),150,17,C.RED,5,'center');
   if (h.balls.length) txt(t('hooligan_balls')+' '+h.balls.filter(bl=>bl.state!=='cleared').length,150,25,C.GOLD2,5,'center');
   const hp=Math.max(0,h.hp/h.maxhp);rect(4,22,90,6,C.PANELED);rect(5,23,88*hp,4,hp<.3?C.RED:C.GREEN);txt(Math.ceil(h.hp)+'/'+h.maxhp,4,31,C.GREY,6);txt(t('hooligan_tokens')+' '+h.tokens,106,31,C.GOLD,7);txt('LV '+h.level,190,31,C.WHITE,7);txt('SHOP',W-4,31,C.GOLD2,7,'right');
