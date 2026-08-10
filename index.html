@@ -633,6 +633,7 @@ const HOOL_I18N = {
     hooligan_crew:'+1 CREW', hooligan_tokens:'TOKENS', hooligan_kickball:'KICK FOOTBALL', hooligan_crewman:'CREW MEMBER',
     hooligan_pause:'PAUSED', hooligan_resume:'RESUME', hooligan_wave:'WAVE', hooligan_survive:'SURVIVED',
     hooligan_wave_clear:'WAVE CLEAR', hooligan_boss:'BOSS', hooligan_gameover:'TERRACE LOST', hooligan_again:'RUN IT BACK',
+    hooligan_net_chest:'NET CHEST', hooligan_relegated:'RELEGATED',
     hooligan_menu:'BACK TO TITLE', hooligan_upgrade:'UPGRADE', hooligan_heal:'PIE +HP', hooligan_speed:'TRAINERS',
     hooligan_magnet:'SCARF MAGNET', hooligan_damage:'MEGAPHONE', hooligan_cooldown:'QUICK BOOTS', hooligan_hp:'BOVRIL',
     hooligan_crew_scarf:'SCARF CREW', hooligan_crew_drum:'DRUMMER', hooligan_crew_flag:'FLAG WAVER',
@@ -2605,6 +2606,19 @@ const H_PLAYER={r:7,baseSpeed:48,baseHP:100};
 const H_ZOOM = 4/3;
 const H_WORLD = { x0:-60, y0:H_ARENA.y-60, x1:W+60, y1:H+60 };
 const H_DESPAWN_DIST = 440;   // scaled up from the old fixed-camera 330 to match the larger world
+// the pitch rectangle sits inset within H_WORLD, leaving run-off margin so
+// the camera never shows bare void beyond the markings. Goals sit on the
+// LEFT and RIGHT edges (mouths facing inward), matching a real pitch
+// rotated to a left-right orientation.
+const H_PITCH = { x0:H_WORLD.x0+40, y0:H_WORLD.y0+40, x1:H_WORLD.x1-40, y1:H_WORLD.y1-40 };
+const H_PITCH_CX = (H_PITCH.x0+H_PITCH.x1)/2, H_PITCH_CY = (H_PITCH.y0+H_PITCH.y1)/2;
+const H_GOAL_MOUTH_H = 72;
+// net-chest anchors sit just inside each goal mouth — fixed world points,
+// not solid geometry, so the player/enemies pass through freely
+const H_NET_CHEST_SPOTS = [
+  { side:'L', x:H_PITCH.x0+14, y:H_PITCH_CY },
+  { side:'R', x:H_PITCH.x1-14, y:H_PITCH_CY }
+];
 const H_WAVES=[
   {min:12, interval:.72, team:'LOWER', types:['fan','fan','runner']},
   {min:18, interval:.62, team:'MIDTABLE', types:['fan','runner','bruiser']},
@@ -2636,6 +2650,9 @@ const H_WAVE_CLUBS=[
   ['ARSENAL']
 ];
 const H_WAVE_NAMES=H_WAVE_CLUBS.map(ids=>ids.map(id=>CLUB_BY_ID[id]?.short||id).join(' · '));
+// relegation uses one consistent primary club per wave (the first id) even
+// when a wave lists more than one, for both the popup and the ladder strip
+const H_WAVE_PRIMARY_SHORTS = H_WAVE_CLUBS.map(ids => CLUB_BY_ID[ids[0]]?.short || ids[0]);
 /* Secondary kit colours are presentation-only colour pairings derived from the
    same club identities used by Club Legends. No crests or licensed artwork are
    needed: the hooligans are original pixel humans wearing colour-block kits. */
@@ -2687,6 +2704,11 @@ function hoolFresh(){
     freeEnemies:[],freeGems:[],freeProjectiles:[],
     camX:W/2, camY:270, zoom:H_ZOOM,
     joystick:{active:false,originX:0,originY:0,curX:0,curY:0},
+    // rare net-chest pickups — one per goal, 60s cooldown after collect, a
+    // short initial delay so the first wave isn't immediately a treasure hunt
+    netChests: H_NET_CHEST_SPOTS.map(s => ({ side:s.side, x:s.x, y:s.y, state:'cooldown', cdT:rrange(8,12), bobT:0 })),
+    magnetBoostT:0,
+    relegated:[], relegateBanner:null, wave10Relegated:false,
     waveClearT:0,toast:[],gameover:false,reason:'',bossSpawned:false,chest:null,runScore:0};
 }
 function hoolWeapon(id){return S.hool.weapons.find(w=>w.id===id);}
@@ -2695,7 +2717,7 @@ function hoolMetaCrewCount(){return Object.values(S.hoolMeta.crew).reduce((a,b)=
 function hoolDamageMult(){return S.hool.damage*(1+0.12*S.hoolMeta.perm.damage);}
 function hoolCooldownMult(){return Math.max(.52,S.hool.cooldown*(1-0.07*S.hoolMeta.perm.cooldown));}
 function hoolSpeed(){return H_PLAYER.baseSpeed*S.hool.speed*(1+0.12*S.hoolMeta.perm.speed);}
-function hoolMagnet(){return S.hool.magnet+18*S.hoolMeta.perm.magnet;}
+function hoolMagnet(){const h=S.hool;return h.magnet+18*S.hoolMeta.perm.magnet+(h.magnetBoostT>0?60:0);}
 function hoolMaxHP(){return H_PLAYER.baseHP+S.hool.maxhp+18*S.hoolMeta.perm.maxhp;}
 function beginHooligan(){
   srand((SEED ^ 0x51f15e7)>>>0); S.mode='HOOLIGAN'; S.hool=hoolFresh();
@@ -2752,7 +2774,47 @@ function hoolAddXP(n){const h=S.hool;h.xp+=n;while(h.xp>=h.nextXp){h.xp-=h.nextX
 function hoolEligibleChoices(){const h=S.hool, out=[];for(const id of Object.keys(H_WEAPONS)){const w=hoolWeapon(id);if(!w&&h.weapons.length<6)out.push({kind:'weapon',id});else if(w&&w.level<w.max)out.push({kind:'weapon',id});}for(const id of Object.keys(H_PASSIVES)){const p=hoolPassive(id);if(!p&&h.passives.length<6)out.push({kind:'passive',id});else if(p&&p.level<p.max)out.push({kind:'passive',id});}return out;}
 function hoolMakeChoices(){const pool=hoolEligibleChoices().slice();const out=[];while(out.length<4&&pool.length){const i=rint(0,pool.length-1);out.push(pool.splice(i,1)[0]);}while(out.length<4)out.push(out.length%2?{kind:'gold'}:{kind:'heal'});return out;}
 function hoolApplyChoice(ch){const h=S.hool;if(ch.kind==='heal'){h.hp=Math.min(h.maxhp, h.hp+Math.round(h.maxhp*.28));SFX.inflate();return;}if(ch.kind==='gold'){h.tokens+=18;SFX.hoolCoin();return;}if(ch.kind==='weapon'){let w=hoolWeapon(ch.id);if(w){w.level++;w.cdT=0;}else{const base=H_WEAPONS[ch.id];h.weapons.push({id:ch.id,level:1,cdT:0});if(ch.id==='kickball')S.hoolMeta.kickball=true;}SFX.correct();S.flash=.14;return;}let p=hoolPassive(ch.id);if(p)p.level++;else h.passives.push({id:ch.id,level:1});if(ch.id==='speed')h.speed*=1.12;if(ch.id==='magnet')h.magnet+=18;if(ch.id==='damage')h.damage*=1.12;if(ch.id==='cooldown')h.cooldown*=.93;if(ch.id==='hp'){h.maxhp+=18;h.hp+=18;}SFX.correct();}
-function hoolWave(){const h=S.hool;h.wave=Math.min(10,Math.floor(h.t/60)+1);h.waveT=h.t%60;h.bossSpawned=false;const w=H_WAVES[h.wave-1]||H_WAVES[9];h.spawnT=0;SFX.crowdRoar(Math.min(1,h.wave/7));hoolBurst(h.x,h.y,H_TEAMS[H_WAVE_TEAMS[h.wave-1]],14);pushFeedback(t('hooligan_wave')+' '+h.wave+' · '+H_WAVE_NAMES[h.wave-1],C.GOLD2);}
+// rare, optional treasure — never required for progression. Reward table is
+// weighted toward the small/frequent end (tokens, heal) with a free upgrade
+// as the rare top prize, so it always feels like a genuine detour-worthy find
+// without being able to break the run's pacing.
+function hoolCollectNetChest(nc){
+  const h=S.hool; const roll=rnd(); let label;
+  if (roll<0.35){ const amt=rint(10,18); h.tokens+=amt; label='+'+amt+' TOKENS'; }
+  else if (roll<0.6){ const heal=Math.round(h.maxhp*0.22); h.hp=Math.min(h.maxhp,h.hp+heal); label='+HP'; }
+  else if (roll<0.8){ h.magnetBoostT=10; label='MAGNET BOOST'; }
+  else { const opts=hoolEligibleChoices(); if (opts.length){ hoolApplyChoice(opts[rint(0,opts.length-1)]); label='FREE UPGRADE'; } else { h.tokens+=14; label='+14 TOKENS'; } }
+  pushFeedback(t('hooligan_net_chest')+' · '+label, C.GOLD2);
+  hoolBurst(nc.x,nc.y,C.GOLD,16);
+  spawnConfetti(20);
+  SFX.rankUp();
+  S.shake=Math.max(S.shake,3);
+  S.flash=Math.max(S.flash||0,0.12);
+  nc.state='cooldown'; nc.cdT=60;
+}
+// "defeated" = the player survived past that club's wave. hoolWave() calls
+// this with the wave that just ended (before h.wave is reassigned to the
+// new one); the wave-10 case is handled separately in hoolUpdateRun since
+// there's no wave-11 transition to trigger it. Guarded so a club is only
+// ever relegated once per run.
+function hoolRelegate(waveIdx){
+  const h=S.hool; if(!h||waveIdx<0) return;
+  const ids=H_WAVE_CLUBS[waveIdx]; if(!ids||!ids.length) return;
+  const primary=ids[0], club=CLUB_BY_ID[primary];
+  if(!club||h.relegated.includes(primary)) return;
+  h.relegated.push(primary);
+  h.relegateBanner={short:club.short,name:club.name,t:0};
+  SFX.tootToot();
+  S.shake=Math.max(S.shake,2.5);
+}
+function hoolWave(){const h=S.hool;
+  const prevWave = h.wave;
+  h.wave=Math.min(10,Math.floor(h.t/60)+1);h.waveT=h.t%60;h.bossSpawned=false;const w=H_WAVES[h.wave-1]||H_WAVES[9];h.spawnT=0;SFX.crowdRoar(Math.min(1,h.wave/7));hoolBurst(h.x,h.y,H_TEAMS[H_WAVE_TEAMS[h.wave-1]],14);
+  // the big WAVE N / club banner (drawn in drawHoolRun while h.waveT<2.8)
+  // now carries this announcement — no separate toast needed, avoids the
+  // two overlapping at the same screen position the instant a wave turns over
+  hoolRelegate(prevWave-1);
+}
 function hoolSpawnBoss(){const h=S.hool;if(h.bossSpawned||h.wave<3)return;h.bossSpawned=true;hoolEnemySpawn('hool',true);const e=h.enemies[h.enemies.length-1];if(e){e.r=13;e.hp*=3.8;e.maxhp=e.hp;e.spd*=.72;e.dmg*=1.8;e.boss=true;}pushFeedback(t('hooligan_boss'),C.RED);SFX.tootToot();S.shake=4;}
 function hoolUpdateRun(dt){
   const h=S.hool;if(!h)return;
@@ -2782,6 +2844,18 @@ function hoolUpdateRun(dt){
     h.camX = Math.max(H_WORLD.x0+camHalfW, Math.min(H_WORLD.x1-camHalfW, h.camX));
     h.camY = Math.max(H_WORLD.y0+camHalfH, Math.min(H_WORLD.y1-camHalfH, h.camY)); }
   for(const f of h.flashes) f.t+=dt; h.flashes=h.flashes.filter(f=>f.t<.3);
+  h.magnetBoostT=Math.max(0,h.magnetBoostT-dt);
+  for (const nc of h.netChests){
+    if (nc.state==='cooldown'){
+      nc.cdT-=dt;
+      if (nc.cdT<=0){ nc.state='present'; nc.bobT=0; SFX.hoolCoin(); }
+    } else {
+      nc.bobT+=dt;
+      if (Math.hypot(nc.x-h.x,nc.y-h.y)<14) hoolCollectNetChest(nc);
+    }
+  }
+  if (h.relegateBanner) h.relegateBanner.t+=dt;
+  if (h.t>=H_WAVES.length*60 && h.wave===H_WAVES.length && !h.wave10Relegated){ h.wave10Relegated=true; hoolRelegate(H_WAVES.length-1); }
   for(const e of h.enemies){const dx=h.x-e.x,dy=h.y-e.y,d=Math.hypot(dx,dy)||1;let spd=e.spd;if(e.charge){e.charge+=dt;if(e.charge>3){spd*=2.25;e.charge=0;hoolBurst(e.x,e.y,C.ORANGE,3);}}e.x+=dx/d*spd*dt;e.y+=dy/d*spd*dt;e.hit=Math.max(0,e.hit-dt);if(e.thrower){e.shotT-=dt;if(e.shotT<=0){e.shotT=2.3;if(h.enemyShots.length<45)h.enemyShots.push({x:e.x,y:e.y,vx:dx/d*38,vy:dy/d*38,life:3,damage:e.dmg*.7});}}const dist=Math.hypot(e.x-h.x,e.y-h.y);if(dist<e.r+H_PLAYER.r&&h.invuln<=0){h.hp-=e.dmg;h.invuln=.45;h.hitFlash=.25;S.shake=2.4;SFX.block();hoolBurst(h.x,h.y,C.RED,4);if(h.hp<=0){h.gameover=true;h.reason='CONTACT';gotoScene('HOOLIGAN_OVER');return;}}}
   {const alive=[];for(const e of h.enemies){if(e.hp>0&&Math.hypot(e.x-h.x,e.y-h.y)<H_DESPAWN_DIST)alive.push(e);else if(h.freeEnemies.length<80)h.freeEnemies.push(e);}h.enemies=alive;}
   for(const p of h.enemyShots){p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;if(Math.hypot(p.x-h.x,p.y-h.y)<H_PLAYER.r+4&&h.invuln<=0){h.hp-=p.damage;h.invuln=.45;SFX.wrong();S.shake=2;if(h.hp<=0){h.gameover=true;gotoScene('HOOLIGAN_OVER');return;}}}h.enemyShots=h.enemyShots.filter(p=>p.life>0);
@@ -2822,7 +2896,7 @@ function hoolTap(px,py){
   }
   if(S.scene==='HOOLIGAN_OVER'){if(py>315){const again=px<W/2;hoolEnd();if(again){beginHooligan();beginHooliganRun();}else gotoScene('TITLE');}return;}
 }
-function beginHooliganRun(){const h=S.hool;if(!h)return;gotoScene('HOOLIGAN_RUN');SFX.whistleShort();pushFeedback(t('hooligan_wave')+' 1',C.GOLD2);}
+function beginHooliganRun(){const h=S.hool;if(!h)return;gotoScene('HOOLIGAN_RUN');SFX.whistleShort();}
 function drawHoolPlayer(){const h=S.hool,kit=playerKit(),blink=h.invuln>0&&Math.floor(S.t*18)%2; if(blink)return;const bob=Math.sin(S.t*7)*.6,x=h.x,y=h.y+bob; b.save();b.globalAlpha=.25; b.fillStyle='#04140b';b.beginPath();b.ellipse(x,y+8,9,3,0,0,6.2832);b.fill();b.restore();
   rect(x-5,y-5,10,10,kit.shirt);circ(x,y-8,3.6,S.skin);rect(x-3.5,y-11,7,3,S.hair);rect(x-7,y-3,3,2,kit.socks);rect(x+4,y-3,3,2,kit.socks);rect(x-5,y+5,3,2,kit.shoe);rect(x+2,y+5,3,2,kit.shoe);txt(String(S.playerNumber),x,y-3,kit.num,5,'center');
 }
@@ -2844,12 +2918,98 @@ function drawHoolJoystick(){
   circ(j.originX+kx,j.originY+ky,4,C.GOLD2);
   b.restore();
 }
+// shared pitch-marking geometry — used by both the world pitch (RUN, under
+// the camera) and the static intro backdrop, scaled to whatever rect it's
+// given, so the two contexts read as the same football pitch
+function drawPitchMarkings(r){
+  const cx=(r.x0+r.x1)/2, cy=(r.y0+r.y1)/2, w=r.x1-r.x0, hh=r.y1-r.y0;
+  const boxBigD=Math.min(66,w*0.22), boxBigH=Math.min(220,hh*0.55);
+  const boxSmallD=Math.min(26,w*0.09), boxSmallH=Math.min(130,hh*0.32);
+  const spotD=Math.min(54,w*0.18), centerR=Math.min(50,w*0.16,hh*0.42);
+  b.save(); b.strokeStyle=C.CHALK; b.lineWidth=1.4; b.strokeRect(r.x0,r.y0,w,hh); b.restore();
+  line(cx,r.y0,cx,r.y1,C.CHALK);
+  ring(cx,cy,centerR,C.CHALK,1.2);
+  rect(cx-1.2,cy-1.2,2.4,2.4,C.CHALK);
+  b.save(); b.strokeStyle=C.CHALKDIM; b.lineWidth=1;
+  b.strokeRect(r.x0,cy-boxBigH/2,boxBigD,boxBigH);
+  b.strokeRect(r.x0,cy-boxSmallH/2,boxSmallD,boxSmallH);
+  b.strokeRect(r.x1-boxBigD,cy-boxBigH/2,boxBigD,boxBigH);
+  b.strokeRect(r.x1-boxSmallD,cy-boxSmallH/2,boxSmallD,boxSmallH);
+  b.restore();
+  rect(r.x0+spotD-1,cy-1,2,2,C.CHALK);
+  rect(r.x1-spotD-1,cy-1,2,2,C.CHALK);
+  const cr=Math.min(8,w*0.03);
+  [[r.x0,r.y0,0,Math.PI/2],[r.x1,r.y0,Math.PI/2,Math.PI],[r.x1,r.y1,Math.PI,Math.PI*1.5],[r.x0,r.y1,Math.PI*1.5,Math.PI*2]]
+    .forEach(([ccx,ccy,a0,a1])=>{ b.save(); b.strokeStyle=C.CHALKDIM; b.lineWidth=1; b.beginPath(); b.arc(ccx,ccy,cr,a0,a1); b.stroke(); b.restore(); });
+}
+// posts + net, matching drawGoalAndTarget's clipped sparse-grid net —
+// decorative + a chest anchor, never solid: the player/enemies pass through
+function drawPitchGoal(r, side, mouthH){
+  const x0 = side==='L' ? r.x0 : r.x1, dir = side==='L' ? -1 : 1;
+  const depth = Math.max(14,(r.x1-r.x0)*0.07), cy=(r.y0+r.y1)/2;
+  const yTop=cy-mouthH/2, yBot=cy+mouthH/2, xOuter=x0+dir*depth;
+  const rx0=Math.min(x0,xOuter), rx1=Math.max(x0,xOuter);
+  b.save(); b.beginPath(); b.rect(rx0,yTop,rx1-rx0,yBot-yTop); b.clip();
+  rect(rx0,yTop,rx1-rx0,yBot-yTop,'#0c1526');
+  for(let x=rx0;x<=rx1;x+=6) line(x,yTop,x,yBot,C.NET);
+  for(let y=yTop;y<=yBot;y+=6) line(rx0,y,rx1,y,C.NET);
+  for(let x=rx0;x<=rx1;x+=18) line(x,yTop,x,yBot,C.NET2);
+  b.restore();
+  rect(x0-1.5,yTop-2,3,4,C.POST); rect(x0-1.5,yBot-2,3,4,C.POST);
+  ring(x0,yTop,2,C.POSTSH,1); ring(x0,yBot,2,C.POSTSH,1);
+}
+// very low-alpha glow triangles from the top of the world — same idea as
+// drawStadium's floodlight cones, just repositioned for a top-down world
+function drawHoolFloodlights(){
+  b.save(); b.globalAlpha=.06; b.fillStyle='#9fd0ff';
+  b.beginPath(); b.moveTo(H_WORLD.x0+40,H_WORLD.y0); b.lineTo(H_PITCH_CX-20,H_PITCH.y1); b.lineTo(H_WORLD.x0-20,H_PITCH.y1); b.closePath(); b.fill();
+  b.beginPath(); b.moveTo(H_WORLD.x1-40,H_WORLD.y0); b.lineTo(H_PITCH_CX+20,H_PITCH.y1); b.lineTo(H_WORLD.x1+20,H_PITCH.y1); b.closePath(); b.fill();
+  b.restore();
+}
+// fixed, deterministic blade candidates spread across the world — a cheap
+// hash, NOT the shared seeded rnd() (that's gameplay RNG and must stay
+// untouched by decoration). Filtered to the visible camera window and hard
+// -capped at draw time so a big world never means a big per-frame cost.
+const H_GRASS_CANDIDATES = (()=>{
+  const out=[];
+  for (let i=0;i<260;i++){
+    const hx=((i*2654435761)>>>0), hy=((i*40503+i*97)>>>0);
+    out.push({
+      x: H_WORLD.x0+(hx%10007)/10007*(H_WORLD.x1-H_WORLD.x0),
+      y: H_WORLD.y0+(hy%9973)/9973*(H_WORLD.y1-H_WORLD.y0),
+      ph:(hx%628)/100, spd:1.0+(hy%50)/100
+    });
+  }
+  return out;
+})();
+function drawHoolGrass(h){
+  if (S.reduceMotion) return;
+  const camHalfW=(W/2)/h.zoom, camHalfH=((H-H_ARENA.y)/2)/h.zoom;
+  const vx0=h.camX-camHalfW-10, vx1=h.camX+camHalfW+10, vy0=h.camY-camHalfH-10, vy1=h.camY+camHalfH+10;
+  let drawn=0;
+  b.save(); b.strokeStyle='rgba(255,255,255,0.10)'; b.lineWidth=1;
+  for (const g of H_GRASS_CANDIDATES){
+    if (drawn>=110) break;
+    if (g.x<vx0||g.x>vx1||g.y<vy0||g.y>vy1) continue;
+    const sway=Math.sin(S.t*g.spd+g.x*0.08+g.y*0.05)*1.1;
+    b.beginPath(); b.moveTo(g.x,g.y); b.lineTo(g.x+sway,g.y-3.4); b.stroke();
+    drawn++;
+  }
+  b.restore();
+}
+// floodlit static pitch backdrop for HOOLIGAN_INTRO, which has no run (and
+// so no camera) yet to follow — same visual language as the world pitch,
+// fit to the fixed screen rect instead of scrolling under a transform
 function drawHoolArena(){
-  // floodlit pitch/terrace field; used as a static (non-camera) backdrop by
-  // HOOLIGAN_INTRO, which has no run in progress yet to follow
-  rect(0,50,W,H-50,C.TURFLO);for(let x=0;x<W;x+=32)line(x,50,x,H,'#16502f');for(let y=50;y<H;y+=28)line(0,y,W,y,'#16502f');
-  b.save();b.globalAlpha=.25;for(let i=0;i<7;i++){const x=25+i*42;line(x,54,x+18,H,C.TURF2);}b.restore();
-  ring(W/2,252,38,'#2a7c50',1);line(W/2,214,W/2,290,'#2a7c50');
+  const r = { x0:14, y0:66, x1:W-14, y1:H-14 };
+  rect(0,50,W,H-50,C.TURFLO);
+  for (let y=50;y<H;y++) rect(0,y,W,1,(Math.floor((y-50)/9)%2===0)?C.TURF1:C.TURF2);
+  b.save(); b.globalAlpha=.10;
+  for (let x=0;x<W;x+=24) if(((x/24)|0)%2===0) rect(x,50,24,H-50,C.TURF3);
+  b.restore();
+  drawPitchMarkings(r);
+  drawPitchGoal(r,'L',Math.min(H_GOAL_MOUTH_H,(r.y1-r.y0)*0.4));
+  drawPitchGoal(r,'R',Math.min(H_GOAL_MOUTH_H,(r.y1-r.y0)*0.4));
   drawHoolTerrace();
 }
 // the terrace strip is a decorative stand backdrop glued to the top of the
@@ -2860,12 +3020,17 @@ function drawHoolTerrace(){
 // the RUN pitch spans the whole (larger-than-viewport) H_WORLD rect, drawn
 // under the camera transform — this is what makes the zoomed-in view feel
 // like an open arena rather than a small box scaled up
-function drawHoolPitchWorld(){
+function drawHoolPitchWorld(h){
   rect(H_WORLD.x0,H_WORLD.y0,H_WORLD.x1-H_WORLD.x0,H_WORLD.y1-H_WORLD.y0,C.TURFLO);
-  for(let x=Math.floor(H_WORLD.x0/32)*32;x<H_WORLD.x1;x+=32) line(x,H_WORLD.y0,x,H_WORLD.y1,'#16502f');
-  for(let y=Math.floor(H_WORLD.y0/28)*28;y<H_WORLD.y1;y+=28) line(H_WORLD.x0,y,H_WORLD.x1,y,'#16502f');
-  b.save();b.globalAlpha=.25;for(let i=0;i<7;i++){const x=25+i*42;line(x,54,x+18,H_WORLD.y1,C.TURF2);}b.restore();
-  ring(W/2,252,38,'#2a7c50',1);line(W/2,214,W/2,290,'#2a7c50');
+  for (let y=Math.floor(H_WORLD.y0); y<H_WORLD.y1; y++) rect(H_WORLD.x0,y,H_WORLD.x1-H_WORLD.x0,1,(Math.floor(y/9)%2===0)?C.TURF1:C.TURF2);
+  b.save(); b.globalAlpha=.10;
+  for (let x=Math.floor(H_WORLD.x0/24)*24; x<H_WORLD.x1; x+=24) if(((x/24)|0)%2===0) rect(x,H_WORLD.y0,24,H_WORLD.y1-H_WORLD.y0,C.TURF3);
+  b.restore();
+  drawHoolFloodlights();
+  drawPitchMarkings(H_PITCH);
+  drawPitchGoal(H_PITCH,'L',H_GOAL_MOUTH_H);
+  drawPitchGoal(H_PITCH,'R',H_GOAL_MOUTH_H);
+  drawHoolGrass(h);
 }
 function drawHoolEnemy(e){
   const kit=hoolClubKit(e.clubId), bob=Math.sin(S.t*7+e.x*.03+e.y*.02)*.45, x=e.x, y=e.y+bob;
@@ -2890,6 +3055,48 @@ function drawHoolEnemy(e){
   else if(e.type==='charger'){rect(-6,-11.8,3.2,2,kit.primary);rect(2.8,-11.8,3.2,2,kit.primary);}
   b.restore();
 }
+// net chests sit on the ground at the goal mouths — drawn under the camera
+// transform, ground-level (before entities), so the player/enemies always
+// render on top of them
+function drawHoolNetChests(h){
+  for (const nc of h.netChests){
+    if (nc.state==='present'){
+      const bob = S.reduceMotion?0:Math.sin(nc.bobT*4)*1.5;
+      const pulse = S.reduceMotion?0.4:0.25+0.25*(0.5+0.5*Math.sin(S.t*5));
+      b.save(); b.globalAlpha=pulse; ring(nc.x,nc.y-bob,11,C.GOLD,1.6); b.restore();
+      drawAchIcon('chest', nc.x, nc.y-bob, 7, C.GOLD);
+    } else {
+      b.save(); b.globalAlpha=.18; circ(nc.x,nc.y,3,C.GREYDK); b.restore();
+    }
+  }
+}
+const H_RELEGATE_LIFE = 2.5;
+function drawHoolRelegateBanner(h){
+  const rb=h.relegateBanner; if(!rb) return;
+  if (rb.t>H_RELEGATE_LIFE){ h.relegateBanner=null; return; }
+  const p=rb.t/H_RELEGATE_LIFE;
+  const a = p<0.12 ? p/0.12 : (p>0.7 ? Math.max(0,1-(p-0.7)/0.3) : 1);
+  const cw=W-56, ch=50, cx0=28, cy0=152;
+  b.save(); b.globalAlpha=a;
+  rect(cx0,cy0,cw,ch,'#3a0c0c'); rect(cx0+2,cy0+2,cw-4,ch-4,'#5a1414');
+  b.strokeStyle=C.GOLD; b.lineWidth=1.6; b.strokeRect(cx0+3,cy0+3,cw-6,ch-6);
+  txt('['+rb.short+' '+t('hooligan_relegated')+']', cx0+cw/2, cy0+13, C.GOLD2, 11, 'center');
+  txtFit(rb.name+'  ·  '+t('hooligan_wave_clear'), cx0+cw/2, cy0+32, C.GREY, 6, cw-16, 'center');
+  b.restore();
+}
+// compact 10-club ladder — screen-space, glued under the terrace strip.
+// Relegated clubs dim and get a strikethrough; the current wave's club
+// reads gold; everything else stays plain grey. Small on purpose — this is
+// a 288px-wide game, not a league table.
+function drawHoolLadder(h){
+  const y=63, rh=9, n=H_WAVE_PRIMARY_SHORTS.length, cw=W/n;
+  b.save(); b.globalAlpha=.55; rect(0,y,W,rh,C.INK); b.restore();
+  H_WAVE_PRIMARY_SHORTS.forEach((short,i)=>{
+    const cx=i*cw+cw/2, clubId=H_WAVE_CLUBS[i][0], relegated=h.relegated.includes(clubId), current=(i+1)===h.wave;
+    txtClip(short, cx, y+1, relegated?C.GREYDK:(current?C.GOLD2:C.GREY), 5, cw-2, 'center');
+    if (relegated){ b.save(); b.strokeStyle=C.RED; b.lineWidth=1; b.beginPath(); b.moveTo(cx-cw/2+2,y+rh/2+.5); b.lineTo(cx+cw/2-2,y+rh/2+.5); b.stroke(); b.restore(); }
+  });
+}
 function drawHoolRun(){const h=S.hool;
   // world layer only — arena, entities, effects — under the camera transform.
   // HUD, joystick and every screen-space overlay are drawn after b.restore(),
@@ -2898,7 +3105,8 @@ function drawHoolRun(){const h=S.hool;
   b.save();
   const camCx=W/2, camCy=H_ARENA.y+(H-H_ARENA.y)/2;
   b.translate(camCx,camCy); b.scale(h.zoom,h.zoom); b.translate(-h.camX,-h.camY);
-  drawHoolPitchWorld();
+  drawHoolPitchWorld(h);
+  drawHoolNetChests(h);
   for(const f of h.flashes){const p=f.t/.3,r=(f.tier==='boss'?24:f.tier==='mid'?14:9)*(0.3+p*1.4);b.save();b.globalAlpha=Math.max(0,1-p)*.9;ring(f.x,f.y,r,f.tier==='boss'?C.GOLD:C.WHITE,f.tier==='boss'?2.4:1.6);b.restore();}
   for(const g of h.gems){b.save();b.globalAlpha=.85+.15*Math.sin(S.t*8+g.p);circ(g.x,g.y,g.r,g.col);circ(g.x-1,g.y-1,g.r*.35,C.WHITE);b.restore();}
   for(const p of h.projectiles){drawBall(p.x,p.y,4);if(p.curve){b.save();b.globalAlpha=.25;line(p.x-p.vx*.05,p.y-p.vy*.05,p.x,p.y,C.WHITE);b.restore();}}
@@ -2909,11 +3117,20 @@ function drawHoolRun(){const h=S.hool;
   drawHoolPlayer();for(const p of h.particles){b.save();b.globalAlpha=Math.max(0,1-p.t/.7);circ(p.x,p.y,1.5,p.col);b.restore();}
   b.restore();
   drawHoolTerrace();
+  drawHoolLadder(h);
   // HUD
   rect(0,0,W,50,C.INK);rect(0,49,W,1,C.PANELED);txt(t('mode_hooligan'),4,3,C.GOLD,11);txtFit(H_WAVE_NAMES[h.wave-1],4,17,C.GREYDK,5,82);txt('W'+h.wave+' · '+Math.floor(h.t/60)+':'+String(Math.floor(h.t%60)).padStart(2,'0'),W/2,3,C.WHITE,9,'center');txt(String(h.kills),W-4,3,C.GOLD2,12,'right');txt(t('hooligan_kills'),W-4,17,C.GREYDK,5,'right');
   const hp=Math.max(0,h.hp/h.maxhp);rect(4,22,90,6,C.PANELED);rect(5,23,88*hp,4,hp<.3?C.RED:C.GREEN);txt(Math.ceil(h.hp)+'/'+h.maxhp,4,31,C.GREY,6);txt(t('hooligan_tokens')+' '+h.tokens,106,31,C.GOLD,7);txt('LV '+h.level,190,31,C.WHITE,7);txt('SHOP',W-4,31,C.GOLD2,7,'right');
   const xp=h.xp/h.nextXp;rect(106,41,150,4,C.PANELED);rect(107,42,148*xp,2,C.GOLD2);
-  if(h.waveT<3){b.save();b.globalAlpha=Math.max(0,1-h.waveT/3);txt(t('hooligan_wave_clear'),W/2,88,C.GOLD2,14,'center');txtFit(H_WAVE_NAMES[h.wave-1],W/2,104,C.WHITE,7,W-28,'center');b.restore();}
+  if(h.waveT<2.8){
+    b.save(); b.globalAlpha=Math.max(0,1-h.waveT/2.8);
+    txt('WAVE '+h.wave, W/2, 82, C.GOLD, 17, 'center');
+    txtFit(H_WAVE_NAMES[h.wave-1], W/2, 102, C.WHITE, 10, W-28, 'center');
+    const primaryClub = CLUB_BY_ID[(H_WAVE_CLUBS[h.wave-1]||[])[0]];
+    if (primaryClub) txtFit(primaryClub.name, W/2, 116, C.GREYDK, 6, W-28, 'center');
+    b.restore();
+  }
+  drawHoolRelegateBanner(h);
   drawHoolJoystick();
 }
 function drawHoolIntro(){drawHoolArena();b.save();b.globalAlpha=.68;rect(0,50,W,H-50,C.INK);b.restore();txt(t('hooligan_title'),W/2,92,C.GOLD,19,'center');txtFit(t('hooligan_sub'),W/2,118,C.GOLD2,8,W-40,'center');txt('MOVE ANYWHERE',W/2,157,C.WHITE,9,'center');txt('NO AIM',W/2,173,C.GREY,8,'center');txt('AUTO ATTACK',W/2,189,C.GREY,8,'center');txt('WAVES · XP · LEVELS · CREW',W/2,214,C.GREYDK,7,'center');txt(t('hooligan_best')+' '+Math.floor(S.hoolMeta.bestTime/60)+':'+String(Math.floor(S.hoolMeta.bestTime%60)).padStart(2,'0')+' · '+t('hooligan_wave')+' '+S.hoolMeta.bestWave,W/2,250,C.GREY,7,'center');rect(32,292,W-64,32,C.GOLD);rect(33,293,W-66,30,'#2b2005');txt(t('hooligan_start'),W/2,303,C.GOLD2,10,'center');txt(t('hooligan_touch'),W/2,345,C.GREYDK,7,'center');}
