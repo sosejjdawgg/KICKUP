@@ -2571,7 +2571,11 @@ cv.addEventListener('pointerdown', e=>{
   try { cv.setPointerCapture(e.pointerId); } catch(err){}
   const [x,y] = toBuf(e);
   tapDownX = x; tapDownY = y; tapMoved = 0; S.press={x,y,t:0};
-  if (S.scene==='HOOLIGAN_RUN' && S.hool){
+  // the settings/pause overlay draws on top of HOOLIGAN_RUN without changing
+  // S.scene (it's a flag, not a scene), so every HOOLIGAN-specific branch
+  // below must also bow out while it's open — otherwise taps meant for the
+  // pause panel get eaten as joystick/place-mode input instead
+  if (S.scene==='HOOLIGAN_RUN' && S.hool && !S.settingsOpen){
     if (S.hool.placeMode && S.hool.placeMode.active){
       // one clear cancel rule: tapping the HUD strip while placing drops
       // the Throw-In back out of place mode, no token spent
@@ -2587,7 +2591,7 @@ cv.addEventListener('pointermove', e=>{
   if (tapDownX === null) return;
   const [x,y] = toBuf(e);
   tapMoved = Math.max(tapMoved, Math.hypot(x-tapDownX, y-tapDownY));
-  if (S.scene==='HOOLIGAN_RUN' && S.hool){
+  if (S.scene==='HOOLIGAN_RUN' && S.hool && !S.settingsOpen){
     if (S.hool.placeMode && S.hool.placeMode.active){ const w=hoolScreenToWorld(x,y); S.hool.placeMode.x=w.x; S.hool.placeMode.y=w.y; return; }
     if (S.hool.joystick.active){ S.hool.joystick.curX=x; S.hool.joystick.curY=y; }
     return;
@@ -2601,7 +2605,7 @@ cv.addEventListener('pointermove', e=>{
   scrollVel = scrollVel*0.72 + (-dy/vdt)*0.28;
 }, {passive:false});
 cv.addEventListener('pointerup', e=>{
-  if (S.scene==='HOOLIGAN_RUN' && S.hool){
+  if (S.scene==='HOOLIGAN_RUN' && S.hool && !S.settingsOpen){
     if (S.hool.placeMode && S.hool.placeMode.active){
       hoolTryPlaceUnit();
       tapDownX=null; tapDownY=null; dragY=null; S.press=null; return;
@@ -2626,6 +2630,7 @@ document.getElementById('menuBtn').addEventListener('click', e=>{
   S.devPinOpen = false; S.devMenuOpen = false;
   S.settingsOpen = !S.settingsOpen;
   S.settingsConfirmQuit = false;
+  if (S.settingsOpen && S.hool) S.hool.joystick.active = false;
 });
 document.getElementById('devBtn').addEventListener('click', e=>{
   e.preventDefault(); e.stopPropagation();
@@ -2637,7 +2642,7 @@ document.getElementById('devBtn').addEventListener('click', e=>{
   S.devPin = '';
 });
 window.addEventListener('keydown', e=>{
-  if (e.code==='Escape'){ e.preventDefault(); S.settingsOpen = !S.settingsOpen; S.settingsConfirmQuit = false; return; }
+  if (e.code==='Escape'){ e.preventDefault(); S.settingsOpen = !S.settingsOpen; S.settingsConfirmQuit = false; if (S.settingsOpen && S.hool) S.hool.joystick.active = false; return; }
   if (e.code==='Space'||e.code==='Enter'){ e.preventDefault();
     if (S.settingsOpen) return;
     if (S.scene==='QUESTION' && !S.qResolved) return;      // questions need a real choice
@@ -2897,9 +2902,12 @@ function beginHooligan(){
   S.hool.maxhp=hoolMaxHP()-H_PLAYER.baseHP; S.hool.hp=S.hool.maxhp+H_PLAYER.baseHP;
   S.hool.speed=1; S.hool.magnet=28; S.hool.damage=1; S.hool.cooldown=1;
   S.hool.tokens=S.hoolMeta.tokens; S.hoolMeta.tokens=0; S.hool.crew=[];
-  // throw-ins are never meta-persisted — they need a placement each run, so
-  // there's nothing sensible to auto-restore them to (see H_CREW comment)
-  for(const id of Object.keys(S.hoolMeta.crew)) for(let i=0;i<S.hoolMeta.crew[id];i++) S.hool.crew.push(hoolMakeDefenseUnit(id, 1+Math.floor(i/3), 1));
+  // only Defense is the player's orbiting bodyguard (never planted), so it's
+  // the only role that auto-restores from meta at run start. Striker/Flag/
+  // Throw-in are drag-placed towers — their meta counts persist purely to
+  // track purchase level (see hoolTryPlaceUnit), and each run starts with
+  // none of them on the pitch until the player places one themselves.
+  for(let i=0;i<S.hoolMeta.crew.defense;i++) S.hool.crew.push(hoolMakeDefenseUnit('defense', 1+Math.floor(i/3), 1));
   if(S.hoolMeta.kickball) S.hool.weapons.push({id:'kickball',level:1,cdT:.4});
   S.crowdHype=.35; S.gloom=0; S.shake=0; S.flash=0;
   gotoScene('HOOLIGAN_INTRO');
