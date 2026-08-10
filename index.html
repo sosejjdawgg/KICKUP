@@ -634,6 +634,7 @@ const HOOL_I18N = {
     hooligan_pause:'PAUSED', hooligan_resume:'RESUME', hooligan_wave:'WAVE', hooligan_survive:'SURVIVED',
     hooligan_wave_clear:'WAVE CLEAR', hooligan_boss:'BOSS', hooligan_gameover:'TERRACE LOST', hooligan_again:'RUN IT BACK',
     hooligan_net_chest:'NET CHEST', hooligan_relegated:'RELEGATED',
+    hooligan_pack_in:'PACK INCOMING', hooligan_dual_elite:'DUAL ELITE', hooligan_surge:'SURGE', hooligan_final_boss:'FINAL BOSS',
     hooligan_menu:'BACK TO TITLE', hooligan_upgrade:'UPGRADE', hooligan_heal:'PIE +HP', hooligan_speed:'TRAINERS',
     hooligan_magnet:'SCARF MAGNET', hooligan_damage:'MEGAPHONE', hooligan_cooldown:'QUICK BOOTS', hooligan_hp:'BOVRIL',
     hooligan_crew_scarf:'SCARF CREW', hooligan_crew_drum:'DRUMMER', hooligan_crew_flag:'FLAG WAVER',
@@ -2619,17 +2620,60 @@ const H_NET_CHEST_SPOTS = [
   { side:'L', x:H_PITCH.x0+14, y:H_PITCH_CY },
   { side:'R', x:H_PITCH.x1-14, y:H_PITCH_CY }
 ];
+/* Each wave is a small fixture, not just "more, faster": event/eventAt/
+   breathAfter drive a one-shot set piece partway through the wave (a
+   pack, a boss, a dual-elite spotlight, a timed surge, or — wave 10
+   only — the final sequence), followed by a breather. types is a
+   weighted pool (repeat an id to bias it) used by the ordinary timed
+   spawner; packTypes/packCount are only read by the pack event.
+   1-5 teach one threat at a time, 6-7 are mid-run set pieces, 8-9 remix
+   the roster with named elites, 10 is a three-act final. */
 const H_WAVES=[
-  {min:11,  interval:.72, team:'LOWER', types:['fan','fan','runner']},
-  {min:22,  interval:.62, team:'MIDTABLE', types:['fan','runner','bruiser']},
-  {min:33,  interval:.54, team:'MIDTABLE', types:['runner','bruiser','fan']},
-  {min:44,  interval:.46, team:'GIANTS', types:['fan','runner','bruiser','charger']},
-  {min:55,  interval:.39, team:'GIANTS', types:['runner','bruiser','charger','thrower']},
-  {min:66,  interval:.34, team:'ELITE', types:['bruiser','charger','thrower','fan']},
-  {min:77,  interval:.29, team:'ELITE', types:['charger','thrower','bruiser','hool']},
-  {min:88,  interval:.25, team:'NATIONAL',types:['hool','charger','thrower','bruiser']},
-  {min:99,  interval:.21, team:'NATIONAL',types:['hool','charger','thrower','hool']},
-  {min:110, interval:.18, team:'ICONIC', types:['hool','charger','thrower','bruiser']}
+  // wave 1 — Wolves — learn: fans and runners only
+  { min:11, interval:.78, team:'LOWER',
+    types:['fan','fan','fan','runner'],
+    event:'none', eventAt:0, breathAfter:0 },
+  // wave 2 — Burnley — tanks: bruisers introduced, then a pack of two
+  { min:18, interval:.68, team:'LOWER',
+    types:['fan','fan','runner','bruiser'],
+    event:'pack', eventAt:30, breathAfter:4,
+    packTypes:['bruiser','bruiser'], packCount:2 },
+  // wave 3 — West Ham — first boss
+  { min:28, interval:.58, team:'MIDTABLE',
+    types:['fan','runner','bruiser','fan'],
+    event:'boss', eventAt:28, breathAfter:8 },
+  // wave 4 — Spurs — chargers matter, then a charge pack
+  { min:36, interval:.50, team:'MIDTABLE',
+    types:['fan','runner','charger','charger','bruiser'],
+    event:'pack', eventAt:22, breathAfter:5,
+    packTypes:['charger','charger','charger'], packCount:3 },
+  // wave 5 — Forest — throwers matter, then a thrower pack
+  { min:46, interval:.44, team:'GIANTS',
+    types:['runner','bruiser','thrower','thrower','charger'],
+    event:'pack', eventAt:25, breathAfter:5,
+    packTypes:['thrower','thrower','thrower'], packCount:3 },
+  // wave 6 — Leeds · Everton — derby dual-elite moment
+  { min:58, interval:.38, team:'GIANTS',
+    types:['fan','runner','bruiser','charger','thrower'],
+    event:'dual_elite', eventAt:30, breathAfter:7 },
+  // wave 7 — Newcastle · Chelsea — hools in the normal pool, plus a boss
+  { min:68, interval:.32, team:'ELITE',
+    types:['bruiser','charger','thrower','hool','runner'],
+    event:'boss', eventAt:28, breathAfter:7 },
+  // wave 8 — Liverpool — a timed surge, then calm
+  { min:78, interval:.28, team:'ELITE',
+    types:['hool','charger','thrower','bruiser','charger'],
+    event:'surge', eventAt:25, surgeFor:8, breathAfter:5,
+    spawnMultDuringEvent:.55 },
+  // wave 9 — City · United — dual named elites (fantasy derby)
+  { min:88, interval:.24, team:'NATIONAL',
+    types:['hool','charger','thrower','bruiser','hool'],
+    event:'dual_elite', eventAt:20, breathAfter:4 },
+  // wave 10 — Arsenal — three-act final: boss -> breath -> full-time surge
+  { min:95, interval:.22, team:'ICONIC',
+    types:['hool','charger','thrower','bruiser','hool'],
+    event:'final', eventAt:20, breathAfter:8,
+    surgeAt:35, surgeFor:20, spawnMultDuringEvent:.50 }
 ];
 const H_TEAMS={LOWER:'#6d778d',MIDTABLE:'#4ea8ff',GIANTS:'#e8402c',ELITE:'#7b5cff',NATIONAL:'#ff8a3d',ICONIC:'#ffc93c'};
 /* Club progression for Hooligan Mode. This deliberately reuses the canonical
@@ -2696,7 +2740,6 @@ const H_CREW={
   drum:{name:'DRUMMER',cost:24,damage:25,cd:1.45,range:68,col:'#e8402c'},
   flag:{name:'FLAG WAVER',cost:40,damage:42,cd:1.8,range:82,col:'#ffc93c'}
 };
-const H_WAVE_TEAMS=['LOWER','LOWER','LOWER','MIDTABLE','MIDTABLE','GIANTS','GIANTS','ELITE','NATIONAL','ICONIC'];
 function hoolFresh(){
   return {t:0,wave:1,waveT:0,spawnT:0,bossT:0,level:1,xp:0,nextXp:7,hp:100,maxhp:100,damage:1,speed:1,magnet:28,cooldown:1,
     x:W/2,y:270,dx:0,dy:0,invuln:0,hitFlash:0,shake:0,kills:0,tokens:0,gemPull:0,shopOpen:false,levelChoices:[],
@@ -2709,6 +2752,10 @@ function hoolFresh(){
     netChests: H_NET_CHEST_SPOTS.map(s => ({ side:s.side, x:s.x, y:s.y, state:'cooldown', cdT:rrange(8,12), bobT:0 })),
     magnetBoostT:0,
     relegated:[], relegateBanner:null, wave10Relegated:false,
+    // per-wave set-piece state (see H_WAVES' event/eventAt/breathAfter) —
+    // reset every wave in hoolWave(); wave 1 never goes through hoolWave()
+    // so the defaults here are what wave 1's own event dispatch runs against
+    eventDone:false, breathT:0, surgeT:0, finalBossPending:false, finalSurgeDone:false,
     waveClearT:0,toast:[],gameover:false,reason:'',bossSpawned:false,chest:null,runScore:0};
 }
 function hoolWeapon(id){return S.hool.weapons.find(w=>w.id===id);}
@@ -2729,9 +2776,13 @@ function beginHooligan(){
   S.crowdHype=.35; S.gloom=0; S.shake=0; S.flash=0;
   gotoScene('HOOLIGAN_INTRO');
 }
-function hoolEnemySpawn(type,force=false){
+// angOverride/distOverride let a set-piece (pack, dual-elite) place a
+// cluster of spawns at a shared bearing instead of each one picking its
+// own random ring position — everything else about the enemy is unchanged
+function hoolEnemySpawn(type,force=false,angOverride,distOverride){
   const h=S.hool; if(!h||(!force&&h.enemies.length>=H_MAX_ENEMIES))return;
-  const d=H_ENEMIES[type]||H_ENEMIES.fan, ang=rnd()*6.2832, dist=168+rrange(0,65);
+  const d=H_ENEMIES[type]||H_ENEMIES.fan;
+  const ang=angOverride!=null?angOverride:rnd()*6.2832, dist=distOverride!=null?distOverride:168+rrange(0,65);
   const scale=1+Math.max(0,h.t/60)*.085+Math.max(0,h.wave-1)*.035;
   const e=h.freeEnemies.pop()||{};
   const clubs=H_WAVE_CLUBS[Math.max(0,h.wave-1)]||H_WAVE_CLUBS[H_WAVE_CLUBS.length-1];
@@ -2809,24 +2860,114 @@ function hoolRelegate(waveIdx){
 }
 function hoolWave(){const h=S.hool;
   const prevWave = h.wave;
-  h.wave=Math.min(10,Math.floor(h.t/60)+1);h.waveT=h.t%60;h.bossSpawned=false;const w=H_WAVES[h.wave-1]||H_WAVES[9];h.spawnT=0;SFX.crowdRoar(Math.min(1,h.wave/7));hoolBurst(h.x,h.y,H_TEAMS[H_WAVE_TEAMS[h.wave-1]],14);
+  h.wave=Math.min(10,Math.floor(h.t/60)+1);h.waveT=h.t%60;h.bossSpawned=false;
+  const wd=H_WAVES[h.wave-1]||H_WAVES[9];
+  // this wave's set piece (pack/boss/dual_elite/surge/final) hasn't fired
+  // yet — these all reset per wave, not per run
+  h.eventDone=false; h.breathT=0; h.surgeT=0; h.finalBossPending=false; h.finalSurgeDone=false;
+  h.spawnT=0;SFX.crowdRoar(Math.min(1,h.wave/7));hoolBurst(h.x,h.y,H_TEAMS[wd.team],14);
   // the big WAVE N / club banner (drawn in drawHoolRun while h.waveT<2.8)
   // now carries this announcement — no separate toast needed, avoids the
   // two overlapping at the same screen position the instant a wave turns over
   hoolRelegate(prevWave-1);
 }
 function hoolSpawnBoss(){const h=S.hool;if(h.bossSpawned||h.wave<3)return;h.bossSpawned=true;hoolEnemySpawn('hool',true);const e=h.enemies[h.enemies.length-1];if(e){e.r=13;e.hp*=3.8;e.maxhp=e.hp;e.spd*=.72;e.dmg*=1.8;e.boss=true;}pushFeedback(t('hooligan_boss'),C.RED);SFX.tootToot();S.shake=4;}
+// a tight cluster of enemies at a shared bearing — the "pack" set piece.
+// force:true (like hoolSpawnBoss) since this is only ever 2-3 enemies and
+// is meant to be a guaranteed dramatic beat, not silently dropped near the cap
+function hoolSpawnPack(types,count){
+  const h=S.hool; if(!h||!types||!types.length) return;
+  const baseAng=rnd()*6.2832;
+  for(let i=0;i<count;i++){
+    const ang=baseAng+(i-(count-1)/2)*.16, dist=160+rrange(0,30);
+    hoolEnemySpawn(types[i%types.length],true,ang,dist);
+  }
+}
+// two elites at once — a scaled-up 'hool' if the wave's roster has reached
+// hool yet, otherwise a beefed bruiser/charger. Flagged .boss so they read
+// visually as elite (gold glow + BOSS label); a real 'hool' still drops its
+// usual chest on death via the existing type==='hool' path in hoolHitEnemy
+function hoolSpawnDualElite(){
+  const h=S.hool; if(!h) return;
+  const wd=H_WAVES[h.wave-1]||H_WAVES[9];
+  const clubs=H_WAVE_CLUBS[Math.max(0,h.wave-1)]||[];
+  const baseType=wd.types.includes('hool') ? 'hool' : (rnd()<.5?'bruiser':'charger');
+  const baseAng=rnd()*6.2832;
+  for(let i=0;i<2;i++){
+    const ang=baseAng+(i===0?-.5:.5), dist=170+rrange(0,30);
+    hoolEnemySpawn(baseType,true,ang,dist);
+    const e=h.enemies[h.enemies.length-1];
+    if(e){
+      const mult=1.8+rnd()*.4;
+      e.hp*=mult; e.maxhp=e.hp; e.r*=1.25; e.dmg*=1.3; e.boss=true;
+      if(clubs.length>1) e.clubId=clubs[i%clubs.length];   // different kits when the wave has two clubs
+    }
+  }
+  pushFeedback(t('hooligan_dual_elite'),C.RED);
+  SFX.tootToot(); S.shake=Math.max(S.shake,3);
+}
+// wave 10's own boss — stronger than the regular mid-run boss scaling
+function hoolSpawnFinalBoss(){
+  const h=S.hool; if(!h) return;
+  hoolEnemySpawn('hool',true);
+  const e=h.enemies[h.enemies.length-1];
+  if(e){ e.r=16; e.hp*=5.5; e.maxhp=e.hp; e.spd*=.68; e.dmg*=2.1; e.boss=true; }
+  pushFeedback(t('hooligan_final_boss'),C.RED);
+  SFX.tootToot(); S.shake=Math.max(S.shake,5);
+}
+// fires each wave's set piece once, when h.waveT crosses wd.eventAt. Wave
+// 10 ('final') has a second, independent trigger at wd.surgeAt for the
+// full-time push, and its breather is deliberately gated on the boss's
+// death rather than firing the instant it spawns (see hoolUpdateRun).
+function hoolWaveEvent(wd){
+  const h=S.hool; if(!h) return;
+  if (wd.event && wd.event!=='none' && !h.eventDone && h.waveT>=wd.eventAt){
+    h.eventDone=true;
+    if (wd.event==='boss'){
+      hoolSpawnBoss(); h.breathT=wd.breathAfter||0;
+    } else if (wd.event==='pack'){
+      hoolSpawnPack(wd.packTypes||['bruiser'], wd.packCount||2);
+      pushFeedback(t('hooligan_pack_in'),C.ORANGE);
+      h.breathT=wd.breathAfter||0;
+    } else if (wd.event==='dual_elite'){
+      hoolSpawnDualElite(); h.breathT=wd.breathAfter||0;
+    } else if (wd.event==='surge'){
+      h.surgeT=wd.surgeFor||8;
+      pushFeedback(t('hooligan_surge'),C.RED); SFX.tootToot();
+    } else if (wd.event==='final'){
+      hoolSpawnFinalBoss(); h.finalBossPending=true;
+    }
+  }
+  if (wd.event==='final' && wd.surgeAt!=null && !h.finalSurgeDone && h.waveT>=wd.surgeAt){
+    h.finalSurgeDone=true; h.surgeT=wd.surgeFor||20;
+    pushFeedback(t('hooligan_surge'),C.RED); SFX.tootToot(); S.shake=Math.max(S.shake,3);
+  }
+}
 function hoolUpdateRun(dt){
   const h=S.hool;if(!h)return;
   h.t+=dt;h.waveT=h.t%60;h.invuln=Math.max(0,h.invuln-dt);h.hitFlash=Math.max(0,h.hitFlash-dt);h.shake=Math.max(0,h.shake-dt*4);
   const targetWave=Math.min(10,Math.floor(h.t/60)+1);if(targetWave!==h.wave)hoolWave();
-  if(h.waveT>28&&h.waveT<30&&h.wave>=3)hoolSpawnBoss();
-  const wd=H_WAVES[h.wave-1]||H_WAVES[9];h.spawnT-=dt;
+  const wd=H_WAVES[h.wave-1]||H_WAVES[9];
+  hoolWaveEvent(wd);
+  h.spawnT-=dt;
   const density=Math.min(2.8,1+h.t/95);
-  while(h.spawnT<=0&&h.enemies.length<H_MAX_ENEMIES){h.spawnT+=wd.interval/density;const type=wd.types[rint(0,wd.types.length-1)];hoolEnemySpawn(type);if(rnd()<Math.min(.35,h.t/240))hoolEnemySpawn(type);}
-  // Maintain the wave's minimum quota, but only add a few per tick so a sudden
-  // camera move never creates a giant CPU spike.
-  for(let q=0;q<4&&h.enemies.length<Math.min(H_MAX_ENEMIES,wd.min);q++) hoolEnemySpawn(wd.types[rint(0,wd.types.length-1)]);
+  if (h.breathT>0){
+    // just had a set piece — a real lull, not another ramp: no quota top-up,
+    // spawns run at half rate, no bonus double-spawn roll
+    h.breathT=Math.max(0,h.breathT-dt);
+    while(h.spawnT<=0&&h.enemies.length<H_MAX_ENEMIES){h.spawnT+=wd.interval*2;const type=wd.types[rint(0,wd.types.length-1)];hoolEnemySpawn(type);}
+  } else if (h.surgeT>0){
+    h.surgeT=Math.max(0,h.surgeT-dt);
+    if (h.surgeT<=0) h.breathT=wd.breathAfter||0;   // surge just ended -> straight into its breather
+    const mult=wd.spawnMultDuringEvent||.6;
+    while(h.spawnT<=0&&h.enemies.length<H_MAX_ENEMIES){h.spawnT+=(wd.interval*mult)/density;const type=wd.types[rint(0,wd.types.length-1)];hoolEnemySpawn(type);}
+    for(let q=0;q<4&&h.enemies.length<Math.min(H_MAX_ENEMIES,wd.min);q++) hoolEnemySpawn(wd.types[rint(0,wd.types.length-1)]);
+  } else {
+    while(h.spawnT<=0&&h.enemies.length<H_MAX_ENEMIES){h.spawnT+=wd.interval/density;const type=wd.types[rint(0,wd.types.length-1)];hoolEnemySpawn(type);if(rnd()<Math.min(.35,h.t/240))hoolEnemySpawn(type);}
+    // Maintain the wave's minimum quota, but only add a few per tick so a sudden
+    // camera move never creates a giant CPU spike.
+    for(let q=0;q<4&&h.enemies.length<Math.min(H_MAX_ENEMIES,wd.min);q++) hoolEnemySpawn(wd.types[rint(0,wd.types.length-1)]);
+  }
   // player input: virtual joystick (offset from where the finger went down,
   // not from the player — a real stick, not "walk toward wherever I tapped"),
   // then keyboard, with a soft deadzone and linear ramp to full speed
@@ -2858,6 +2999,9 @@ function hoolUpdateRun(dt){
   if (h.t>=H_WAVES.length*60 && h.wave===H_WAVES.length && !h.wave10Relegated){ h.wave10Relegated=true; hoolRelegate(H_WAVES.length-1); }
   for(const e of h.enemies){const dx=h.x-e.x,dy=h.y-e.y,d=Math.hypot(dx,dy)||1;let spd=e.spd;if(e.charge){e.charge+=dt;if(e.charge>3){spd*=2.25;e.charge=0;hoolBurst(e.x,e.y,C.ORANGE,3);}}e.x+=dx/d*spd*dt;e.y+=dy/d*spd*dt;e.hit=Math.max(0,e.hit-dt);if(e.thrower){e.shotT-=dt;if(e.shotT<=0){e.shotT=2.3;if(h.enemyShots.length<45)h.enemyShots.push({x:e.x,y:e.y,vx:dx/d*38,vy:dy/d*38,life:3,damage:e.dmg*.7});}}const dist=Math.hypot(e.x-h.x,e.y-h.y);if(dist<e.r+H_PLAYER.r&&h.invuln<=0){h.hp-=e.dmg;h.invuln=.45;h.hitFlash=.25;S.shake=2.4;SFX.block();hoolBurst(h.x,h.y,C.RED,4);if(h.hp<=0){h.gameover=true;h.reason='CONTACT';gotoScene('HOOLIGAN_OVER');return;}}}
   {const alive=[];for(const e of h.enemies){if(e.hp>0&&Math.hypot(e.x-h.x,e.y-h.y)<H_DESPAWN_DIST)alive.push(e);else if(h.freeEnemies.length<80)h.freeEnemies.push(e);}h.enemies=alive;}
+  // the wave-10 final boss's own breather only starts once it's actually
+  // dead (and filtered out above), not the moment it spawns (see hoolWaveEvent's 'final' branch)
+  if (h.finalBossPending && !h.enemies.some(e=>e.boss)){ h.finalBossPending=false; h.breathT=wd.breathAfter||0; }
   for(const p of h.enemyShots){p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;if(Math.hypot(p.x-h.x,p.y-h.y)<H_PLAYER.r+4&&h.invuln<=0){h.hp-=p.damage;h.invuln=.45;SFX.wrong();S.shake=2;if(h.hp<=0){h.gameover=true;gotoScene('HOOLIGAN_OVER');return;}}}h.enemyShots=h.enemyShots.filter(p=>p.life>0);
   for(const p of h.projectiles){p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;for(const e of h.enemies){if(e.hp>0&&Math.hypot(e.x-p.x,e.y-p.y)<e.r+4){hoolHitEnemy(e,p.damage);if(p.blast){for(const q of h.enemies)if(q!==e&&Math.hypot(q.x-e.x,q.y-e.y)<p.blast)hoolHitEnemy(q,p.damage*.38);}if(p.bounce>0){p.bounce--;p.vx=-p.vx*.9;p.vy=-p.vy*.9;}else p.life=0;break;}}} {const live=[];for(const p of h.projectiles){if(p.life>0)live.push(p);else if(h.freeProjectiles.length<80)h.freeProjectiles.push(p);}h.projectiles=live;}
   for(const w of h.weapons){w.cdT-=dt;if(w.cdT<=0){const base=H_WEAPONS[w.id];const cd=base.cd*Math.pow(.91,w.level-1)*hoolCooldownMult();w.cdT=cd;hoolFireWeapon({...base,level:w.level,count:1});}}
