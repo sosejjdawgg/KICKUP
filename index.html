@@ -1496,6 +1496,15 @@ function beginKeepyups(cat){
   if (S.cheats.megabucks){ S.ku.rank = 10; S.ku.best = 10; }   // cheat: start already banked
   gotoScene('KU_INTRO');
 }
+// "Play Again" from KU_OVER: same setup as beginKeepyups(), but skips the
+// scene-wipe transition and the KU_INTRO ladder showcase entirely — lands
+// straight on a live timer + question so a replay never sits through
+// animation it's already seen once this session
+function beginKeepyupsInstant(cat){
+  beginKeepyups(cat);
+  gotoScene('KU_PLAY');
+  nextKUQuestion();
+}
 /* The daily is the same run for everybody on a given date: the seed,
    and therefore the pool order and every option shuffle, comes from
    the calendar rather than from Math.random(). */
@@ -2174,7 +2183,9 @@ function tapAt(px, py){
         SEED = (SEED*1664525+1013904223)>>>0;
         // the daily is one attempt a day — a replay is an ordinary run
         S.isDaily = false;
-        transitionTo(()=> beginKeepyups(cat));
+        // no transitionTo() wipe and no KU_INTRO showcase — straight back
+        // into a fresh, live run
+        beginKeepyupsInstant(cat);
         return;
       }
       SEED = (SEED*1664525+1013904223)>>>0;
@@ -4120,20 +4131,33 @@ window.addEventListener('keyup',e=>{H_KEYS[e.key]=false;H_KEYS[e.code]=false;});
 
 function defTap(px,py){
   const h=S.def;if(!h)return;
-  if(S.scene==='DEFENDER_INTRO'){beginDefenderRun();return;}
+  if(S.scene==='DEFENDER_INTRO'){
+    if(DEFENDER_INTRO_BACK&&px>=DEFENDER_INTRO_BACK[0]&&px<=DEFENDER_INTRO_BACK[0]+DEFENDER_INTRO_BACK[2]&&py>=DEFENDER_INTRO_BACK[1]&&py<=DEFENDER_INTRO_BACK[1]+DEFENDER_INTRO_BACK[3]){
+      // no run has actually started yet — undo beginDefender()'s token
+      // transfer rather than calling defEnd(), which would wrongly bank
+      // tokens*20 for a run that never happened
+      SFX.lock(0,true); S.defMeta.tokens+=h.tokens; S.def=null; gotoScene('TITLE'); return;
+    }
+    beginDefenderRun();return;
+  }
   if(S.scene==='DEFENDER_RUN'){
     if(py<52&&px>W-74){defOpenShop();return;}
     if(py<52&&px<70){defEnd();gotoScene('TITLE');return;}
     return;
   }
   if(S.scene==='DEFENDER_LEVELUP'){
+    if(DEFENDER_LEVELUP_BACK&&px>=DEFENDER_LEVELUP_BACK[0]&&px<=DEFENDER_LEVELUP_BACK[0]+DEFENDER_LEVELUP_BACK[2]&&py>=DEFENDER_LEVELUP_BACK[1]&&py<=DEFENDER_LEVELUP_BACK[1]+DEFENDER_LEVELUP_BACK[3]){
+      SFX.lock(0,true); gotoScene('DEFENDER_RUN'); return;
+    }
     for(let i=0;i<h.levelChoices.length;i++){const r=[12+i*69,120,64,118];if(px>=r[0]&&px<=r[0]+r[2]&&py>=r[1]&&py<=r[1]+r[3]){defApplyChoice(h.levelChoices[i]);gotoScene('DEFENDER_RUN');return;}}return;
   }
   if(S.scene==='DEFENDER_SHOP'){
     if(py<60){gotoScene('DEFENDER_RUN');return;}
     const items=defShopItems();for(let i=0;i<items.length;i++){const r=defShopRect(i);if(px>=r[0]&&px<=r[0]+r[2]&&py>=r[1]&&py<=r[1]+r[3]){defBuy(items[i]);return;}}return;
   }
-  if(S.scene==='DEFENDER_OVER'){if(py>315){const again=px<W/2;defEnd();if(again){beginDefender();beginDefenderRun();}else gotoScene('TITLE');}return;}
+  // AGAIN/MENU buttons are drawn at y=238..272 (see drawHoolOver) — the old
+  // py>315 hit zone missed them entirely, well below both buttons
+  if(S.scene==='DEFENDER_OVER'){if(py>=236&&py<=274){const again=px<W/2;defEnd();if(again){beginDefender();beginDefenderRun();}else gotoScene('TITLE');}return;}
 }
 function beginDefenderRun(){const h=S.def;if(!h)return;gotoScene('DEFENDER_RUN');SFX.whistleShort();}
 function drawHoolPlayer(){const h=S.def,kit=playerKit(),blink=h.invuln>0&&Math.floor(S.t*18)%2; if(blink)return;const bob=Math.sin(S.t*7)*.6,x=h.x,y=h.y+bob; b.save();b.globalAlpha=.25; b.fillStyle='#04140b';b.beginPath();b.ellipse(x,y+8,9,3,0,0,6.2832);b.fill();b.restore();
@@ -4464,8 +4488,11 @@ function drawHoolRun(){const h=S.def;
   drawHoolRelegateBanner(h);
   drawHoolJoystick();
 }
-function drawHoolIntro(){drawHoolArena();b.save();b.globalAlpha=.68;rect(0,50,W,H-50,C.INK);b.restore();txt(t('defender_title'),W/2,92,C.GOLD,19,'center');txtFit(t('defender_sub'),W/2,118,C.GOLD2,8,W-40,'center');txt('MOVE ANYWHERE',W/2,157,C.WHITE,9,'center');txt('NO AIM',W/2,173,C.GREY,8,'center');txt('AUTO ATTACK',W/2,189,C.GREY,8,'center');txt('WAVES · XP · LEVELS · DEFENSE',W/2,214,C.GREYDK,7,'center');txt(t('defender_best')+' '+Math.floor(S.defMeta.bestTime/60)+':'+String(Math.floor(S.defMeta.bestTime%60)).padStart(2,'0')+' · '+t('defender_wave')+' '+S.defMeta.bestWave,W/2,250,C.GREY,7,'center');rect(32,292,W-64,32,C.GOLD);rect(33,293,W-66,30,'#2b2005');txt(t('defender_start'),W/2,303,C.GOLD2,10,'center');txt(t('defender_touch'),W/2,345,C.GREYDK,7,'center');}
-function drawHoolLevel(){drawHoolRun();b.save();b.globalAlpha=.82;rect(0,50,W,H-50,C.INK);b.restore();txt(t('defender_level'),W/2,72,C.GOLD,17,'center');txt('LEVEL '+S.def.level,W/2,94,C.WHITE,8,'center');for(let i=0;i<S.def.levelChoices.length;i++){const c=S.def.levelChoices[i],r=[12+i*69,120,64,118];rect(r[0],r[1],r[2],r[3],C.PANELED);rect(r[0]+1,r[1]+1,r[2]-2,r[3]-2,C.PANEL);let title,desc;if(c.kind==='weapon'){const w=H_WEAPONS[c.id];title=w.name;desc='LV '+(defWeapon(c.id)?.level||0)+' → '+(defWeapon(c.id)?.level+1||1);if(!defWeapon(c.id))desc='NEW WEAPON';}else if(c.kind==='passive'){const p=H_PASSIVES[c.id];title=p.name;desc=p.desc;}else if(c.kind==='gold'){title='18 TOKENS';desc='TAKE THE CASH';}else{title=t('defender_heal');desc='RESTORE HP';}txtFit(title,r[0]+r[2]/2,r[1]+12,C.GOLD2,7,r[2]-8,'center');wrapTextClamped(desc,r[2]-12,6,4).forEach((l,j)=>txt(l,r[0]+r[2]/2,r[1]+38+j*9,C.GREY,6,'center'));txt('▸',r[0]+r[2]/2,r[1]+92,C.WHITE,12,'center');}txt('4 CHOICES · PAUSED',W/2,254,C.GREYDK,6,'center');}
+// BACK buttons for the two DEFENDER-mode screens that used to have no exit
+// path short of the DOM settings gear — see defTap() for the tap handling
+let DEFENDER_INTRO_BACK = null, DEFENDER_LEVELUP_BACK = null;
+function drawHoolIntro(){drawHoolArena();b.save();b.globalAlpha=.68;rect(0,50,W,H-50,C.INK);b.restore();txt(t('defender_title'),W/2,92,C.GOLD,19,'center');txtFit(t('defender_sub'),W/2,118,C.GOLD2,8,W-40,'center');txt('MOVE ANYWHERE',W/2,157,C.WHITE,9,'center');txt('NO AIM',W/2,173,C.GREY,8,'center');txt('AUTO ATTACK',W/2,189,C.GREY,8,'center');txt('WAVES · XP · LEVELS · DEFENSE',W/2,214,C.GREYDK,7,'center');txt(t('defender_best')+' '+Math.floor(S.defMeta.bestTime/60)+':'+String(Math.floor(S.defMeta.bestTime%60)).padStart(2,'0')+' · '+t('defender_wave')+' '+S.defMeta.bestWave,W/2,250,C.GREY,7,'center');rect(32,292,W-64,32,C.GOLD);rect(33,293,W-66,30,'#2b2005');txt(t('defender_start'),W/2,303,C.GOLD2,10,'center');txt(t('defender_touch'),W/2,345,C.GREYDK,7,'center');DEFENDER_INTRO_BACK=[W/2-46,392,92,20];rect(DEFENDER_INTRO_BACK[0],DEFENDER_INTRO_BACK[1],92,20,C.PANELED);rect(DEFENDER_INTRO_BACK[0]+1,DEFENDER_INTRO_BACK[1]+1,90,18,C.PANEL);txt('BACK',W/2,398,C.GREY,9,'center');}
+function drawHoolLevel(){drawHoolRun();b.save();b.globalAlpha=.82;rect(0,50,W,H-50,C.INK);b.restore();txt(t('defender_level'),W/2,72,C.GOLD,17,'center');txt('LEVEL '+S.def.level,W/2,94,C.WHITE,8,'center');for(let i=0;i<S.def.levelChoices.length;i++){const c=S.def.levelChoices[i],r=[12+i*69,120,64,118];rect(r[0],r[1],r[2],r[3],C.PANELED);rect(r[0]+1,r[1]+1,r[2]-2,r[3]-2,C.PANEL);let title,desc;if(c.kind==='weapon'){const w=H_WEAPONS[c.id];title=w.name;desc='LV '+(defWeapon(c.id)?.level||0)+' → '+(defWeapon(c.id)?.level+1||1);if(!defWeapon(c.id))desc='NEW WEAPON';}else if(c.kind==='passive'){const p=H_PASSIVES[c.id];title=p.name;desc=p.desc;}else if(c.kind==='gold'){title='18 TOKENS';desc='TAKE THE CASH';}else{title=t('defender_heal');desc='RESTORE HP';}txtFit(title,r[0]+r[2]/2,r[1]+12,C.GOLD2,7,r[2]-8,'center');wrapTextClamped(desc,r[2]-12,6,4).forEach((l,j)=>txt(l,r[0]+r[2]/2,r[1]+38+j*9,C.GREY,6,'center'));txt('▸',r[0]+r[2]/2,r[1]+92,C.WHITE,12,'center');}txt('4 CHOICES · PAUSED',W/2,254,C.GREYDK,6,'center');DEFENDER_LEVELUP_BACK=[W/2-46,282,92,20];rect(DEFENDER_LEVELUP_BACK[0],DEFENDER_LEVELUP_BACK[1],92,20,C.PANELED);rect(DEFENDER_LEVELUP_BACK[0]+1,DEFENDER_LEVELUP_BACK[1]+1,90,18,C.PANEL);txt('BACK',W/2,288,C.GREY,9,'center');}
 function drawHoolShop(){drawHoolRun();b.save();b.globalAlpha=.94;rect(0,50,W,H-50,C.INK);b.restore();txt(t('defender_shop'),W/2,62,C.GOLD,16,'center');txt(t('defender_tokens')+' '+S.def.tokens,W-14,63,C.GOLD2,7,'right');txt(t('defender_buy_defense'),W/2,80,C.GREYDK,6,'center');txt(t('defender_extra'),W/2,88,Math.sin(S.t*7)>0?C.GOLD2:C.GREYDK,5,'center');const items=defShopItems();items.forEach((id,i)=>{const r=defShopRect(i);let label,sub,cost;if(id==='kickball'){label=t('defender_kickball');sub=S.defMeta.kickball?'OWNED · LEVEL UP IN RUN':'AUTO RANGED BALL';cost=28;}else if(id==='throwin'){label=H_CREW.throwin.name;sub='PLANT · TOUCHLINE LOB';cost=H_CREW.throwin.cost;}else if(H_CREW[id]){label=H_CREW[id].name;sub=id==='defense'?'ORBITS YOU · BARGE':H_CREW[id].role==='ball'?'PLANT · RANGED SHOT':'PLANT · SLOW CONE';cost=H_CREW[id].cost;}else{const p=H_PASSIVES[id],own=defPassive(id),lv=own?own.level:0;label=p.name;sub=p.desc;cost=10+lv*8;}const affordable=S.def.tokens>=cost;rect(r[0],r[1],r[2],r[3],affordable?C.GOLD:C.PANELED);rect(r[0]+1,r[1]+1,r[2]-2,r[3]-2,affordable?'#241a06':C.PANEL);txtFit(label,r[0]+8,r[1]+5,affordable?C.GOLD2:C.GREYDK,7,r[2]-58);txtFit(sub,r[0]+8,r[1]+14,C.GREY,5,r[2]-58);txt(String(cost),r[0]+r[2]-8,r[1]+7,affordable?C.GOLD2:C.GREYDK,8,'right');});txt('TAP TOP TO RETURN',W/2,390,C.GREYDK,6,'center');}
 function drawHoolOver(){drawHoolRun();b.save();b.globalAlpha=.84;rect(0,50,W,H-50,C.INK);b.restore();txt(t('defender_gameover'),W/2,102,C.RED,19,'center');
   // name the actual fail channel — "they scored" and "overrun at the net"
