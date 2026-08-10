@@ -486,6 +486,23 @@ Object.assign(SFX,{
     if (role==='drum'){ noise(t,.08,.16,'lowpass',600,1.2); tone(140,t,.004,.10,.12,'sine'); return; }
     if (role==='flag'){ tone(1100,t,.003,.10,.12,'triangle'); tone(1650,t+.02,.003,.08,.08,'square'); return; }
     tone(1800,t,.002,.06,.10,'square');
+  },
+  // the hero sound — clearing a loose ball. Big and satisfying: a low
+  // punch, a bright metallic ring, and a burst of noise on top so it reads
+  // through everything else even mid-wave
+  hoolSmack(){
+    if(!AC) return; const t=AC.currentTime;
+    noise(t,.12,.34,'lowpass',700,1.3);
+    sweepTone(260,60,t,.22,.5,'sine');
+    [1900,2600,3400].forEach((f,i)=> tone(f,t+.006*i,.004,.22,.12,'triangle',i*8));
+    noise(t,.03,.30,'highpass',5200,1);
+  },
+  // ball claimed by a carrier, or a pass landing on a receiver — a light,
+  // low-stakes tick so possession changes are audible without competing
+  // with SMACK
+  hoolBallTouch(){
+    if(!AC) return; const t=AC.currentTime;
+    tone(520,t,.003,.06,.09,'triangle'); noise(t,.03,.08,'bandpass',900,2);
   }
 });
 
@@ -659,8 +676,11 @@ const HOOL_I18N = {
     hooligan_final:'FULL TIME', hooligan_touch:'DRAG TO MOVE', hooligan_shop_open:'SHOP',
     hooligan_defense:'DEFENSE', hooligan_buy_defense:'BUY DEFENSE · GEAR · FOOTBALLS', hooligan_striker:'STRIKER',
     hooligan_throwin:'THROW-IN', hooligan_conceded:'CONCEDED', hooligan_defense_added:'+1 DEFENSE',
-    hooligan_place_hint:'DRAG TO PLACE ON THE TOUCHLINE', hooligan_throwin_placed:'THROW-IN PLACED',
-    hooligan_cancelled:'CANCELLED'},
+    hooligan_place_hint:'PLANT ON THE PITCH', hooligan_throwin_placed:'THROW-IN PLACED',
+    hooligan_cancelled:'CANCELLED',
+    hooligan_planted:'PLANTED!', hooligan_unit_cap:'PITCH IS FULL', hooligan_defense_cap:'BODYGUARD CAP',
+    hooligan_smack:'CLEAR!', hooligan_goal_against:'THEY SCORED', hooligan_balls:'BALLS',
+    hooligan_through_net:'THROUGH NET', hooligan_flooded:'OVERRUN', hooligan_scored_on:'GOAL CONCEDED'},
   fr:{mode_hooligan:'HOOLIGAN', hooligan_title:'MODE HOOLIGAN', hooligan_sub:'SURVIE EN TRIBUNE', hooligan_start:'TOUCHE POUR JOUER', hooligan_move:'BOUGE · AUTO-ATTAQUE', hooligan_level:'NIVEAU', hooligan_choose:'CHOISIS TON CREW', hooligan_shop:'BOUTIQUE', hooligan_buy:'ACHETER', hooligan_extra:'EN REPRENDRE ?', hooligan_crew:'+1 CREW', hooligan_tokens:'JETONS', hooligan_kickball:'BALLON KICK', hooligan_crewman:'MEMBRE', hooligan_pause:'PAUSE', hooligan_resume:'REPRENDRE', hooligan_wave:'VAGUE', hooligan_survive:'SURVÉCU', hooligan_wave_clear:'VAGUE TERMINÉE', hooligan_boss:'BOSS', hooligan_gameover:'TRIBUNE PERDUE', hooligan_again:'REJOUER', hooligan_menu:'MENU', hooligan_upgrade:'AMÉLIORER', hooligan_heal:'+PV', hooligan_speed:'CRAMPONS', hooligan_magnet:'ÉCHARPE', hooligan_damage:'MÉGAPHONE', hooligan_cooldown:'VITESSE', hooligan_hp:'BOUILLON', hooligan_crew_scarf:'CREW ÉCHARPE', hooligan_crew_drum:'BATTEUR', hooligan_crew_flag:'PORTE-DRAPEAU', hooligan_shop_hint:'CREW · ÉQUIPEMENT · BALLONS', hooligan_best:'MEILLEUR', hooligan_kills:'KILLS', hooligan_xp:'XP', hooligan_crew_count:'CREW', hooligan_boss_chest:'COFFRE !', hooligan_gold:'JETONS', hooligan_final:'COUP DE SIFFLET', hooligan_touch:'GLISSE POUR BOUGER', hooligan_shop_open:'BOUTIQUE'},
   es:{mode_hooligan:'HOOLIGAN', hooligan_title:'MODO HOOLIGAN', hooligan_sub:'SUPERVIVENCIA DE GRADA', hooligan_start:'TOCA PARA EMPEZAR', hooligan_move:'MUEVE · AUTOATAQUE', hooligan_level:'SUBIR NIVEL', hooligan_choose:'ELIGE TU CREW', hooligan_shop:'TIENDA', hooligan_buy:'COMPRAR', hooligan_extra:'¿COMPRAR OTRO?', hooligan_crew:'+1 CREW', hooligan_tokens:'FICHAS', hooligan_kickball:'BALÓN KICK', hooligan_crewman:'MIEMBRO', hooligan_pause:'PAUSA', hooligan_resume:'SEGUIR', hooligan_wave:'OLEADA', hooligan_survive:'SOBREVIVIDO', hooligan_wave_clear:'OLEADA SUPERADA', hooligan_boss:'JEFE', hooligan_gameover:'GRADA PERDIDA', hooligan_again:'OTRA VEZ', hooligan_menu:'MENÚ', hooligan_upgrade:'MEJORAR', hooligan_heal:'+PV', hooligan_speed:'BOTAS', hooligan_magnet:'BUFANDA', hooligan_damage:'MEGÁFONO', hooligan_cooldown:'BOTAS RÁPIDAS', hooligan_hp:'CALDO', hooligan_crew_scarf:'CREW BUFANDA', hooligan_crew_drum:'TAMBOR', hooligan_crew_flag:'ABANDERADO', hooligan_shop_hint:'CREW · EQUIPO · BALONES', hooligan_best:'MEJOR', hooligan_kills:'BAJAS', hooligan_xp:'XP', hooligan_crew_count:'CREW', hooligan_boss_chest:'¡COFRE!', hooligan_gold:'FICHAS', hooligan_final:'FINAL', hooligan_touch:'ARRASTRA PARA MOVER', hooligan_shop_open:'TIENDA'},
   de:{mode_hooligan:'HOOLIGAN', hooligan_title:'HOOLIGAN-MODUS', hooligan_sub:'TRIBÜNEN-SURVIVAL', hooligan_start:'TIPPEN ZUM START', hooligan_move:'BEWEGEN · AUTO-ANGRIFF', hooligan_level:'LEVEL UP', hooligan_choose:'CREW WÄHLEN', hooligan_shop:'SHOP', hooligan_buy:'KAUFEN', hooligan_extra:'NOCH EINER?', hooligan_crew:'+1 CREW', hooligan_tokens:'JETONS', hooligan_kickball:'KICK-BALL', hooligan_crewman:'CREW', hooligan_pause:'PAUSE', hooligan_resume:'WEITER', hooligan_wave:'WELLE', hooligan_survive:'ÜBERLEBT', hooligan_wave_clear:'WELLE GESCHAFFT', hooligan_boss:'BOSS', hooligan_gameover:'TRIBÜNE VERLOREN', hooligan_again:'NOCHMAL', hooligan_menu:'MENÜ', hooligan_upgrade:'UPGRADE', hooligan_heal:'+HP', hooligan_speed:'SCHUHE', hooligan_magnet:'SCHAL', hooligan_damage:'MEGAFON', hooligan_cooldown:'SCHNELLE SCHUHE', hooligan_hp:'BRÜHE', hooligan_crew_scarf:'SCHAL-CREW', hooligan_crew_drum:'TROMMLER', hooligan_crew_flag:'FAHNENWEDLER', hooligan_shop_hint:'CREW · GEAR · BÄLLE', hooligan_best:'BEST', hooligan_kills:'KILLS', hooligan_xp:'XP', hooligan_crew_count:'CREW', hooligan_boss_chest:'TRUHE!', hooligan_gold:'JETONS', hooligan_final:'ABPFIFF', hooligan_touch:'ZIEHEN ZUM BEWEGEN', hooligan_shop_open:'SHOP'},
@@ -2583,7 +2603,7 @@ cv.addEventListener('pointermove', e=>{
 cv.addEventListener('pointerup', e=>{
   if (S.scene==='HOOLIGAN_RUN' && S.hool){
     if (S.hool.placeMode && S.hool.placeMode.active){
-      hoolTryPlaceThrowIn();
+      hoolTryPlaceUnit();
       tapDownX=null; tapDownY=null; dragY=null; S.press=null; return;
     }
     S.hool.joystick.active=false;
@@ -2638,7 +2658,7 @@ window.addEventListener('keydown', e=>{
    and periodic waves escalate without ever letting the live entity count
    become an unreadable wall. The theme, names and balance are original.
    ═══════════════════════════════════════════════════════════ */
-const H_MAX_ENEMIES=280, H_MAX_GEMS=420, H_MAX_PROJS=100, H_MAX_FX=90;
+const H_MAX_ENEMIES=280, H_MAX_GEMS=420, H_MAX_PROJS=100, H_MAX_FX=90, H_MAX_BALLS=4;
 const H_ARENA={x:0,y:50,w:W,h:H-50};
 const H_PLAYER={r:7,baseSpeed:48,baseHP:100};
 // the run camera zooms in 33% (visible world scaled to 75% linear size) and
@@ -2670,6 +2690,31 @@ const H_PLAYER_SPAWN = { x:H_PITCH_CX-(H_PITCH_CX-H_PITCH.x0)*0.35, y:H_PITCH_CY
 const H_ENEMY_PRESSURE_RANGE = 46;
 const H_SLOW_MULT = 0.55;   // FLAG BEARER's whistle-cone slow
 function hoolConcedeLimit(wave){ return Math.max(1, Math.floor(20*Math.pow(0.9, Math.max(0,wave-1)))); }
+// planted-tower leash: how far a striker/flag can drift from where it was
+// dropped to chase a target before being pulled back home. THROW-IN ignores
+// this entirely (fully anchored, see hoolUpdateDefenseUnit)
+const H_TOWER_LEASH = 40;
+// valid plant zone for drag-placed units: on the turf, clear of both goal
+// mouths, and not stacked on top of another placed unit. requireTouchline
+// additionally restricts to a band near either long touchline with the
+// centre circle excluded — THROW-IN's own extra rule, since it's meant to
+// look like a real throw-in taker standing off the pitch edge
+function hoolValidPlantSpot(x,y,requireTouchline){
+  // a throw-in taker stands ON or just outside the touchline, so its
+  // vertical bound has to open up past the line the general turf rule
+  // insets from — otherwise the two rules contradict and nothing is valid
+  const yPad = requireTouchline ? -8 : 10;
+  if (x<H_PITCH.x0+16||x>H_PITCH.x1-16||y<H_PITCH.y0+yPad||y>H_PITCH.y1-yPad) return false;
+  if (Math.abs(y-H_PITCH_CY)<H_GOAL_MOUTH_H/2+10 && (x<H_PITCH.x0+40||x>H_PITCH.x1-40)) return false;
+  if (requireTouchline){
+    const nearLine = Math.abs(y-H_PITCH.y0)<26 || Math.abs(y-H_PITCH.y1)<26;
+    if (!nearLine) return false;
+    if (Math.hypot(x-H_PITCH_CX,y-H_PITCH_CY)<60) return false;
+  }
+  const h=S.hool;
+  if (h) for (const c of h.crew){ if(c.id==='defense') continue; if (Math.hypot(c.x-x,c.y-y)<22) return false; }
+  return true;
+}
 // net-chest anchors sit just inside each goal mouth — fixed world points,
 // not solid geometry, so the player/enemies pass through freely
 const H_NET_CHEST_SPOTS = [
@@ -2814,6 +2859,10 @@ function hoolFresh(){
     x:H_PLAYER_SPAWN.x,y:H_PLAYER_SPAWN.y,dx:0,dy:0,invuln:0,hitFlash:0,shake:0,kills:0,tokens:0,gemPull:0,shopOpen:false,levelChoices:[],
     weapons:[{id:'shoulder',level:1,cdT:.25}], passives:[], crew:[], enemies:[],gems:[],projectiles:[],enemyShots:[],particles:[],bosses:[],flashes:[],shockwaves:[],
     freeEnemies:[],freeGems:[],freeProjectiles:[],
+    // possession balls (see hoolSpawnBall/hoolUpdateRun's ball loop) — wave 1
+    // keeps exactly one alive at a time (ballBarrage stays false); ballSpawnT
+    // gates the wave 2+ barrage spawner
+    balls:[],freeBalls:[],ballSpawnT:1.5,ballBarrage:false,
     // slide-tackle facing when standing still; wall-weapon shield window +
     // its reflect damage; half-time orange's regen tick — all reset per run
     faceAng:0, wallT:0, wallDmg:0, staminaT:0,
@@ -2855,9 +2904,6 @@ function beginHooligan(){
   S.crowdHype=.35; S.gloom=0; S.shake=0; S.flash=0;
   gotoScene('HOOLIGAN_INTRO');
 }
-// angOverride/distOverride let a set-piece (pack, dual-elite) place a
-// cluster of spawns at a shared bearing instead of each one picking its
-// own random ring position — everything else about the enemy is unchanged
 // yOverride lets a set-piece (pack, dual-elite) cluster spawns at a shared
 // height along the enemy net's mouth instead of each picking an independent
 // random spot — everything else about the enemy is unchanged. Every enemy
@@ -2875,8 +2921,29 @@ function hoolEnemySpawn(type,force=false,yOverride){
   const x = H_ENEMY_NET_X + rrange(-8,4);
   Object.assign(e,{type,clubId,x,y,r:d.r,hp:d.hp*scale,maxhp:d.hp*scale,spd:d.spd*(1+Math.max(0,h.t/90)*.10),dmg:d.dmg*(1+h.wave*.035),col:d.col,xp:d.xp,gold:d.gold,hit:0,charge:0,shotT:rrange(1.2,2.7),boss:false,
     stunT:0,knockT:0,knockVX:0,knockVY:0,slowT:0,
-    state:'exit',exitT:0,exitDur:rrange(0.4,0.8),spreadAng:(rnd()-0.5)*1.4});
+    state:'exit',exitT:0,exitDur:rrange(0.4,0.8),spreadAng:(rnd()-0.5)*1.4,
+    // possession AI (see hoolUpdateRun's ball-aware aim selection): pState
+    // is the ball-related behaviour layered on top of state/exit-field;
+    // carryingBall is a direct ref to the ball this enemy is holding
+    pState:'advance',onBallT:0,carryingBall:null});
   h.enemies.push(e);
+}
+// The possession ball. Lives entirely in h.balls; state drives everything
+// else (movement, drawing, collision):
+//   loose   — rolling free, claimable by a nearby enemy, clearable by the
+//             player/a Defense unit on contact
+//   carried — glued to an enemy's carryingBall ref, drawn at a facing-offset
+//   pass    — flying toward a chosen teammate receiver
+//   shot    — flying toward the player's goal — reaching it is a GOAL
+//   cleared — the SMACK arc-out: a short, fast, fading flight with no
+//             collision, purely the "you just dealt with this" beat
+// x/y spawn near the enemy net/half, same idea as hoolEnemySpawn
+function hoolSpawnBall(x,y){
+  const h=S.hool; if(!h||h.balls.length>=H_MAX_BALLS) return null;
+  const b=h.freeBalls.pop()||{};
+  Object.assign(b,{x,y,vx:0,vy:0,state:'loose',carrier:null,target:null,bobT:rnd()*6.2832,spin:0,claimCd:.35,clearT:0,arcHeight:0,r:4});
+  h.balls.push(b);
+  return b;
 }
 function hoolGem(x,y,xp){const h=S.hool;if(h.gems.length>=H_MAX_GEMS)return;const g=h.freeGems.pop()||{};Object.assign(g,{x,y,xp,col:xp>=5?C.RED:xp>=2?C.GREEN:C.BLUE,r:xp>=5?3.2:2.2,p:0});h.gems.push(g);}
 function hoolBurst(x,y,col,n=5){const h=S.hool;if(!h)return;for(let i=0;i<n&&h.particles.length<H_MAX_FX;i++){const a=rnd()*6.2832,sp=18+rnd()*48;h.particles.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,t:0,d:.25+rnd()*.45,col});}}
@@ -2926,10 +2993,52 @@ function hoolSpawnProjectile(props){
 // so a mob of fans still feels light while a bruiser/charger/thrower clear
 // lands with real weight, and the boss layers on top of its existing chest cue
 function hoolTier(e){ return e.type==='hool' ? 'boss' : (e.type==='bruiser'||e.type==='charger'||e.type==='thrower') ? 'mid' : 'small'; }
+// forces a carried ball loose — carrier dying, a barge tackle, or (via
+// hoolHitEnemy) plain damage all route through here so there's exactly one
+// place that resets the carrier link and scatters the ball
+function hoolDropBall(ball,scatter){
+  if(!ball) return;
+  // the carrier<->ball link is two-way; clearing only one side leaves an
+  // enemy permanently "holding" a ball it no longer has, which locks it out
+  // of ever claiming another one
+  if (ball.carrier){ ball.carrier.carryingBall=null; if(ball.carrier.pState==='on_ball') ball.carrier.pState='press'; }
+  ball.state='loose'; ball.carrier=null; ball.target=null; ball.claimCd=.3;
+  const a=rnd()*6.2832, sp=scatter||30;
+  ball.vx=Math.cos(a)*sp; ball.vy=Math.sin(a)*sp;
+}
+// the SMACK clear — the hero verb. dirX/dirY is where the ball came FROM
+// (player/unit position), so it launches away from them; 'cleared' balls
+// have no collision and just fly off to fade, then get recycled
+function hoolClearBall(ball,fromX,fromY){
+  const h=S.hool; if(!h||ball.state==='cleared') return;
+  const dx=ball.x-fromX, dy=ball.y-fromY, d=Math.hypot(dx,dy)||1;
+  if (ball.carrier){ ball.carrier.carryingBall=null; if(ball.carrier.pState==='on_ball') ball.carrier.pState='press'; }
+  ball.state='cleared'; ball.carrier=null; ball.target=null;
+  ball.vx=(dx/d)*130+rrange(-20,20); ball.vy=(dy/d)*130+rrange(-20,20);
+  ball.clearT=0; ball.arcHeight=0;
+  hoolBurst(ball.x,ball.y,C.WHITE,10);
+  h.shockwaves.push({x:ball.x,y:ball.y,t:0,life:.3,rMax:26,col:C.GOLD});
+  SFX.hoolSmack(); S.shake=Math.max(S.shake,3.2); S.flash=Math.max(S.flash||0,.08);
+  pushFeedback(t('hooligan_smack'),C.GOLD2);
+}
+// a projectile or heavy contact knocking a ball out of pass/shot flight —
+// same idea as a drop, but the ball keeps most of its momentum, deflected
+function hoolDeflectBall(ball,fromAng){
+  if (ball.carrier){ ball.carrier.carryingBall=null; if(ball.carrier.pState==='on_ball') ball.carrier.pState='press'; }
+  ball.state='loose'; ball.carrier=null; ball.target=null; ball.claimCd=.3;
+  const sp=Math.hypot(ball.vx,ball.vy)*.6+20;
+  ball.vx=Math.cos(fromAng)*sp; ball.vy=Math.sin(fromAng)*sp;
+  hoolBurst(ball.x,ball.y,C.WHITE,4);
+}
 function hoolHitEnemy(e,damage){e.hp-=damage;e.hit=.08;
   if(!S.reduceMotion){const dmgP=hoolPassive('damage');if(dmgP&&dmgP.level>=3&&rnd()<.05&&S.hool.particles.length<H_MAX_FX)S.hool.particles.push({x:e.x,y:e.y-6,vx:0,vy:-20,t:0,d:.3,col:C.ORANGE});}
+  // any real hit on a carrier has a damage-scaled chance to force a drop —
+  // shared by every damage source (weapons, tower fire, barge) since they
+  // all funnel through this one function
+  if(e.carryingBall && rnd()<Math.min(.85,damage/28)) hoolDropBall(e.carryingBall, 45);
   if(e.hp<=0){
   const h=S.hool;h.kills++;h.tokens+=e.gold||1;hoolGem(e.x,e.y,e.xp||1);
+  if(e.carryingBall) hoolDropBall(e.carryingBall, 45);
   const tier=hoolTier(e);
   hoolBurst(e.x,e.y,e.col,tier==='boss'?22:tier==='mid'?10:6);
   if(h.flashes.length<40) h.flashes.push({x:e.x,y:e.y,t:0,tier});
@@ -3109,13 +3218,23 @@ function hoolUpdateDefenseUnit(c, dt){
       else if (d<pref-12){ desiredX=c.x-(target.x-c.x)*.4; desiredY=c.y-(target.y-c.y)*.4; }
     }
   } else {
-    // no threat in range: drift back toward the player, with a slow idle
-    // orbit once close enough — combat (above) always overrides this
     c.state='idle';
-    const dPlayer=Math.hypot(h.x-c.x,h.y-c.y), idleR=hoolCrewRadius(h);
-    if (dPlayer>idleR+8){ desiredX=h.x; desiredY=h.y; }
-    else { c.ang=(c.ang||0)+dt*.5; desiredX=h.x+Math.cos(c.ang)*idleR; desiredY=h.y+Math.sin(c.ang)*idleR; }
+    if (c.planted){
+      // a planted tower's rest position is where you dropped it, not the
+      // player — it holds the ground it was placed on
+      desiredX=c.homeX; desiredY=c.homeY;
+    } else {
+      // DEFENSE (the bodyguard) is the only role that follows: drift back
+      // toward the player, with a slow idle orbit once close enough
+      const dPlayer=Math.hypot(h.x-c.x,h.y-c.y), idleR=hoolCrewRadius(h);
+      if (dPlayer>idleR+8){ desiredX=h.x; desiredY=h.y; }
+      else { c.ang=(c.ang||0)+dt*.5; desiredX=h.x+Math.cos(c.ang)*idleR; desiredY=h.y+Math.sin(c.ang)*idleR; }
+    }
   }
+  // planted towers may step off their spot to engage, but only on a short
+  // leash — past it they're pulled straight back home so a tower line never
+  // slowly migrates across the pitch chasing targets
+  if (c.planted && Math.hypot(c.x-c.homeX,c.y-c.homeY)>H_TOWER_LEASH){ desiredX=c.homeX; desiredY=c.homeY; }
   const dx=desiredX-c.x, dy=desiredY-c.y, dd=Math.hypot(dx,dy);
   const maxSpd=44, accel=260;
   const wantVX = dd>2 ? dx/dd*maxSpd : 0, wantVY = dd>2 ? dy/dd*maxSpd : 0;
@@ -3265,6 +3384,104 @@ function hoolWaveEvent(wd){
     pushFeedback(t('hooligan_surge'),C.RED); SFX.tootToot(); S.shake=Math.max(S.shake,3);
   }
 }
+// Ball-aware enemy brain. Returns the point this enemy wants to move toward
+// this frame (plus a speed multiplier), and drives the carrier's periodic
+// drive/pass/hold/shoot decision. Deliberately a small weighted state
+// machine rather than real tactics — at 288x432 anything subtler is
+// invisible, and the read we want is "a travelling knot of kits around the
+// ball", not a simulation.
+function hoolEnemyAim(e,dt){
+  const h=S.hool;
+  // ── carrier: decide what to do with it every onBallT seconds ──
+  if (e.carryingBall){
+    e.pState='on_ball';
+    e.onBallT-=dt;
+    // how boxed-in the carrier is right now — drives hold vs drive vs shoot
+    let pressure=0;
+    if (Math.hypot(h.x-e.x,h.y-e.y)<52) pressure++;
+    for (const c of h.crew){ if(Math.hypot(c.x-e.x,c.y-e.y)<52) pressure++; }
+    const distToGoal=Math.hypot(H_PLAYER_GOAL.x-e.x,H_PLAYER_GOAL.y-e.y);
+    if (e.onBallT<=0){
+      e.onBallT=rrange(.4,.7);
+      // late waves get greedier: more driving and speculative shooting,
+      // less patient holding
+      const aggression=Math.min(1,(h.wave-1)/7);
+      if (distToGoal<130 && rnd()<.25+aggression*.45){
+        // speculative shot at the mouth
+        const ball=e.carryingBall;
+        const ty=H_PITCH_CY+rrange(-H_GOAL_MOUTH_H*.3,H_GOAL_MOUTH_H*.3);
+        const dx=H_PLAYER_GOAL.x-ball.x, dy=ty-ball.y, d=Math.hypot(dx,dy)||1;
+        ball.carrier=null; e.carryingBall=null;
+        ball.state='shot'; ball.vx=dx/d*135; ball.vy=dy/d*135; ball.target=null;
+        e.pState='advance'; SFX.hoolKick(); hoolBurst(ball.x,ball.y,C.WHITE,4);
+      } else if (pressure>=2 || (pressure>=1 && rnd()<.5-aggression*.3)){
+        // boxed in — look for a teammate in a better spot and lay it off
+        let best=null,bestScore=-1e9;
+        for (const o of h.enemies){
+          if (o===e||o.hp<=0||o.state==='exit'||o.carryingBall) continue;
+          const od=Math.hypot(o.x-e.x,o.y-e.y);
+          if (od>10+40*(1+h.wave*.12)||od<16) continue;
+          // prefer someone further up the pitch (lower x) and less crowded
+          let crowd=Math.hypot(h.x-o.x,h.y-o.y)<50?1:0;
+          for (const c of h.crew) if(Math.hypot(c.x-o.x,c.y-o.y)<50) crowd++;
+          const score=(e.x-o.x)*1.4 - crowd*45 - od*.25;
+          if (score>bestScore){ bestScore=score; best=o; }
+        }
+        if (best){
+          const ball=e.carryingBall;
+          // lead the pass slightly so it looks played into space
+          const tx=best.x+(best.x-e.x)*.12, ty=best.y+(best.y-e.y)*.12;
+          const dx=tx-ball.x, dy=ty-ball.y, d=Math.hypot(dx,dy)||1;
+          ball.carrier=null; e.carryingBall=null;
+          ball.state='pass'; ball.target=best; ball.vx=dx/d*115; ball.vy=dy/d*115;
+          best.pState='receive';
+          e.pState='support'; SFX.hoolBallTouch(); hoolBurst(ball.x,ball.y,C.CHALKDIM,3);
+        }
+      }
+      // otherwise: keep driving (fall through)
+    }
+    if (e.carryingBall){
+      // shield up when swarmed, otherwise run at the goal
+      if (pressure>=2) return { x:e.x+(e.x-h.x)*.3, y:e.y+(e.y-h.y)*.3, spd:.45 };
+      return { x:H_PLAYER_GOAL.x, y:H_PLAYER_GOAL.y, spd:1.05 };
+    }
+  }
+  // ── find the most interesting ball for this enemy ──
+  let loose=null,looseD=1e9, carriedBy=null;
+  for (const ball of h.balls){
+    if (ball.state==='cleared') continue;
+    if (ball.state==='carried'){ carriedBy=ball.carrier; continue; }
+    if (ball.state==='loose'||ball.state==='pass'){
+      const d=Math.hypot(ball.x-e.x,ball.y-e.y);
+      if (d<looseD){ looseD=d; loose=ball; }
+    }
+  }
+  // a pass aimed at me: go meet it
+  if (e.pState==='receive'){
+    for (const ball of h.balls) if (ball.state==='pass'&&ball.target===e){ return {x:ball.x,y:ball.y,spd:1.15}; }
+    e.pState='advance';
+  }
+  // press a loose ball that's genuinely near me
+  if (loose && looseD<110){ e.pState='press'; return {x:loose.x,y:loose.y,spd:1.12}; }
+  // teammate has it: form the travelling support knot — a loose arc BEHIND
+  // the ball (goal-side is "in front", so behind = toward the enemy net)
+  if (carriedBy && carriedBy!==e){
+    const d=Math.hypot(carriedBy.x-e.x,carriedBy.y-e.y);
+    if (d<150){
+      e.pState='support';
+      // deterministic per-enemy offset so the cloud holds a stable shape
+      // instead of every unit fighting for the same spot
+      const slot=((Math.abs(Math.floor(e.spreadAng*1000))%3)-1);
+      return { x:carriedBy.x+26+Math.abs(slot)*10, y:carriedBy.y+slot*30, spd:.95 };
+    }
+  }
+  // ── nothing ball-related: the pre-existing pressure/goal-drive behaviour ──
+  e.pState='advance';
+  let aimX=h.x, aimY=h.y, bestD=Math.hypot(h.x-e.x,h.y-e.y);
+  for (const c of h.crew){ const cd=Math.hypot(c.x-e.x,c.y-e.y); if(cd<bestD){bestD=cd;aimX=c.x;aimY=c.y;} }
+  if (bestD>=H_ENEMY_PRESSURE_RANGE){ aimX=H_PLAYER_GOAL.x; aimY=H_PLAYER_GOAL.y; }
+  return {x:aimX,y:aimY,spd:1};
+}
 function hoolUpdateRun(dt){
   const h=S.hool;if(!h)return;
   h.t+=dt;h.waveT=h.t%60;h.invuln=Math.max(0,h.invuln-dt);h.hitFlash=Math.max(0,h.hitFlash-dt);h.shake=Math.max(0,h.shake-dt*4);
@@ -3289,6 +3506,19 @@ function hoolUpdateRun(dt){
     // Maintain the wave's minimum quota, but only add a few per tick so a sudden
     // camera move never creates a giant CPU spike.
     for(let q=0;q<4&&h.enemies.length<Math.min(H_MAX_ENEMIES,wd.min);q++) hoolEnemySpawn(wd.types[rint(0,wd.types.length-1)]);
+  }
+  // ── possession balls ──────────────────────────────────────────────
+  // Wave 1 is the teaching wave: exactly ONE ball alive at a time, so the
+  // whole verb (chase carrier -> tackle -> SMACK) is legible with nothing
+  // else competing. Wave 2+ opens the barrage up to a wave-scaled cap.
+  h.ballBarrage = h.wave>=2;
+  const ballTarget = h.ballBarrage ? Math.min(H_MAX_BALLS, 1+Math.floor(h.wave/3)+1) : 1;
+  h.ballSpawnT-=dt;
+  if (h.balls.length<ballTarget && h.ballSpawnT<=0){
+    // enter from the enemy half, just off their net, so possession always
+    // starts on their side and has to be carried the length of the pitch
+    hoolSpawnBall(H_ENEMY_NET_X-rrange(18,48), H_PITCH_CY+rrange(-70,70));
+    h.ballSpawnT = h.ballBarrage ? rrange(3.5,6) : 1.2;
   }
   // Shoulder Barge owns h.x/h.y for its lunge-shove-return duration; while
   // it's running, skip joystick/keyboard input entirely so the jolt reads
@@ -3358,13 +3588,12 @@ function hoolUpdateRun(dt){
       e.stunT=Math.max(0,e.stunT-dt);
       dx=h.x-e.x; dy=h.y-e.y; d=Math.hypot(dx,dy)||1;
     } else {
-      // priority: pressure whichever of {player, a Defense unit} is
-      // closest if it's within striking distance, else advance on goal
-      let aimX=h.x, aimY=h.y, bestD=Math.hypot(h.x-e.x,h.y-e.y);
-      for (const c of h.crew){ const cd=Math.hypot(c.x-e.x,c.y-e.y); if(cd<bestD){bestD=cd;aimX=c.x;aimY=c.y;} }
-      if (bestD>=H_ENEMY_PRESSURE_RANGE){ aimX=H_PLAYER_GOAL.x; aimY=H_PLAYER_GOAL.y; }
-      dx=aimX-e.x; dy=aimY-e.y; d=Math.hypot(dx,dy)||1;
-      let spd=e.spd*(e.slowT>0?H_SLOW_MULT:1);
+      // ball-aware brain picks the aim point (press / on-ball drive / support
+      // / receive), falling back to the old pressure-or-goal-drive behaviour
+      // when there's no ball worth reacting to
+      const aim=hoolEnemyAim(e,dt);
+      dx=aim.x-e.x; dy=aim.y-e.y; d=Math.hypot(dx,dy)||1;
+      let spd=e.spd*(e.slowT>0?H_SLOW_MULT:1)*aim.spd;
       if(e.charge){e.charge+=dt;if(e.charge>3){spd*=2.25;e.charge=0;hoolBurst(e.x,e.y,C.ORANGE,3);}}
       e.x+=dx/d*spd*dt;e.y+=dy/d*spd*dt;
     }
@@ -3380,14 +3609,114 @@ function hoolUpdateRun(dt){
       if (c.hp<=0||(c.invuln||0)>0) continue;
       if (Math.hypot(e.x-c.x,e.y-c.y)<e.r+8){ c.hp-=e.dmg*.6; c.invuln=.4; hoolBurst(c.x,c.y,C.RED,3); }
     }
-    if (e.state==='field' && e.x<=H_PLAYER_GOAL.x+6 && Math.abs(e.y-H_PITCH_CY)<H_GOAL_MOUTH_H/2+8){
+    // A body through the net is a FLOOD tick — but a body carrying the ball
+    // is a GOAL, and that's resolved in the ball loop below. Without this
+    // guard the enemy loop (which runs first) would kill the carrier as a
+    // flood body, orphan its ball, and the goal would never register.
+    if (e.state==='field' && !e.carryingBall && e.x<=H_PLAYER_GOAL.x+6 && Math.abs(e.y-H_PITCH_CY)<H_GOAL_MOUTH_H/2+8){
       h.conceded++; e.hp=-9999;
-      pushFeedback(t('hooligan_conceded'),C.RED); S.shake=Math.max(S.shake,2); SFX.wrong();
-      if (h.conceded>=hoolConcedeLimit(h.wave)){ h.gameover=true; h.reason='CONCEDED'; gotoScene('HOOLIGAN_OVER'); return; }
+      pushFeedback(t('hooligan_through_net'),C.RED); S.shake=Math.max(S.shake,2); SFX.wrong();
+      if (h.conceded>=hoolConcedeLimit(h.wave)){ h.gameover=true; h.reason='FLOOD'; gotoScene('HOOLIGAN_OVER'); return; }
     }
   }
   {const alive=[];for(const e of h.enemies){if(e.hp>0&&Math.hypot(e.x-h.x,e.y-h.y)<H_DESPAWN_DIST)alive.push(e);else if(h.freeEnemies.length<80)h.freeEnemies.push(e);}h.enemies=alive;}
   { const aliveCrew=[]; for(const c of h.crew){ if(c.hp>0) aliveCrew.push(c); else { hoolBurst(c.x,c.y,H_CREW[c.id].col,10); SFX.hoolClear('mid'); } } h.crew=aliveCrew; }
+  // ── ball possession loop ──────────────────────────────────────────
+  // Runs AFTER the enemy alive-filter so a carrier that just died or
+  // despawned is already gone from h.enemies — a ball still pointing at a
+  // recycled enemy object would otherwise get dragged around by whatever
+  // fresh enemy the pool hands that same reference to next.
+  for (const ball of h.balls){
+    ball.bobT+=dt; ball.claimCd=Math.max(0,ball.claimCd-dt);
+    // a carrier that died/despawned this frame orphans its ball
+    if (ball.carrier && (ball.carrier.hp<=0 || !h.enemies.includes(ball.carrier))) hoolDropBall(ball, 25);
+    if (ball.state==='cleared'){
+      // the SMACK arc-out: fast, rising, then gone. No collision at all.
+      ball.clearT+=dt; ball.x+=ball.vx*dt; ball.y+=ball.vy*dt;
+      ball.vx*=.985; ball.vy*=.985;
+      ball.arcHeight=Math.sin(Math.min(1,ball.clearT/.9)*Math.PI)*26;
+      ball.spin+=dt*14;
+      continue;
+    }
+    if (ball.state==='carried'){
+      const c=ball.carrier;
+      // sit slightly in front of the carrier, in its direction of travel
+      const ang=Math.atan2(H_PLAYER_GOAL.y-c.y, H_PLAYER_GOAL.x-c.x);
+      ball.x=c.x+Math.cos(ang)*(c.r+4); ball.y=c.y+Math.sin(ang)*(c.r+4);
+      ball.spin+=dt*7;
+    } else if (ball.state==='pass'||ball.state==='shot'){
+      ball.x+=ball.vx*dt; ball.y+=ball.vy*dt; ball.spin+=dt*11;
+      if (ball.state==='pass'){
+        const r=ball.target;
+        // a pass whose receiver died mid-flight simply goes loose where it is
+        if (!r || r.hp<=0 || !h.enemies.includes(r)){ ball.state='loose'; ball.target=null; ball.claimCd=.2; }
+        else if (Math.hypot(r.x-ball.x,r.y-ball.y)<r.r+5){ ball.state='loose'; ball.target=null; ball.claimCd=0; }
+      }
+      // friction bleeds a pass/shot out into a loose ball if it never arrives
+      ball.vx*=.995; ball.vy*=.995;
+      if (Math.hypot(ball.vx,ball.vy)<12){ ball.state='loose'; ball.target=null; }
+    } else {
+      // loose: roll with friction
+      ball.x+=ball.vx*dt; ball.y+=ball.vy*dt;
+      ball.vx*=.94; ball.vy*=.94; ball.spin+=dt*Math.hypot(ball.vx,ball.vy)*.08;
+      // keep loose balls on the pitch — bounce off the boundary rather than
+      // letting them trickle into the void and quietly despawn
+      if (ball.x<H_PITCH.x0+4){ ball.x=H_PITCH.x0+4; ball.vx=Math.abs(ball.vx)*.6; }
+      if (ball.x>H_PITCH.x1-4){ ball.x=H_PITCH.x1-4; ball.vx=-Math.abs(ball.vx)*.6; }
+      if (ball.y<H_PITCH.y0+4){ ball.y=H_PITCH.y0+4; ball.vy=Math.abs(ball.vy)*.6; }
+      if (ball.y>H_PITCH.y1-4){ ball.y=H_PITCH.y1-4; ball.vy=-Math.abs(ball.vy)*.6; }
+    }
+    // ── the player's (and orbit Defense's) hero verb: SMACK a loose ball ──
+    if (ball.state==='loose' && Math.hypot(ball.x-h.x,ball.y-h.y)<H_PLAYER.r+ball.r+3){
+      hoolClearBall(ball,h.x,h.y); h.tokens+=2; hoolAddXP(1);
+      continue;
+    }
+    if (ball.state==='loose'){
+      let smacked=false;
+      for (const c of h.crew){
+        if (c.id!=='defense') continue;
+        if (Math.hypot(ball.x-c.x,ball.y-c.y)<10+ball.r){ hoolClearBall(ball,c.x,c.y); smacked=true; break; }
+      }
+      if (smacked) continue;
+    }
+    // ── enemy claims a loose ball ──
+    if (ball.state==='loose' && ball.claimCd<=0){
+      let best=null,bd=26*26;
+      for (const e of h.enemies){
+        if (e.hp<=0||e.state==='exit'||e.stunT>0||e.carryingBall) continue;
+        const d=(e.x-ball.x)*(e.x-ball.x)+(e.y-ball.y)*(e.y-ball.y);
+        if (d<bd){ bd=d; best=e; }
+      }
+      if (best){
+        ball.state='carried'; ball.carrier=best; best.carryingBall=ball;
+        best.pState='on_ball'; best.onBallT=rrange(.4,.7);
+        ball.vx=0; ball.vy=0;
+        SFX.hoolBallTouch();
+      }
+    }
+    // ── GOAL: a carried or struck ball entering the player's net ends it ──
+    if ((ball.state==='carried'||ball.state==='shot') &&
+        ball.x<=H_PLAYER_GOAL.x+4 && Math.abs(ball.y-H_PITCH_CY)<H_GOAL_MOUTH_H/2+4){
+      h.gameover=true; h.reason='GOAL';
+      hoolBurst(ball.x,ball.y,C.RED,26);
+      h.shockwaves.push({x:ball.x,y:ball.y,t:0,life:.5,rMax:44,col:C.RED});
+      SFX.crowdGroan(); SFX.tootToot();
+      S.shake=Math.max(S.shake,6); S.flash=Math.max(S.flash||0,.3);
+      pushFeedback(t('hooligan_goal_against'),C.RED);
+      gotoScene('HOOLIGAN_OVER'); return;
+    }
+  }
+  { const liveBalls=[];
+    for (const ball of h.balls){
+      // cleared balls retire once they've flown their arc; anything that
+      // somehow ends up far outside the world is reclaimed too
+      const gone = (ball.state==='cleared' && ball.clearT>1.1) ||
+                   ball.x<H_WORLD.x0-80 || ball.x>H_WORLD.x1+80 || ball.y<H_WORLD.y0-80 || ball.y>H_WORLD.y1+80;
+      if (!gone) liveBalls.push(ball);
+      else if (h.freeBalls.length<8){ ball.carrier=null; ball.target=null; h.freeBalls.push(ball); }
+    }
+    h.balls=liveBalls;
+  }
   // the wave-10 final boss's own breather only starts once it's actually
   // dead (and filtered out above), not the moment it spawns (see hoolWaveEvent's 'final' branch)
   if (h.finalBossPending && !h.enemies.some(e=>e.boss)){ h.finalBossPending=false; h.breathT=wd.breathAfter||0; }
@@ -3410,6 +3739,16 @@ function hoolUpdateRun(dt){
     }
     if(p.curve){ const ang=Math.atan2(p.vy,p.vx)+p.curve*dt, spd=Math.hypot(p.vx,p.vy); p.vx=Math.cos(ang)*spd; p.vy=Math.sin(ang)*spd; }
     p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;
+    // any shot can cut out a pass or a strike on our goal — a real
+    // interception, and the main way towers contribute to possession
+    for(const ball of h.balls){
+      if((ball.state==='pass'||ball.state==='shot')&&Math.hypot(ball.x-p.x,ball.y-p.y)<ball.r+4){
+        hoolDeflectBall(ball,Math.atan2(p.vy,p.vx));
+        SFX.hoolBallTouch(); S.shake=Math.max(S.shake,1.2);
+        p.life=0; break;
+      }
+    }
+    if(p.life<=0) continue;
     for(const e of h.enemies){
       if(e.hp>0&&!(p.pierceHit&&p.pierceHit.includes(e))&&Math.hypot(e.x-p.x,e.y-p.y)<e.r+4){
         hoolHitEnemy(e,p.damage);
@@ -3437,30 +3776,32 @@ function hoolScreenToWorld(px,py){
   const h=S.hool, camCx=W/2, camCy=H_ARENA.y+(H-H_ARENA.y)/2;
   return { x:(px-camCx)/h.zoom+h.camX, y:(py-camCy)/h.zoom+h.camY };
 }
-// valid plant zone: on/near either touchline, clear of the goal mouths and
-// the centre circle
-function hoolValidThrowInSpot(x,y){
-  const bandDepth=26;
-  const nearLine = Math.abs(y-H_PITCH.y0)<bandDepth || Math.abs(y-H_PITCH.y1)<bandDepth;
-  if (!nearLine) return false;
-  if (x<H_PITCH.x0+18 || x>H_PITCH.x1-18) return false;
-  if (Math.hypot(x-H_PITCH_CX,y-H_PITCH_CY)<60) return false;
+// THROW-IN keeps its extra touchline-only restriction; every other placed
+// role just needs open turf (hoolValidPlantSpot's default mode)
+function hoolValidThrowInSpot(x,y){ return hoolValidPlantSpot(x,y,true); }
+// commits whatever unit place mode was opened for. Any role except DEFENSE
+// (which is the player's orbiting bodyguard and is never planted) goes
+// through here.
+function hoolTryPlaceUnit(){
+  const h=S.hool, pm=h.placeMode; if(!pm) return false;
+  if (!hoolValidPlantSpot(pm.x,pm.y,pm.id==='throwin')) return false;
+  const spec=H_CREW[pm.id];
+  h.tokens-=pm.cost;
+  S.hoolMeta.crew[pm.id]=(S.hoolMeta.crew[pm.id]||0)+1;
+  const lvl=1+Math.floor((S.hoolMeta.crew[pm.id])/3);
+  const hp=spec.baseHp+(lvl-1)*10;
+  h.crew.push({ id:pm.id, x:pm.x, y:pm.y, homeX:pm.x, homeY:pm.y, vx:0, vy:0, ang:0, cdT:.4, level:lvl,
+    phase:rnd()*6.2832, pop:0, faceAng: pm.x<H_PITCH_CX?0:Math.PI, state:'idle', invuln:0,
+    hp, maxhp:hp, anchored:pm.id==='throwin', planted:true, plantT:0 });
+  h.placeMode=null;
+  pushFeedback(t('hooligan_planted'),C.GOLD2); spawnConfetti(12); S.shake=1.8; SFX.hoolCoin(); buzz(35);
+  hoolBurst(pm.x,pm.y,C.CHALKDIM,10);
+  saveGame();
   return true;
 }
-function hoolTryPlaceThrowIn(){
-  const h=S.hool, pm=h.placeMode; if(!pm) return;
-  if (hoolValidThrowInSpot(pm.x,pm.y)){
-    h.tokens-=pm.cost;
-    h.crew.push({ id:'throwin', x:pm.x, y:pm.y, vx:0, vy:0, ang:0, cdT:.4, level:1,
-      phase:rnd()*6.2832, pop:0, faceAng: pm.x<H_PITCH_CX?0:Math.PI, state:'idle', invuln:0,
-      hp:H_CREW.throwin.baseHp, maxhp:H_CREW.throwin.baseHp, anchored:true });
-    h.placeMode=null;
-    pushFeedback(t('hooligan_throwin_placed'),C.GOLD2); spawnConfetti(12); S.shake=1.5; SFX.hoolCoin(); buzz(35);
-    saveGame();
-  }
-  // an invalid release just leaves place mode active for another try —
-  // tapping the HUD strip (see the pointerdown handler) is the one cancel rule
-}
+// kept as a thin alias so older callers/tests naming the throw-in path
+// specifically still resolve to the same generalised commit
+function hoolTryPlaceThrowIn(){ return hoolTryPlaceUnit(); }
 function hoolBuy(kind){
   const h=S.hool,meta=S.hoolMeta;
   if (kind==='kickball'){
@@ -3468,20 +3809,23 @@ function hoolBuy(kind){
     if (h.tokens<28) return false;
     h.tokens-=28; meta.kickball=true; h.weapons.push({id:'kickball',level:1,cdT:0});
     pushFeedback(t('hooligan_kickball'),C.GOLD2);
-  } else if (kind==='throwin'){
-    if (h.crew.filter(c=>c.id==='throwin').length>=2){ pushFeedback('THROW-IN AT CAP',C.GREY); return false; }
-    if (h.tokens<H_CREW.throwin.cost) return false;
-    h.placeMode = { active:true, x:h.x, y:h.y, cost:H_CREW.throwin.cost };
+  } else if (kind==='defense'){
+    // the one orbital role — bought straight into the ring, never planted
+    const spec=H_CREW.defense;
+    if (h.tokens<spec.cost) return false;
+    if (h.crew.filter(c=>c.id==='defense').length>=2){ pushFeedback(t('hooligan_defense_cap'),C.GREY); return false; }
+    h.tokens-=spec.cost; meta.crew.defense=(meta.crew.defense||0)+1;
+    h.crew.push(hoolMakeDefenseUnit('defense', 1+Math.floor(meta.crew.defense/3), 0));
+    pushFeedback(t('hooligan_defense_added'),C.GOLD2); spawnConfetti(10); S.shake=1.5; SFX.hoolCoin(); buzz(35);
+  } else if (H_CREW[kind]){
+    // every other role is a drag-placed tower
+    if (kind==='throwin' && h.crew.filter(c=>c.id==='throwin').length>=2){ pushFeedback(t('hooligan_unit_cap'),C.GREY); return false; }
+    if (h.crew.filter(c=>c.id!=='defense').length>=8){ pushFeedback(t('hooligan_unit_cap'),C.GREY); return false; }
+    if (h.tokens<H_CREW[kind].cost) return false;
+    h.placeMode = { active:true, id:kind, x:h.x, y:h.y, cost:H_CREW[kind].cost };
     gotoScene('HOOLIGAN_RUN');
     pushFeedback(t('hooligan_place_hint'),C.GOLD2);
-    return true;   // token spend happens on actual placement — see hoolTryPlaceThrowIn
-  } else if (H_CREW[kind]){
-    const spec=H_CREW[kind];
-    if (h.tokens<spec.cost) return false;
-    if (h.crew.length>=8){ pushFeedback('DEFENSE AT CAP',C.GREY); return false; }
-    h.tokens-=spec.cost; meta.crew[kind]=(meta.crew[kind]||0)+1;
-    h.crew.push(hoolMakeDefenseUnit(kind, 1+Math.floor(meta.crew[kind]/3), 0));
-    pushFeedback(t('hooligan_defense_added'),C.GOLD2); spawnConfetti(10); S.shake=1.5; SFX.hoolCoin(); buzz(35);
+    return true;   // token spend happens on actual placement — see hoolTryPlaceUnit
   } else if (H_PASSIVES[kind]){
     const p=hoolPassive(kind); if(p&&p.level>=p.max) return false;
     const cost=10+(p?p.level:0)*8; if(h.tokens<cost) return false;
@@ -3778,24 +4122,44 @@ function drawHoolRun(){const h=S.hool;
     else { drawBall(p.x,p.y,4); if(p.curve&&!S.reduceMotion){b.save();b.globalAlpha=.25;line(p.x-p.vx*.05,p.y-p.vy*.05,p.x,p.y,C.WHITE);b.restore();} }
   }
   for(const p of h.enemyShots){circ(p.x,p.y,2.4,C.RED);}
+  // possession balls, drawn above the turf but below the bodies so a
+  // carrier's sprite always reads on top of the ball it's shielding
+  for(const ball of h.balls){
+    const lift = ball.state==='cleared' ? (ball.arcHeight||0)
+               : (S.reduceMotion?0:Math.abs(Math.sin(ball.bobT*6))*(ball.state==='loose'?0.8:1.6));
+    b.save(); b.globalAlpha=.3; b.fillStyle='#04140b';
+    b.beginPath(); b.ellipse(ball.x,ball.y+3,ball.r*(ball.state==='cleared'?1.3:1),ball.r*.42,0,0,6.2832); b.fill(); b.restore();
+    // a shot on our net gets a hostile ring so the threat reads instantly
+    if (ball.state==='shot'){ b.save(); b.globalAlpha=.5+.3*Math.sin(S.t*16); ring(ball.x,ball.y-lift,ball.r+4,C.RED,1.6); b.restore(); }
+    else if (ball.state==='carried'){ b.save(); b.globalAlpha=.42; ring(ball.x,ball.y-lift,ball.r+3,C.GOLD,1.2); b.restore(); }
+    b.save(); b.translate(ball.x,ball.y-lift); b.rotate(ball.spin);
+    drawBall(0,0,ball.r);
+    b.restore();
+  }
   if(h.chest){const k=1+.12*Math.sin(S.t*8);b.save();b.translate(h.chest.x,h.chest.y);b.scale(k,k);rect(-7,-5,14,10,C.GOLD);rect(-6,-4,12,3,'#5a3d08');rect(-2,-2,4,4,C.WHITE);b.restore();}
   for(const e of h.enemies){const kit=hoolClubKit(e.clubId), glow=e.boss?C.GOLD:kit.primary; b.save();b.globalAlpha=.20;circ(e.x,e.y,e.r+3,glow);b.restore();drawHoolEnemy(e);if(e.hp<e.maxhp){rect(e.x-e.r,e.y-e.r-4,e.r*2,2,'#18233a');rect(e.x-e.r,e.y-e.r-4,e.r*2*Math.max(0,e.hp/e.maxhp),2,e.boss?C.GOLD:C.GREEN);}if(e.boss)txt('BOSS',e.x,e.y-e.r-13,C.GOLD2,5,'center');}
   h.crew.forEach((c,idx)=>drawHoolCrewMember(c,idx));
   if(h.wallT>0){b.save();b.globalAlpha=Math.min(.6,h.wallT*.4)+.15*Math.sin(S.t*10);ring(h.x,h.y,11,C.BLUE,1.8);b.restore();}
   drawHoolPlayer();for(const p of h.particles){b.save();b.globalAlpha=Math.max(0,1-p.t/.7);circ(p.x,p.y,1.5,p.col);b.restore();}
   if (h.placeMode && h.placeMode.active){
-    const valid=hoolValidThrowInSpot(h.placeMode.x,h.placeMode.y);
-    b.save(); b.globalAlpha=.55+.15*Math.sin(S.t*8);
-    circ(h.placeMode.x,h.placeMode.y,10,valid?C.GREEN:C.RED);
-    ring(h.placeMode.x,h.placeMode.y,10,valid?C.GREEN:C.RED,1.6);
+    const pm=h.placeMode, spec=H_CREW[pm.id]||H_CREW.throwin;
+    const valid=hoolValidPlantSpot(pm.x,pm.y,pm.id==='throwin');
+    const col=valid?C.GREEN:C.RED;
+    // turf highlight ring under the ghost, then a translucent stand-in of
+    // the actual unit so you can see what you're planting
+    b.save(); b.globalAlpha=.22; circ(pm.x,pm.y,16,col); b.restore();
+    b.save(); b.globalAlpha=.75+.15*Math.sin(S.t*8); ring(pm.x,pm.y,16,col,1.8); b.restore();
+    b.save(); b.globalAlpha=.7;
+    rect(pm.x-3.3,pm.y-3.3,6.6,7,spec.col); circ(pm.x,pm.y-5.5,2.4,SKINS[1]);
     b.restore();
   }
   b.restore();
   drawHoolTerrace();
   drawHoolLadder(h);
   // HUD
-  rect(0,0,W,50,C.INK);rect(0,49,W,1,C.PANELED);txt(t('mode_hooligan'),4,3,C.GOLD,11);txtFit(H_WAVE_NAMES[h.wave-1],4,17,C.GREYDK,5,82);txt('W'+h.wave+' · '+Math.floor(h.t/60)+':'+String(Math.floor(h.t%60)).padStart(2,'0'),W/2,3,C.WHITE,9,'center');txt(String(h.kills),W-4,3,C.GOLD2,12,'right');txt(t('hooligan_kills'),W-4,17,C.GREYDK,5,'right');txt(t('hooligan_defense')+' '+h.crew.length+'/8',W-4,26,C.GREYDK,5,'right');
-  txt(t('hooligan_conceded')+' '+h.conceded+'/'+hoolConcedeLimit(h.wave),150,17,C.RED,5,'center');
+  rect(0,0,W,50,C.INK);rect(0,49,W,1,C.PANELED);txt(t('mode_hooligan'),4,3,C.GOLD,11);txtFit(H_WAVE_NAMES[h.wave-1],4,17,C.GREYDK,5,82);txt('W'+h.wave+' · '+Math.floor(h.t/60)+':'+String(Math.floor(h.t%60)).padStart(2,'0'),W/2,3,C.WHITE,9,'center');txt(String(h.kills),W-4,3,C.GOLD2,12,'right');txt(t('hooligan_kills'),W-4,17,C.GREYDK,5,'right');txt(t('hooligan_defense')+' '+h.crew.length,W-4,26,C.GREYDK,5,'right');
+  txt(t('hooligan_through_net')+' '+h.conceded+'/'+hoolConcedeLimit(h.wave),150,17,C.RED,5,'center');
+  if (h.balls.length) txt(t('hooligan_balls')+' '+h.balls.filter(bl=>bl.state!=='cleared').length,150,25,C.GOLD2,5,'center');
   const hp=Math.max(0,h.hp/h.maxhp);rect(4,22,90,6,C.PANELED);rect(5,23,88*hp,4,hp<.3?C.RED:C.GREEN);txt(Math.ceil(h.hp)+'/'+h.maxhp,4,31,C.GREY,6);txt(t('hooligan_tokens')+' '+h.tokens,106,31,C.GOLD,7);txt('LV '+h.level,190,31,C.WHITE,7);txt('SHOP',W-4,31,C.GOLD2,7,'right');
   if (h.placeMode && h.placeMode.active) txt(t('hooligan_place_hint'),W/2,45,C.GOLD2,5,'center');
   const xp=h.xp/h.nextXp;rect(106,41,150,4,C.PANELED);rect(107,42,148*xp,2,C.GOLD2);
@@ -3812,8 +4176,13 @@ function drawHoolRun(){const h=S.hool;
 }
 function drawHoolIntro(){drawHoolArena();b.save();b.globalAlpha=.68;rect(0,50,W,H-50,C.INK);b.restore();txt(t('hooligan_title'),W/2,92,C.GOLD,19,'center');txtFit(t('hooligan_sub'),W/2,118,C.GOLD2,8,W-40,'center');txt('MOVE ANYWHERE',W/2,157,C.WHITE,9,'center');txt('NO AIM',W/2,173,C.GREY,8,'center');txt('AUTO ATTACK',W/2,189,C.GREY,8,'center');txt('WAVES · XP · LEVELS · DEFENSE',W/2,214,C.GREYDK,7,'center');txt(t('hooligan_best')+' '+Math.floor(S.hoolMeta.bestTime/60)+':'+String(Math.floor(S.hoolMeta.bestTime%60)).padStart(2,'0')+' · '+t('hooligan_wave')+' '+S.hoolMeta.bestWave,W/2,250,C.GREY,7,'center');rect(32,292,W-64,32,C.GOLD);rect(33,293,W-66,30,'#2b2005');txt(t('hooligan_start'),W/2,303,C.GOLD2,10,'center');txt(t('hooligan_touch'),W/2,345,C.GREYDK,7,'center');}
 function drawHoolLevel(){drawHoolRun();b.save();b.globalAlpha=.82;rect(0,50,W,H-50,C.INK);b.restore();txt(t('hooligan_level'),W/2,72,C.GOLD,17,'center');txt('LEVEL '+S.hool.level,W/2,94,C.WHITE,8,'center');for(let i=0;i<S.hool.levelChoices.length;i++){const c=S.hool.levelChoices[i],r=[12+i*69,120,64,118];rect(r[0],r[1],r[2],r[3],C.PANELED);rect(r[0]+1,r[1]+1,r[2]-2,r[3]-2,C.PANEL);let title,desc;if(c.kind==='weapon'){const w=H_WEAPONS[c.id];title=w.name;desc='LV '+(hoolWeapon(c.id)?.level||0)+' → '+(hoolWeapon(c.id)?.level+1||1);if(!hoolWeapon(c.id))desc='NEW WEAPON';}else if(c.kind==='passive'){const p=H_PASSIVES[c.id];title=p.name;desc=p.desc;}else if(c.kind==='gold'){title='18 TOKENS';desc='TAKE THE CASH';}else{title=t('hooligan_heal');desc='RESTORE HP';}txtFit(title,r[0]+r[2]/2,r[1]+12,C.GOLD2,7,r[2]-8,'center');wrapTextClamped(desc,r[2]-12,6,4).forEach((l,j)=>txt(l,r[0]+r[2]/2,r[1]+38+j*9,C.GREY,6,'center'));txt('▸',r[0]+r[2]/2,r[1]+92,C.WHITE,12,'center');}txt('4 CHOICES · PAUSED',W/2,254,C.GREYDK,6,'center');}
-function drawHoolShop(){drawHoolRun();b.save();b.globalAlpha=.94;rect(0,50,W,H-50,C.INK);b.restore();txt(t('hooligan_shop'),W/2,62,C.GOLD,16,'center');txt(t('hooligan_tokens')+' '+S.hool.tokens,W-14,63,C.GOLD2,7,'right');txt(t('hooligan_buy_defense'),W/2,80,C.GREYDK,6,'center');txt(t('hooligan_extra'),W/2,88,Math.sin(S.t*7)>0?C.GOLD2:C.GREYDK,5,'center');const items=hoolShopItems();items.forEach((id,i)=>{const r=hoolShopRect(i);let label,sub,cost;if(id==='kickball'){label=t('hooligan_kickball');sub=S.hoolMeta.kickball?'OWNED · LEVEL UP IN RUN':'AUTO RANGED BALL';cost=28;}else if(id==='throwin'){label=H_CREW.throwin.name;sub=t('hooligan_place_hint');cost=H_CREW.throwin.cost;}else if(H_CREW[id]){label=H_CREW[id].name;sub=H_CREW[id].role==='barge'?'MELEE BARGE':H_CREW[id].role==='ball'?'RANGED SHOT':'SLOW CONE';cost=H_CREW[id].cost;}else{const p=H_PASSIVES[id],own=hoolPassive(id),lv=own?own.level:0;label=p.name;sub=p.desc;cost=10+lv*8;}const affordable=S.hool.tokens>=cost;rect(r[0],r[1],r[2],r[3],affordable?C.GOLD:C.PANELED);rect(r[0]+1,r[1]+1,r[2]-2,r[3]-2,affordable?'#241a06':C.PANEL);txtFit(label,r[0]+8,r[1]+5,affordable?C.GOLD2:C.GREYDK,7,r[2]-58);txtFit(sub,r[0]+8,r[1]+14,C.GREY,5,r[2]-58);txt(String(cost),r[0]+r[2]-8,r[1]+7,affordable?C.GOLD2:C.GREYDK,8,'right');});txt('TAP TOP TO RETURN',W/2,390,C.GREYDK,6,'center');}
-function drawHoolOver(){drawHoolRun();b.save();b.globalAlpha=.84;rect(0,50,W,H-50,C.INK);b.restore();txt(t('hooligan_gameover'),W/2,102,C.RED,19,'center');txt(t('hooligan_final')+' · '+Math.floor(S.hool.t/60)+':'+String(Math.floor(S.hool.t%60)).padStart(2,'0'),W/2,132,C.GREY,8,'center');txt(t('hooligan_wave')+' '+S.hool.wave+' · '+t('hooligan_kills')+' '+S.hool.kills,W/2,151,C.WHITE,9,'center');txt(t('hooligan_tokens')+' '+S.hool.tokens,W/2,168,C.GOLD2,10,'center');txt('SCORE '+S.hool.runScore,W/2,187,C.GOLD,11,'center');rect(28,238,W/2-34,34,C.GOLD);rect(W/2+6,238,W/2-34,34,C.PANELED);txt(t('hooligan_again'),W/4,250,C.GOLD2,8,'center');txt(t('hooligan_menu'),W*3/4,250,C.GREY,8,'center');txt('TAP LEFT / RIGHT',W/2,300,C.GREYDK,6,'center');}
+function drawHoolShop(){drawHoolRun();b.save();b.globalAlpha=.94;rect(0,50,W,H-50,C.INK);b.restore();txt(t('hooligan_shop'),W/2,62,C.GOLD,16,'center');txt(t('hooligan_tokens')+' '+S.hool.tokens,W-14,63,C.GOLD2,7,'right');txt(t('hooligan_buy_defense'),W/2,80,C.GREYDK,6,'center');txt(t('hooligan_extra'),W/2,88,Math.sin(S.t*7)>0?C.GOLD2:C.GREYDK,5,'center');const items=hoolShopItems();items.forEach((id,i)=>{const r=hoolShopRect(i);let label,sub,cost;if(id==='kickball'){label=t('hooligan_kickball');sub=S.hoolMeta.kickball?'OWNED · LEVEL UP IN RUN':'AUTO RANGED BALL';cost=28;}else if(id==='throwin'){label=H_CREW.throwin.name;sub='PLANT · TOUCHLINE LOB';cost=H_CREW.throwin.cost;}else if(H_CREW[id]){label=H_CREW[id].name;sub=id==='defense'?'ORBITS YOU · BARGE':H_CREW[id].role==='ball'?'PLANT · RANGED SHOT':'PLANT · SLOW CONE';cost=H_CREW[id].cost;}else{const p=H_PASSIVES[id],own=hoolPassive(id),lv=own?own.level:0;label=p.name;sub=p.desc;cost=10+lv*8;}const affordable=S.hool.tokens>=cost;rect(r[0],r[1],r[2],r[3],affordable?C.GOLD:C.PANELED);rect(r[0]+1,r[1]+1,r[2]-2,r[3]-2,affordable?'#241a06':C.PANEL);txtFit(label,r[0]+8,r[1]+5,affordable?C.GOLD2:C.GREYDK,7,r[2]-58);txtFit(sub,r[0]+8,r[1]+14,C.GREY,5,r[2]-58);txt(String(cost),r[0]+r[2]-8,r[1]+7,affordable?C.GOLD2:C.GREYDK,8,'right');});txt('TAP TOP TO RETURN',W/2,390,C.GREYDK,6,'center');}
+function drawHoolOver(){drawHoolRun();b.save();b.globalAlpha=.84;rect(0,50,W,H-50,C.INK);b.restore();txt(t('hooligan_gameover'),W/2,102,C.RED,19,'center');
+  // name the actual fail channel — "they scored" and "overrun at the net"
+  // are completely different lessons and the player needs to know which
+  const rsn=S.hool.reason;
+  txt(rsn==='GOAL'?t('hooligan_scored_on'):rsn==='FLOOD'?t('hooligan_flooded'):t('hooligan_gameover'),W/2,124,rsn==='GOAL'?C.GOLD2:C.GREY,8,'center');
+  txt(t('hooligan_final')+' · '+Math.floor(S.hool.t/60)+':'+String(Math.floor(S.hool.t%60)).padStart(2,'0'),W/2,132,C.GREY,8,'center');txt(t('hooligan_wave')+' '+S.hool.wave+' · '+t('hooligan_kills')+' '+S.hool.kills,W/2,151,C.WHITE,9,'center');txt(t('hooligan_tokens')+' '+S.hool.tokens,W/2,168,C.GOLD2,10,'center');txt('SCORE '+S.hool.runScore,W/2,187,C.GOLD,11,'center');rect(28,238,W/2-34,34,C.GOLD);rect(W/2+6,238,W/2-34,34,C.PANELED);txt(t('hooligan_again'),W/4,250,C.GOLD2,8,'center');txt(t('hooligan_menu'),W*3/4,250,C.GREY,8,'center');txt('TAP LEFT / RIGHT',W/2,300,C.GREYDK,6,'center');}
 
 /* ═══════════════════════════════════════════════════════════
    UPDATE — fixed timestep
