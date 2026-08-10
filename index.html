@@ -1355,6 +1355,13 @@ const S = {
     transfers:null, transfersStatus:'idle', transfersErr:'',
     scroll:0, teamPicker:false, teamPickerScroll:0, openItem:null
   },
+  // the title-screen live preview strip — see drawTitleNewsStrip()/
+  // titleStripSlides(). Cycles automatically every 10s, or manually on a
+  // swipe (which also resets the 10s timer so it doesn't immediately flip back)
+  titleStripIdx:0, titleStripT:10,
+  // first-time "choose a team before you can play" gate — see
+  // S.profile.hasChosenTeam (persisted) and the TITLE tap dispatcher
+  teamGateActive:false,
   transition:{ t:0, dur:0, pending:null },
   shareFlashT:0,
   tapFX:null, feedbackQueue:[],
@@ -1601,8 +1608,11 @@ function finishRun(){
   // that trivialise the ladder can't shortcut it either
   const defenderUnlock = !p.defenderUnlocked && ku.won && !ku.tainted;
   if (defenderUnlock) p.defenderUnlocked = true;
+  // SHOOTOUT: same one-clean-£1,000,000-finish gate as DEFENDER above
+  const shootoutUnlock = !p.shootoutUnlocked && ku.won && !ku.tainted;
+  if (shootoutUnlock) p.shootoutUnlocked = true;
   checkMilestoneAch();
-  if (clubUnlock || defenderUnlock) SFX.rankUp();
+  if (clubUnlock || defenderUnlock || shootoutUnlock) SFX.rankUp();
 
   const levelAfter = levelFromXp(p.xp).level;
   S.runSummary = {
@@ -1611,7 +1621,7 @@ function finishRun(){
     xpAtStart: p.xp - total,
     anim: 0,
     newAchs: Object.keys(p.achievements).length - before,
-    clubUnlock, defenderUnlock
+    clubUnlock, defenderUnlock, shootoutUnlock
   };
   saveGame();
 }
@@ -2045,25 +2055,45 @@ function tapAt(px, py){
     case 'CLUBS': handleClubsTap(px, py); return;
     case 'WORLDTEAMS': handleWorldTeamsTap(px, py); return;
     case 'HUB': handleHubTap(px, py); return;
-    case 'TITLE':
-      // edit player, career card, daily, mode toggle, then category grid
-      if (editHit(px, py)){ SFX.lock(0, true); resetCreateShow(); gotoScene('CREATE'); return; }
-      if (PROFILE_RECT && px>=PROFILE_RECT[0] && px<=PROFILE_RECT[0]+PROFILE_RECT[2] &&
-          py>=PROFILE_RECT[1] && py<=PROFILE_RECT[1]+PROFILE_RECT[3]){
-        SFX.lock(0,true); S.profileScroll = 0; gotoScene('PROFILE'); return;
+    case 'TITLE': {
+      // the first-time team-choice gate blocks everything except BACK and
+      // the two team-picking rows — skip straight past edit/profile/daily/
+      // mode-tile handling while it's active
+      if (S.teamGateActive && TEAMGATE_BACK && px>=TEAMGATE_BACK[0] && px<=TEAMGATE_BACK[0]+TEAMGATE_BACK[2] &&
+          py>=TEAMGATE_BACK[1] && py<=TEAMGATE_BACK[1]+TEAMGATE_BACK[3]){
+        S.teamGateActive = false; SFX.lock(0,true); return;
       }
-      if (DAILY_RECT && px>=DAILY_RECT[0] && px<=DAILY_RECT[0]+DAILY_RECT[2] &&
-          py>=DAILY_RECT[1] && py<=DAILY_RECT[1]+DAILY_RECT[3]){
-        SFX.whistleShort(); buzz(20); transitionTo(()=> beginDaily()); return;
+      if (!S.teamGateActive){
+        // edit player, career card, daily, mode toggle
+        if (editHit(px, py)){ SFX.lock(0, true); resetCreateShow(); gotoScene('CREATE'); return; }
+        if (PROFILE_RECT && px>=PROFILE_RECT[0] && px<=PROFILE_RECT[0]+PROFILE_RECT[2] &&
+            py>=PROFILE_RECT[1] && py<=PROFILE_RECT[1]+PROFILE_RECT[3]){
+          SFX.lock(0,true); S.profileScroll = 0; gotoScene('PROFILE'); return;
+        }
+        if (DAILY_RECT && px>=DAILY_RECT[0] && px<=DAILY_RECT[0]+DAILY_RECT[2] &&
+            py>=DAILY_RECT[1] && py<=DAILY_RECT[1]+DAILY_RECT[3]){
+          SFX.whistleShort(); buzz(20); transitionTo(()=> beginDaily()); return;
+        }
+        { const m = modeHit(px, py); if (m){
+            if (m==='DEFENDER' && !S.profile.defenderUnlocked){
+              S.clubHintMsg = 'Win '+curSym()+'1,000,000 in Keepy-Ups to unlock DEFENDER.';
+              S.clubHintT = 2.6; SFX.lock(0,false);
+              return;
+            }
+            if (m==='SHOOTOUT' && !S.profile.shootoutUnlocked){
+              S.clubHintMsg = 'Win '+curSym()+'1,000,000 in Keepy-Ups to unlock SHOOTOUT.';
+              S.clubHintT = 2.6; SFX.lock(0,false);
+              return;
+            }
+            if ((m==='KEEPYUPS' || m==='SHOOTOUT') && !S.profile.hasChosenTeam){
+              S.menuMode = m; S.teamGateActive = true; SFX.lock(0,false);
+              return;
+            }
+            S.menuMode = m; SFX.lock(0, true); if (m==='DEFENDER') { transitionTo(()=>beginDefender()); } return;
+        } }
       }
-      { const m = modeHit(px, py); if (m){
-          if (m==='DEFENDER' && !S.profile.defenderUnlocked){
-            S.clubHintMsg = 'Win '+curSym()+'1,000,000 in Keepy-Ups to unlock DEFENDER.';
-            S.clubHintT = 2.6; SFX.lock(0,false);
-            return;
-          }
-          S.menuMode = m; SFX.lock(0, true); if (m==='DEFENDER') { transitionTo(()=>beginDefender()); } return;
-      } }
+      // world teams / club legends stay reachable whether the gate is
+      // active or not — picking a team here is exactly how the gate clears
       if (WORLDTEAMS_RECT && px>=WORLDTEAMS_RECT[0] && px<=WORLDTEAMS_RECT[0]+WORLDTEAMS_RECT[2] &&
           py>=WORLDTEAMS_RECT[1] && py<=WORLDTEAMS_RECT[1]+WORLDTEAMS_RECT[3]){
         SFX.lock(0,true); gotoScene('WORLDTEAMS'); return;
@@ -2072,13 +2102,15 @@ function tapAt(px, py){
           py>=CLUBS_RECT[1] && py<=CLUBS_RECT[1]+CLUBS_RECT[3]){
         SFX.lock(0,true); S.clubsScroll = 0; gotoScene('CLUBS'); return;
       }
+      if (S.teamGateActive) return;   // gate still up — block the hub strip / career strip / anything else
       if (HUB_RECT && px>=HUB_RECT[0] && px<=HUB_RECT[0]+HUB_RECT[2] &&
           py>=HUB_RECT[1] && py<=HUB_RECT[1]+HUB_RECT[3]){
         SFX.lock(0,true); S.hub.scroll = 0; gotoScene('HUB');
-        fetchFixtures(); fetchNews();
+        fetchFixtures(); fetchNews(); fetchTransfers();
         return;
       }
       return;
+    }
     case 'DEFENDER_INTRO': case 'DEFENDER_RUN': case 'DEFENDER_LEVELUP': case 'DEFENDER_SHOP': case 'DEFENDER_OVER': defTap(px,py); return;
     case 'ROUNDCARD': if (S.sceneT > 0.35){ SFX.whistleShort(); prepShot(); } return;
     case 'QUESTION': {
@@ -2337,11 +2369,13 @@ function freshProfile(){
     wonTeams:[], unlockedCheats:[],    // the cheat vault — see openChest()
     clubsUnlocked: CLUB_STARTERS.slice(), clubUnlockFundsUsed:[], clubsPlayed:[],
     followedTeams:[],                  // News & Fixtures filter, empty = show everyone
-    // DEFENDER mode is locked behind a clean (non-tainted) £1,000,000
-    // Keepy-Ups finish — see finishRun()'s defenderUnlock check
+    // DEFENDER and SHOOTOUT are locked behind a clean (non-tainted)
+    // £1,000,000 Keepy-Ups finish — see finishRun()'s unlock checks
     defenderUnlocked:false,
+    shootoutUnlocked:false,
     bank:0,                            // the player's persistent money bank — see bankAdd()/bankSpend()
-    stripsUnlocked:false               // premium kit-colour pack — see PREMIUM_STRIPS/activePalette()
+    stripsUnlocked:false,              // premium kit-colour pack — see PREMIUM_STRIPS/activePalette()
+    hasChosenTeam:false                // first-time team-gate — see S.teamGateActive
   };
 }
 
@@ -2545,6 +2579,14 @@ function loadGame(){
         else if (typeof v === typeof p[k]) p[k] = v;
       }
     }
+    // saves from before SHOOTOUT/team-gate existed: a clean £1M win already
+    // proved itself via defenderUnlocked, and any prior play at all proves
+    // a team was already chosen — backfill both so returning players never
+    // see either gate fire for the first time on an update
+    if (S.profile.defenderUnlocked) S.profile.shootoutUnlocked = true;
+    if (!d.profile || d.profile.hasChosenTeam === undefined){
+      if (S.profile.teamsPlayed.length>0 || S.profile.clubsPlayed.length>0 || S.profile.runs>0) S.profile.hasChosenTeam = true;
+    }
     if (d.character) Object.assign(S.character, d.character);
     if (typeof d.audioVolume === 'number') S.audioVolume = d.audioVolume;
     if (typeof d.audioMuted === 'boolean') S.audioMuted = d.audioMuted;
@@ -2682,6 +2724,20 @@ cv.addEventListener('pointerup', e=>{
     S.def.joystick.active=false;
     if (tapDownY!==null && tapDownY<52 && tapMoved<TAP_MOVE_THRESHOLD){ tapFeedback(tapDownX,tapDownY,'tap'); tapAt(tapDownX,tapDownY); }
     tapDownX=null; tapDownY=null; dragY=null; S.press=null; return;
+  }
+  // News & Fixtures strip: a horizontal swipe starting inside HUB_RECT
+  // flips the auto-cycling slide instead of opening the full hub — a
+  // plain tap (movement stays under TAP_MOVE_THRESHOLD) still falls
+  // through to the normal tapAt() path below and opens the hub as usual
+  if (S.scene==='TITLE' && HUB_RECT && tapDownX!==null &&
+      tapDownX>=HUB_RECT[0] && tapDownX<=HUB_RECT[0]+HUB_RECT[2] &&
+      tapDownY>=HUB_RECT[1] && tapDownY<=HUB_RECT[1]+HUB_RECT[3]){
+    const [ux,uy] = toBuf(e);
+    const dx = ux - tapDownX, dy = uy - tapDownY;
+    if (Math.abs(dx) > 22 && Math.abs(dx) > Math.abs(dy)){
+      S.titleStripIdx = (S.titleStripIdx+1)%2; S.titleStripT = 10;
+      tapDownX=null;tapDownY=null;dragY=null;S.press=null; return;
+    }
   }
   if(tapDownX!==null&&tapMoved<TAP_MOVE_THRESHOLD){tapFeedback(tapDownX,tapDownY,'tap');tapAt(tapDownX,tapDownY);}
   tapDownX=null;tapDownY=null;dragY=null;S.press=null;
@@ -4433,6 +4489,10 @@ function update(dt){
   if(S.tapFX){S.tapFX.t+=dt;if(S.tapFX.t>.36)S.tapFX=null;}
   for(const f of S.feedbackQueue)f.t+=dt;
   S.clubHintT = Math.max(0, S.clubHintT - dt*0.7);
+  if (S.scene==='TITLE'){
+    S.titleStripT -= dt;
+    if (S.titleStripT <= 0){ S.titleStripIdx = (S.titleStripIdx+1)%2; S.titleStripT = 10; }
+  }
   // momentum scroll: only once the finger's lifted (dragY===null) and there's
   // still some velocity left on the badge grids — decays smoothly to a stop
   // rather than the drag just cutting off dead at release
@@ -6582,8 +6642,21 @@ function drawTitle(){
   // achievements, spent on direct club buys and premium strips
   txtFit('BANK '+fmtMoney(S.profile.bank), W/2, 99, C.GOLD2, 6, 96, 'center');
 
+  // ── news & fixtures — right under the profile card so the live strip is
+  // the first thing you see, before the daily/mode/team rows below ──
+  if (S.hub.fixturesStatus==='idle') fetchFixtures();
+  if (S.hub.newsStatus==='idle') fetchNews();
+  if (S.hub.transfersStatus==='idle') fetchTransfers();
+  const nfy = 108;
+  HUB_RECT = [14, nfy, W-28, 58];
+  rect(14, nfy, W-28, 26, C.PANELED); rect(15, nfy+1, W-30, 24, C.PANEL);
+  drawAchIcon('news', 30, nfy+13, 7, C.GOLD2);
+  txt('NEWS & FIXTURES', 44, nfy+9, C.WHITE, 9);
+  txt('LIVE ▸', W-20, nfy+10, C.GREYDK, 6, 'right');
+  drawTitleNewsStrip(14, nfy+28, W-28, 30);
+
   // ── daily challenge — the reason to open the app tomorrow ──
-  const dy = 118, done = dailyDone(), streak = effectiveDailyStreak();
+  const dy = 176, done = dailyDone(), streak = effectiveDailyStreak();
   DAILY_RECT = done ? null : [14, dy, W-28, 40];
   const glow = 0.5+0.5*Math.sin(S.t*3);
   if (!done){ b.save(); b.globalAlpha = 0.35+glow*0.4; rect(13, dy-1, W-26, 42, C.GOLD2); b.restore(); }
@@ -6601,30 +6674,31 @@ function drawTitle(){
   if (streak > 0) txt('STREAK '+streak, 48, dy+30, C.ORANGE, 6);
 
   // ── free play: pick a mode, then a category group ──
-  txt('FREE PLAY', 14, 168, C.GREYDK, 7);
+  const fpy = 224;
+  txt('FREE PLAY', 14, fpy, C.GREYDK, 7);
   MODE_RECTS = [];
   const modes = [[t('mode_keepyups'),'KEEPYUPS'], [t('mode_shootout'),'SHOOTOUT'], [t('mode_defender'),'DEFENDER']];
+  const modeY = fpy+12;
   modes.forEach(([label,key],i)=>{
-    const w = (W-28-20)/3, h = 22, x = 14 + i*(w+10), y = 180;
-    const locked = key==='DEFENDER' && !S.profile.defenderUnlocked;
+    const w = (W-28-20)/3, h = 22, x = 14 + i*(w+10), y = modeY;
+    const locked = (key==='DEFENDER' && !S.profile.defenderUnlocked) || (key==='SHOOTOUT' && !S.profile.shootoutUnlocked);
     MODE_RECTS.push([x,y,w,h,key]);
     const on = S.menuMode === key && !locked;
     rect(x,y,w,h, locked?C.PANELED:(on?C.GOLD:C.PANELED)); rect(x+1,y+1,w-2,h-2, locked?C.PANEL:(on?'#3a2c06':C.PANEL));
     if (locked){ b.save(); b.globalAlpha=.6; txtFit(label, x+w/2-6, y+7, C.GREYDK, 9, w-24, 'center'); b.restore(); drawPadlock(x+w-11, y+11, 4); }
     else txtFit(label, x+w/2, y+7, on?C.GOLD2:C.GREYDK, 9, w-10, 'center');
   });
-  if (S.menuMode==='DEFENDER' && S.profile.defenderUnlocked) txt('MOVE · AUTO ATTACK · SURVIVE THE TERRACE',W/2,205,C.GOLD2,6,'center');
+  if (S.menuMode==='DEFENDER' && S.profile.defenderUnlocked) txt('MOVE · AUTO ATTACK · SURVIVE THE TERRACE',W/2,modeY+25,C.GOLD2,6,'center');
   if (S.clubHintT > 0 && S.clubHintMsg){
     b.save(); b.globalAlpha = Math.min(1, S.clubHintT);
-    rect(14, 203, W-28, 15, C.PANELED); rect(15, 204, W-30, 13, C.PANEL);
-    txtFit(S.clubHintMsg, W/2, 206, C.GOLD2, 6, W-40, 'center');
+    rect(14, modeY+23, W-28, 15, C.PANELED); rect(15, modeY+24, W-30, 13, C.PANEL);
+    txtFit(S.clubHintMsg, W/2, modeY+26, C.GOLD2, 6, W-40, 'center');
     b.restore();
   }
 
-  // world teams (nations), club legends (clubs), and news & fixtures —
-  // each its own row, opening its own spacious screen rather than being
-  // crammed in here
-  const cgy = 220;
+  // world teams (nations) and club legends (clubs) — each its own row,
+  // opening its own spacious screen rather than being crammed in here
+  const cgy = modeY + 42;
   WORLDTEAMS_RECT = [14, cgy, W-28, 26];
   rect(14, cgy, W-28, 26, C.PANELED); rect(15, cgy+1, W-30, 24, C.PANEL);
   drawAchIcon('globe', 30, cgy+13, 8, C.GOLD2);
@@ -6638,15 +6712,8 @@ function drawTitle(){
   txt('CLUB LEGENDS', 44, cly+9, C.GOLD2, 9);
   txt(unlockedCount+'/'+totalContent+' UNLOCKED ▸', W-20, cly+10, C.GREYDK, 6, 'right');
 
-  const hby = cly + 34;
-  HUB_RECT = [14, hby, W-28, 26];
-  rect(14, hby, W-28, 26, C.PANELED); rect(15, hby+1, W-30, 24, C.PANEL);
-  drawAchIcon('news', 30, hby+13, 7, C.GOLD2);
-  txt('NEWS & FIXTURES', 44, hby+9, C.WHITE, 9);
-  txt('LIVE ▸', W-20, hby+10, C.GREYDK, 6, 'right');
-
   // ── career strip ──
-  const p = S.profile, sy = hby + 34;
+  const p = S.profile, sy = cly + 34;
   rect(14, sy, W-28, 36, C.PANELED); rect(15, sy+1, W-30, 34, C.PANEL);
   const stats = [
     ['BEST', p.bestRank+'/15'],
@@ -6664,6 +6731,24 @@ function drawTitle(){
   const hy = sy + 48;
   txtFit(t('how_perfect'), W/2, hy, C.GOLD2, 7, W-28, 'center');
   txtFit(t('how_wind'), W/2, hy+11, C.ORANGE, 7, W-28, 'center');
+
+  // ── first-time "choose your team" gate — dims everything except
+  // WORLD TEAMS / CLUB LEGENDS, which stay lit and pulse ──
+  if (S.teamGateActive){
+    const topY = cgy, botY = cly+26;
+    b.save(); b.globalAlpha = 0.8; rect(0,0,W,topY,C.INK); rect(0,botY,W,H-botY,C.INK); b.restore();
+    const pulse = 0.5+0.5*Math.sin(S.t*5);
+    b.save(); b.globalAlpha = 0.5+pulse*0.5; b.strokeStyle = C.GOLD2; b.lineWidth = 2;
+    b.strokeRect(12, topY-2, W-24, (botY-topY)+4);
+    b.restore();
+    b.save(); b.globalAlpha = 0.7+pulse*0.3;
+    txtFit('▼ CHOOSE YOUR CLUB HERE ▼', W/2, topY-13, C.GOLD, 8, W-40, 'center');
+    b.restore();
+    TEAMGATE_BACK = [W/2-40, H-28, 80, 20];
+    rect(TEAMGATE_BACK[0], TEAMGATE_BACK[1], TEAMGATE_BACK[2], TEAMGATE_BACK[3], C.PANELED);
+    rect(TEAMGATE_BACK[0]+1, TEAMGATE_BACK[1]+1, TEAMGATE_BACK[2]-2, TEAMGATE_BACK[3]-2, C.PANEL);
+    txt('BACK', W/2, H-22, C.GREY, 8, 'center');
+  }
 }
 
 /* ── career screen: lifetime stats and every badge, earned or not ── */
@@ -6824,6 +6909,7 @@ function drawClubBadge(cx, cy, r, color, initials, locked){
 
 const CLUBS_GRID_TOP = 34, CLUBS_GRID_BOT = 384, CLUBS_COLS = 4, CLUBS_ROWH = 58;
 let CLUBS_BACK = null;
+let TEAMGATE_BACK = null;   // BACK button shown only while S.teamGateActive (TITLE scene)
 /* ── club legends: 51-badge roster, spin-in on entry, drag-to-scroll ── */
 function drawClubsScene(){
   if (!backdrop) makeBackdrop();
@@ -6898,6 +6984,7 @@ function handleClubsTap(px, py){
   if (p.clubsUnlocked.indexOf(club.id) >= 0){
     S.clubBuyConfirm = null;
     SFX.whistleShort(); S.isDaily = false;
+    S.profile.hasChosenTeam = true; S.teamGateActive = false;
     transitionTo(()=> beginKeepyups(club.id));
   } else if (club.hasContent){
     // second tap on the same locked club, with a direct-purchase price
@@ -6960,6 +7047,7 @@ function handleWorldTeamsTap(px, py){
   if (!pick) return;
   SFX.whistleShort();
   S.isDaily = false;
+  S.profile.hasChosenTeam = true; S.teamGateActive = false;
   if (S.menuMode === 'KEEPYUPS') beginKeepyups(pick); else beginMatch(pick);
 }
 
@@ -7153,6 +7241,43 @@ function fixtureLabel(f){
   const day = d.toLocaleDateString(undefined, { weekday:'short', day:'numeric', month:'short' });
   const time = (f.time||'').slice(0,5);
   return day + (time ? '  ·  ' + time : '');
+}
+// the two title-screen strip slides: the soonest fixture, and the single
+// most recent headline across news + transfers combined. Reuses S.hub's
+// own fetched/cached arrays — no separate data path — so results and
+// staleness always match what the full hub screen would show.
+function titleStripSlides(){
+  const fixture = (S.hub.fixtures && S.hub.fixtures[0]) || null;
+  const pool = (S.hub.news||[]).concat(S.hub.transfers||[]);
+  pool.sort((a,b) => new Date(b.pubDate) - new Date(a.pubDate));
+  return [ { kind:'fixture', item:fixture }, { kind:'news', item:pool[0]||null } ];
+}
+function drawTitleNewsStrip(x, y, w, h){
+  const slides = titleStripSlides(), idx = S.titleStripIdx%slides.length, slide = slides[idx];
+  rect(x, y, w, h, C.PANELED); rect(x+1, y+1, w-2, h-2, C.PANEL);
+  if (slide.kind==='fixture'){
+    if (slide.item){
+      const f = slide.item;
+      txtFit(f.home+' vs '+f.away, x+8, y+5, C.WHITE, 8, w-16);
+      txtFit(fixtureLabel(f)+(f.comp?' · '+f.comp:''), x+8, y+16, C.GREYDK, 6, w-16);
+    } else {
+      const msg = S.hub.fixturesStatus==='loading' ? 'Loading fixtures…' : 'No fixtures right now';
+      txtFit(msg, x+w/2, y+h/2-4, C.GREYDK, 6, w-16, 'center');
+    }
+  } else {
+    if (slide.item){
+      const n = slide.item;
+      txtFit(n.title, x+8, y+5, C.WHITE, 7, w-16);
+      txtFit(n.source+' · '+relTime(n.pubDate), x+8, y+16, C.GREYDK, 6, w-16);
+    } else {
+      const msg = (S.hub.newsStatus==='loading'||S.hub.transfersStatus==='loading') ? 'Loading news…' : 'No news right now';
+      txtFit(msg, x+w/2, y+h/2-4, C.GREYDK, 6, w-16, 'center');
+    }
+  }
+  for (let i=0;i<slides.length;i++){
+    const dx = x+w-7-(slides.length-1-i)*7;
+    circ(dx, y+h-5, i===idx?1.5:1, i===idx?C.GOLD2:C.GREYDK);
+  }
 }
 function drawStar(cx, cy, r, filled, col){
   b.save(); b.translate(cx, cy); b.beginPath();
