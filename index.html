@@ -479,6 +479,12 @@ Object.assign(SFX,{
   defThrough(){ if(!AC) return; const t=AC.currentTime; tone(1500,t,.002,.05,.10,'triangle'); sweepTone(500,900,t,.10,.10,'sawtooth'); },
   // falling whip — the curl coming off the boot
   defRabona(){ if(!AC) return; const t=AC.currentTime; sweepTone(700,180,t,.22,.20,'sawtooth'); tone(1200,t+.02,.004,.10,.08,'triangle'); },
+  // a light comedic lob leaving the hand — softer and rounder than the kick
+  // sounds, nothing metallic in it, so it reads as thrown rather than struck
+  defPieThrow(){ if(!AC) return; const t=AC.currentTime; sweepTone(340,520,t,.10,.14,'sine'); noise(t,.03,.06,'highpass',2000,1); },
+  // the payoff: a soft wet splat (filtered noise, no tone) plus a low comedy
+  // thud landing a beat after — the "satisfying" half of the whole weapon
+  defPieSplat(){ if(!AC) return; const t=AC.currentTime; noise(t,.11,.28,'lowpass',600,1.1); noise(t+.01,.05,.14,'bandpass',1400,1.4); tone(120,t+.015,.006,.12,.11,'sine'); },
   // one shared shape, lightly re-pitched per role so scarf/drum/flag shots
   // are tellable apart by ear, not just by colour
   defCrewHit(role){
@@ -663,7 +669,7 @@ const DEF_I18N = {
   en:{mode_defender:'DEFENDER', defender_title:'DEFENDER MODE', defender_sub:'SURVIVE THE TERRACE',
     defender_start:'TAP TO KICK OFF', defender_move:'MOVE · NO AIM · AUTO ATTACK', defender_level:'LEVEL UP',
     defender_choose:'CHOOSE YOUR CREW', defender_shop:'TERRACE SHOP', defender_buy:'BUY', defender_extra:'BUY AN EXTRA?',
-    defender_crew:'+1 CREW', defender_tokens:'TOKENS', defender_kickball:'KICK FOOTBALL', defender_crewman:'CREW MEMBER',
+    defender_crew:'+1 CREW', defender_tokens:'TOKENS', defender_pie:'THROW A PIE', defender_crewman:'CREW MEMBER',
     defender_pause:'PAUSED', defender_resume:'RESUME', defender_wave:'WAVE', defender_survive:'SURVIVED',
     defender_wave_clear:'WAVE CLEAR', defender_boss:'BOSS', defender_gameover:'TERRACE LOST', defender_again:'RUN IT BACK',
     defender_net_chest:'NET CHEST', defender_relegated:'RELEGATED',
@@ -691,10 +697,10 @@ const DEF_I18N = {
     defender_tut_move:'MOVE TO THE BALL', defender_tut_skip:'SKIP', defender_tut_label:'TUTORIAL',
     defender_tut_tap:'TAP TO CONTINUE',
     defender_tut_done:'THAT IS THE JOB!', defender_barged:'BARGED!'},
-  fr:{mode_defender:'DEFENDER', defender_title:'MODE DEFENDER', defender_sub:'SURVIE EN TRIBUNE', defender_start:'TOUCHE POUR JOUER', defender_move:'BOUGE · AUTO-ATTAQUE', defender_level:'NIVEAU', defender_choose:'CHOISIS TON CREW', defender_shop:'BOUTIQUE', defender_buy:'ACHETER', defender_extra:'EN REPRENDRE ?', defender_crew:'+1 CREW', defender_tokens:'JETONS', defender_kickball:'BALLON KICK', defender_crewman:'MEMBRE', defender_pause:'PAUSE', defender_resume:'REPRENDRE', defender_wave:'VAGUE', defender_survive:'SURVÉCU', defender_wave_clear:'VAGUE TERMINÉE', defender_boss:'BOSS', defender_gameover:'TRIBUNE PERDUE', defender_again:'REJOUER', defender_menu:'MENU', defender_upgrade:'AMÉLIORER', defender_heal:'+PV', defender_speed:'CRAMPONS', defender_magnet:'ÉCHARPE', defender_damage:'MÉGAPHONE', defender_cooldown:'VITESSE', defender_hp:'BOUILLON', defender_crew_scarf:'CREW ÉCHARPE', defender_crew_drum:'BATTEUR', defender_crew_flag:'PORTE-DRAPEAU', defender_shop_hint:'CREW · ÉQUIPEMENT · BALLONS', defender_best:'MEILLEUR', defender_kills:'KILLS', defender_xp:'XP', defender_crew_count:'CREW', defender_boss_chest:'COFFRE !', defender_gold:'JETONS', defender_final:'COUP DE SIFFLET', defender_touch:'GLISSE POUR BOUGER', defender_shop_open:'BOUTIQUE'},
-  es:{mode_defender:'DEFENDER', defender_title:'MODO DEFENDER', defender_sub:'SUPERVIVENCIA DE GRADA', defender_start:'TOCA PARA EMPEZAR', defender_move:'MUEVE · AUTOATAQUE', defender_level:'SUBIR NIVEL', defender_choose:'ELIGE TU CREW', defender_shop:'TIENDA', defender_buy:'COMPRAR', defender_extra:'¿COMPRAR OTRO?', defender_crew:'+1 CREW', defender_tokens:'FICHAS', defender_kickball:'BALÓN KICK', defender_crewman:'MIEMBRO', defender_pause:'PAUSA', defender_resume:'SEGUIR', defender_wave:'OLEADA', defender_survive:'SOBREVIVIDO', defender_wave_clear:'OLEADA SUPERADA', defender_boss:'JEFE', defender_gameover:'GRADA PERDIDA', defender_again:'OTRA VEZ', defender_menu:'MENÚ', defender_upgrade:'MEJORAR', defender_heal:'+PV', defender_speed:'BOTAS', defender_magnet:'BUFANDA', defender_damage:'MEGÁFONO', defender_cooldown:'BOTAS RÁPIDAS', defender_hp:'CALDO', defender_crew_scarf:'CREW BUFANDA', defender_crew_drum:'TAMBOR', defender_crew_flag:'ABANDERADO', defender_shop_hint:'CREW · EQUIPO · BALONES', defender_best:'MEJOR', defender_kills:'BAJAS', defender_xp:'XP', defender_crew_count:'CREW', defender_boss_chest:'¡COFRE!', defender_gold:'FICHAS', defender_final:'FINAL', defender_touch:'ARRASTRA PARA MOVER', defender_shop_open:'TIENDA'},
-  de:{mode_defender:'DEFENDER', defender_title:'DEFENDER-MODUS', defender_sub:'TRIBÜNEN-SURVIVAL', defender_start:'TIPPEN ZUM START', defender_move:'BEWEGEN · AUTO-ANGRIFF', defender_level:'LEVEL UP', defender_choose:'CREW WÄHLEN', defender_shop:'SHOP', defender_buy:'KAUFEN', defender_extra:'NOCH EINER?', defender_crew:'+1 CREW', defender_tokens:'JETONS', defender_kickball:'KICK-BALL', defender_crewman:'CREW', defender_pause:'PAUSE', defender_resume:'WEITER', defender_wave:'WELLE', defender_survive:'ÜBERLEBT', defender_wave_clear:'WELLE GESCHAFFT', defender_boss:'BOSS', defender_gameover:'TRIBÜNE VERLOREN', defender_again:'NOCHMAL', defender_menu:'MENÜ', defender_upgrade:'UPGRADE', defender_heal:'+HP', defender_speed:'SCHUHE', defender_magnet:'SCHAL', defender_damage:'MEGAFON', defender_cooldown:'SCHNELLE SCHUHE', defender_hp:'BRÜHE', defender_crew_scarf:'SCHAL-CREW', defender_crew_drum:'TROMMLER', defender_crew_flag:'FAHNENWEDLER', defender_shop_hint:'CREW · GEAR · BÄLLE', defender_best:'BEST', defender_kills:'KILLS', defender_xp:'XP', defender_crew_count:'CREW', defender_boss_chest:'TRUHE!', defender_gold:'JETONS', defender_final:'ABPFIFF', defender_touch:'ZIEHEN ZUM BEWEGEN', defender_shop_open:'SHOP'},
-  it:{mode_defender:'DEFENDER', defender_title:'MODALITÀ DEFENDER', defender_sub:'SOPRAVVIVI IN CURVA', defender_start:'TOCCA PER INIZIARE', defender_move:'MUOVI · AUTO-ATTACCO', defender_level:'LIVELLO', defender_choose:'SCEGLI LA CREW', defender_shop:'NEGOZIO', defender_buy:'COMPRA', defender_extra:'UN ALTRO?', defender_crew:'+1 CREW', defender_tokens:'GETTONI', defender_kickball:'PALLONE KICK', defender_crewman:'MEMBRO', defender_pause:'PAUSA', defender_resume:'RIPRENDI', defender_wave:'ONDATA', defender_survive:'SOPRAVVISSUTO', defender_wave_clear:'ONDATA SUPERATA', defender_boss:'BOSS', defender_gameover:'CURVA PERSA', defender_again:'DI NUOVO', defender_menu:'MENU', defender_upgrade:'UPGRADE', defender_heal:'+PV', defender_speed:'SCARPE', defender_magnet:'SCIARPA', defender_damage:'MEGAFONO', defender_cooldown:'SCARPE RAPIDE', defender_hp:'BRODO', defender_crew_scarf:'CREW SCIARPA', defender_crew_drum:'TAMBURISTA', defender_crew_flag:'BANDIERA', defender_shop_hint:'CREW · EQUIP · PALLONI', defender_best:'MIGLIORE', defender_kills:'KILL', defender_xp:'XP', defender_crew_count:'CREW', defender_boss_chest:'SOLDO!', defender_gold:'GETTONI', defender_final:'FISCHIO FINALE', defender_touch:'TRASCINA PER MUOVERE', defender_shop_open:'NEGOZIO'}
+  fr:{mode_defender:'DEFENDER', defender_title:'MODE DEFENDER', defender_sub:'SURVIE EN TRIBUNE', defender_start:'TOUCHE POUR JOUER', defender_move:'BOUGE · AUTO-ATTAQUE', defender_level:'NIVEAU', defender_choose:'CHOISIS TON CREW', defender_shop:'BOUTIQUE', defender_buy:'ACHETER', defender_extra:'EN REPRENDRE ?', defender_crew:'+1 CREW', defender_tokens:'JETONS', defender_pie:'LANCE UNE TARTE', defender_crewman:'MEMBRE', defender_pause:'PAUSE', defender_resume:'REPRENDRE', defender_wave:'VAGUE', defender_survive:'SURVÉCU', defender_wave_clear:'VAGUE TERMINÉE', defender_boss:'BOSS', defender_gameover:'TRIBUNE PERDUE', defender_again:'REJOUER', defender_menu:'MENU', defender_upgrade:'AMÉLIORER', defender_heal:'+PV', defender_speed:'CRAMPONS', defender_magnet:'ÉCHARPE', defender_damage:'MÉGAPHONE', defender_cooldown:'VITESSE', defender_hp:'BOUILLON', defender_crew_scarf:'CREW ÉCHARPE', defender_crew_drum:'BATTEUR', defender_crew_flag:'PORTE-DRAPEAU', defender_shop_hint:'CREW · ÉQUIPEMENT · BALLONS', defender_best:'MEILLEUR', defender_kills:'KILLS', defender_xp:'XP', defender_crew_count:'CREW', defender_boss_chest:'COFFRE !', defender_gold:'JETONS', defender_final:'COUP DE SIFFLET', defender_touch:'GLISSE POUR BOUGER', defender_shop_open:'BOUTIQUE'},
+  es:{mode_defender:'DEFENDER', defender_title:'MODO DEFENDER', defender_sub:'SUPERVIVENCIA DE GRADA', defender_start:'TOCA PARA EMPEZAR', defender_move:'MUEVE · AUTOATAQUE', defender_level:'SUBIR NIVEL', defender_choose:'ELIGE TU CREW', defender_shop:'TIENDA', defender_buy:'COMPRAR', defender_extra:'¿COMPRAR OTRO?', defender_crew:'+1 CREW', defender_tokens:'FICHAS', defender_pie:'LANZA UN PASTEL', defender_crewman:'MIEMBRO', defender_pause:'PAUSA', defender_resume:'SEGUIR', defender_wave:'OLEADA', defender_survive:'SOBREVIVIDO', defender_wave_clear:'OLEADA SUPERADA', defender_boss:'JEFE', defender_gameover:'GRADA PERDIDA', defender_again:'OTRA VEZ', defender_menu:'MENÚ', defender_upgrade:'MEJORAR', defender_heal:'+PV', defender_speed:'BOTAS', defender_magnet:'BUFANDA', defender_damage:'MEGÁFONO', defender_cooldown:'BOTAS RÁPIDAS', defender_hp:'CALDO', defender_crew_scarf:'CREW BUFANDA', defender_crew_drum:'TAMBOR', defender_crew_flag:'ABANDERADO', defender_shop_hint:'CREW · EQUIPO · BALONES', defender_best:'MEJOR', defender_kills:'BAJAS', defender_xp:'XP', defender_crew_count:'CREW', defender_boss_chest:'¡COFRE!', defender_gold:'FICHAS', defender_final:'FINAL', defender_touch:'ARRASTRA PARA MOVER', defender_shop_open:'TIENDA'},
+  de:{mode_defender:'DEFENDER', defender_title:'DEFENDER-MODUS', defender_sub:'TRIBÜNEN-SURVIVAL', defender_start:'TIPPEN ZUM START', defender_move:'BEWEGEN · AUTO-ANGRIFF', defender_level:'LEVEL UP', defender_choose:'CREW WÄHLEN', defender_shop:'SHOP', defender_buy:'KAUFEN', defender_extra:'NOCH EINER?', defender_crew:'+1 CREW', defender_tokens:'JETONS', defender_pie:'WIRF EINE TORTE', defender_crewman:'CREW', defender_pause:'PAUSE', defender_resume:'WEITER', defender_wave:'WELLE', defender_survive:'ÜBERLEBT', defender_wave_clear:'WELLE GESCHAFFT', defender_boss:'BOSS', defender_gameover:'TRIBÜNE VERLOREN', defender_again:'NOCHMAL', defender_menu:'MENÜ', defender_upgrade:'UPGRADE', defender_heal:'+HP', defender_speed:'SCHUHE', defender_magnet:'SCHAL', defender_damage:'MEGAFON', defender_cooldown:'SCHNELLE SCHUHE', defender_hp:'BRÜHE', defender_crew_scarf:'SCHAL-CREW', defender_crew_drum:'TROMMLER', defender_crew_flag:'FAHNENWEDLER', defender_shop_hint:'CREW · GEAR · BÄLLE', defender_best:'BEST', defender_kills:'KILLS', defender_xp:'XP', defender_crew_count:'CREW', defender_boss_chest:'TRUHE!', defender_gold:'JETONS', defender_final:'ABPFIFF', defender_touch:'ZIEHEN ZUM BEWEGEN', defender_shop_open:'SHOP'},
+  it:{mode_defender:'DEFENDER', defender_title:'MODALITÀ DEFENDER', defender_sub:'SOPRAVVIVI IN CURVA', defender_start:'TOCCA PER INIZIARE', defender_move:'MUOVI · AUTO-ATTACCO', defender_level:'LIVELLO', defender_choose:'SCEGLI LA CREW', defender_shop:'NEGOZIO', defender_buy:'COMPRA', defender_extra:'UN ALTRO?', defender_crew:'+1 CREW', defender_tokens:'GETTONI', defender_pie:'LANCIA UNA TORTA', defender_crewman:'MEMBRO', defender_pause:'PAUSA', defender_resume:'RIPRENDI', defender_wave:'ONDATA', defender_survive:'SOPRAVVISSUTO', defender_wave_clear:'ONDATA SUPERATA', defender_boss:'BOSS', defender_gameover:'CURVA PERSA', defender_again:'DI NUOVO', defender_menu:'MENU', defender_upgrade:'UPGRADE', defender_heal:'+PV', defender_speed:'SCARPE', defender_magnet:'SCIARPA', defender_damage:'MEGAFONO', defender_cooldown:'SCARPE RAPIDE', defender_hp:'BRODO', defender_crew_scarf:'CREW SCIARPA', defender_crew_drum:'TAMBURISTA', defender_crew_flag:'BANDIERA', defender_shop_hint:'CREW · EQUIP · PALLONI', defender_best:'MIGLIORE', defender_kills:'KILL', defender_xp:'XP', defender_crew_count:'CREW', defender_boss_chest:'SOLDO!', defender_gold:'GETTONI', defender_final:'FISCHIO FINALE', defender_touch:'TRASCINA PER MUOVERE', defender_shop_open:'NEGOZIO'}
 };
 for (const code of Object.keys(I18N)) Object.assign(I18N[code], DEF_I18N[code] || DEF_I18N.en);
 
@@ -1333,8 +1339,10 @@ const S = {
   // solo keepy-ups mode
   mode:'SHOOTOUT', menuMode:'KEEPYUPS', ku:null,
   // Defender Mode — compact survivor state; arrays are reused/capped for mobile performance
-  def:null, defMeta:{ tokens:0, bestTime:0, bestWave:0, totalKills:0, kickball:false, crew:{defense:0,striker:0,flag:0},
-    perm:{damage:0,speed:0,magnet:0,maxhp:0,cooldown:0} },
+  // pure history now — nothing here feeds a run's starting loadout. Every
+  // DEFENDER run begins from an identical fresh slate (see defFresh()):
+  // shoulder barge only, no crew, no bought weapons, 0 tokens. See beginDefender().
+  def:null, defMeta:{ bestTime:0, bestWave:0, totalKills:0 },
   hattrick:{active:false, t:0}, safetyNet:{active:false, t:0},
   // create-a-player
   character:{ teamIdx:0, bodyIdx:1, heightIdx:1, skinIdx:1, hairIdx:0, shirtIdx:0, sockIdx:2, shoeIdx:8 },
@@ -2621,28 +2629,18 @@ function loadGame(){
     if (typeof d.playerName === 'string') S.playerName = d.playerName;
     if (typeof d.playerNumber === 'number') S.playerNumber = d.playerNumber;
     // saves from before the HOOLIGAN -> DEFENDER rename used the key
-    // "hoolMeta" — fall back to it so those players don't lose their tokens/
-    // best time/crew progress just because the field got renamed
+    // "hoolMeta" — fall back to it so those players don't lose their best
+    // time/wave/kills history just because the field got renamed. Every
+    // other old defMeta field (tokens/kickball/crew/perm) fed a run's
+    // starting loadout and is deliberately NOT migrated — DEFENDER runs are
+    // a fresh slate now, so a returning player's next run starts exactly
+    // like anyone else's rather than carrying forward whatever they'd
+    // stockpiled under the old persistent-progression model.
     const defMetaSrc = d.defMeta || d.hoolMeta;
     if (defMetaSrc && typeof defMetaSrc === 'object'){
-      if (typeof defMetaSrc.tokens==='number') S.defMeta.tokens=defMetaSrc.tokens;
       if (typeof defMetaSrc.bestTime==='number') S.defMeta.bestTime=defMetaSrc.bestTime;
       if (typeof defMetaSrc.bestWave==='number') S.defMeta.bestWave=defMetaSrc.bestWave;
       if (typeof defMetaSrc.totalKills==='number') S.defMeta.totalKills=defMetaSrc.totalKills;
-      if (typeof defMetaSrc.kickball==='boolean') S.defMeta.kickball=defMetaSrc.kickball;
-      if (defMetaSrc.crew){
-        // old saves used scarf/drum/flag ids; scarf/drum no longer exist as
-        // H_CREW entries (defense/striker replaced them) — map the counts
-        // across by nearest-role rather than blindly merging, which would
-        // leave stray scarf/drum keys around for beginDefender()'s
-        // Object.keys(S.defMeta.crew) loop to crash on (H_CREW['scarf'] is
-        // now undefined)
-        const legacy = defMetaSrc.crew;
-        S.defMeta.crew.defense = (typeof legacy.defense==='number'?legacy.defense:0) + (typeof legacy.scarf==='number'?legacy.scarf:0);
-        S.defMeta.crew.striker = (typeof legacy.striker==='number'?legacy.striker:0) + (typeof legacy.drum==='number'?legacy.drum:0);
-        S.defMeta.crew.flag = typeof legacy.flag==='number'?legacy.flag:0;
-      }
-      if (defMetaSrc.perm) Object.assign(S.defMeta.perm,defMetaSrc.perm);
     }
     // a save that already shows DEFENDER runs predates the teach sequence —
     // those players know the verb, so don't make them sit through (or skip)
@@ -2853,6 +2851,10 @@ const H_PLAYER_SPAWN = { x:H_PITCH_CX-(H_PITCH_CX-H_PITCH.x0)*0.35, y:H_PITCH_CY
 // before it breaks off from "seek the player's goal" to "pressure this target"
 const H_ENEMY_PRESSURE_RANGE = 46;
 const H_SLOW_MULT = 0.55;   // FLAG BEARER's whistle-cone slow
+// THROW A PIE: how long the slow lasts, and how long the pie itself stays
+// stuck sliding down the enemy's head — the visual runs a beat shorter than
+// the slow so the decal is gone before the effect quietly ends, not after
+const H_PIE_SLOW_DUR = 1.8, H_PIE_STICK_DUR = 1.3;
 function defConcedeLimit(wave){ return Math.max(1, Math.floor(20*Math.pow(0.9, Math.max(0,wave-1)))); }
 // how long a loose ball sits unclaimable before the pack can pick it up
 // again — wave 1 is deliberately slow (teaches tackle -> SMACK -> restart
@@ -3015,7 +3017,11 @@ const H_ENEMIES={
 };
 const H_WEAPONS={
   shoulder:{id:'shoulder',name:'SHOULDER CHARGE',lvl:1,max:8,cd:.78,damage:28,range:46,count:1,kind:'melee'},
-  kickball:{id:'kickball',name:'KICK FOOTBALL',lvl:1,max:8,cd:1.15,damage:32,range:120,count:1,speed:105,kind:'ball'},
+  // the player's only ranged option: a thrown pie that sticks to whoever it
+  // hits and slows them for as long as it's sliding down their head — see
+  // the 'pie' branches in defFireWeapon/the projectile collision loop/
+  // drawHoolEnemy for the throw, the stick+slide decal, and the slow.
+  pie:{id:'pie',name:'THROW A PIE',lvl:1,max:8,cd:1.25,damage:18,range:110,count:1,speed:92,kind:'pie'},
   throughball:{id:'throughball',name:'THROUGH BALL',lvl:1,max:7,cd:1.35,damage:22,range:150,speed:170,kind:'through'},
   volley:{id:'volley',name:'VOLLEY',lvl:1,max:6,cd:2.3,damage:19,range:38,kind:'volley'},
   slide:{id:'slide',name:'SLIDE TACKLE',lvl:1,max:6,cd:2.6,damage:32,range:36,kind:'slide'},
@@ -3067,6 +3073,11 @@ function defFresh(){
     // the one-shot teach sequence, set by beginDefenderRun() when the profile
     // has never completed it — null on every later run (see defUpdateTutorial)
     tut:null,
+    // shop/crew state is entirely per-run now — nothing here survives into
+    // the next beginDefender() call. hasPie mirrors kickball's old
+    // one-per-run gate; crewBought replaces the old career-wide meta.crew
+    // counter for level-scaling newly placed units (see defBuy/defTryPlaceUnit)
+    hasPie:false, crewBought:{},
     camX:H_PLAYER_SPAWN.x, camY:H_PLAYER_SPAWN.y, zoom:H_ZOOM,
     joystick:{active:false,originX:0,originY:0,curX:0,curY:0},
     // rare net-chest pickups — one per goal, 60s cooldown after collect, a
@@ -3095,24 +3106,28 @@ function defFresh(){
 }
 function defWeapon(id){return S.def.weapons.find(w=>w.id===id);}
 function defPassive(id){return S.def.passives.find(w=>w.id===id);}
-function defMetaCrewCount(){return Object.values(S.defMeta.crew).reduce((a,b)=>a+b,0);}
-function defDamageMult(){return S.def.damage*(1+0.12*S.defMeta.perm.damage);}
-function defCooldownMult(){return Math.max(.52,S.def.cooldown*(1-0.07*S.defMeta.perm.cooldown));}
-function defSpeed(){return H_PLAYER.baseSpeed*S.def.speed*(1+0.12*S.defMeta.perm.speed);}
-function defMagnet(){const h=S.def;return h.magnet+18*S.defMeta.perm.magnet+(h.magnetBoostT>0?60:0);}
-function defMaxHP(){return H_PLAYER.baseHP+S.def.maxhp+18*S.defMeta.perm.maxhp;}
+// no persistent multipliers anymore — every stat a run plays with comes
+// entirely from that run's own in-run passives/weapons (h.damage/h.speed/
+// h.cooldown/h.magnet/h.maxhp, all reset by defFresh() and only ever raised
+// by defApplyChoice()/shop purchases THIS run). See beginDefender().
+function defDamageMult(){return S.def.damage;}
+function defCooldownMult(){return Math.max(.52,S.def.cooldown);}
+function defSpeed(){return H_PLAYER.baseSpeed*S.def.speed;}
+function defMagnet(){const h=S.def;return h.magnet+(h.magnetBoostT>0?60:0);}
+// h.maxhp is only the BONUS pool on top of H_PLAYER.baseHP (100) — it starts
+// at defFresh()'s own 100 default and grows purely from in-run HP passives
+// this run. defMaxHP() is always the true ceiling; h.hp is seeded to it in
+// beginDefender() (see there), not to defFresh()'s raw hp default.
+function defMaxHP(){return H_PLAYER.baseHP+S.def.maxhp;}
 function beginDefender(){
   srand((SEED ^ 0x51f15e7)>>>0); S.mode='DEFENDER'; S.def=defFresh();
-  S.def.maxhp=defMaxHP()-H_PLAYER.baseHP; S.def.hp=S.def.maxhp+H_PLAYER.baseHP;
-  S.def.speed=1; S.def.magnet=28; S.def.damage=1; S.def.cooldown=1;
-  S.def.tokens=S.defMeta.tokens; S.defMeta.tokens=0; S.def.crew=[];
-  // only Defense is the player's orbiting bodyguard (never planted), so it's
-  // the only role that auto-restores from meta at run start. Striker/Flag/
-  // Throw-in are drag-placed towers — their meta counts persist purely to
-  // track purchase level (see defTryPlaceUnit), and each run starts with
-  // none of them on the pitch until the player places one themselves.
-  for(let i=0;i<S.defMeta.crew.defense;i++) S.def.crew.push(defMakeDefenseUnit('defense', 1+Math.floor(i/3), 1));
-  if(S.defMeta.kickball) S.def.weapons.push({id:'kickball',level:1,cdT:.4});
+  // h.hp starts at the FULL ceiling (base + the "bonus pool" defFresh()
+  // already seeds h.maxhp with), not defFresh()'s own hp default — see
+  // defMaxHP()'s comment for why h.maxhp is only ever the bonus half.
+  S.def.hp=defMaxHP();
+  // deliberately no restoring from S.defMeta here: every run is a genuine
+  // fresh slate — shoulder barge only, no crew, no bought weapons, 0 tokens.
+  // defMeta is pure history (bestTime/bestWave/totalKills) from here on.
   S.crowdHype=.35; S.gloom=0; S.shake=0; S.flash=0;
   gotoScene('DEFENDER_INTRO');
 }
@@ -3140,7 +3155,7 @@ function defEnemySpawn(type,force=false,yOverride){
     // a set piece that beefs up a body (defSpawnDualElite) keeps them.
     // recoverT is the downed beat after a tackle; bargeWind/bargeCd drive the
     // heavy's bodycheck (see defEnemyBargeCheck)
-    striker:!!d.striker, heavy:!!d.heavy, recoverT:0, bargeWind:0, bargeCd:rrange(0,1.2),
+    striker:!!d.striker, heavy:!!d.heavy, recoverT:0, bargeWind:0, bargeCd:rrange(0,1.2), pieT:0,
     state:'exit',exitT:0,exitDur:rrange(0.4,0.8),spreadAng:(rnd()-0.5)*1.4,
     // possession AI (see defUpdateRun's ball-aware aim selection): pState
     // is the ball-related behaviour layered on top of state/exit-field;
@@ -3217,7 +3232,7 @@ function defMakeDefenseUnit(id, level, popStart){
 // single entry point for every projectile spawn (player weapons + crew): pool
 // objects are reused via freeProjectiles, so every field a projectile can use
 // (pierce/pierceHit especially — a stale pierceHit array leaking from a
-// recycled throughball into a recycled kickball would silently no-sell hits
+// recycled throughball into a recycled pie would silently no-sell hits
 // on whichever enemy object happens to be recycled into that same reference)
 // must be reset here rather than left to whichever caller happens to set it
 function defSpawnProjectile(props){
@@ -3430,15 +3445,16 @@ function defFireWeapon(w){const h=S.def, target=defNearest(w.range||100);
     defStartBarge(h, target, dmg, { outDur:.12, backDur:.14, stun:w.level>=5, shockRadius:range*.8, contactR:H_PLAYER.r+target.r+2, shoveDist:18+rrange(0,10) });
     return;
   }
-  if(w.kind==='ball'&&target){
+  if(w.kind==='pie'&&target){
     const dx=target.x-h.x,dy=target.y-h.y,d=Math.hypot(dx,dy)||1;
     const count=Math.min(4,1+Math.floor((w.level-1)/2));
     for(let n=0;n<count;n++){
       const spread=(n-(count-1)/2)*.12,cs=Math.cos(spread),sn=Math.sin(spread);
       const vx=(dx/d)*cs-(dy/d)*sn,vy=(dx/d)*sn+(dy/d)*cs;
-      defSpawnProjectile({x:h.x,y:h.y,vx:vx*w.speed,vy:vy*w.speed,damage:w.damage*defDamageMult(),life:2.2,bounce:w.level>=5?1:0,blast:w.level>=7?18:0,curve:w.level>=4?.65:0,kind:'ball'});
+      // a MEGA PIE splatters onto nearby bodies too once you're stacked up
+      defSpawnProjectile({x:h.x,y:h.y,vx:vx*w.speed,vy:vy*w.speed,damage:w.damage*defDamageMult(),life:2.0,blast:w.level>=6?18:0,kind:'pie'});
     }
-    SFX.defKick();defBurst(h.x,h.y,C.WHITE,3+count);S.shake=Math.max(S.shake,1);
+    SFX.defPieThrow();defBurst(h.x,h.y,'#8a5a2e',3+count);S.shake=Math.max(S.shake,1);
     return;
   }
   if(w.kind==='through'&&target){
@@ -3592,13 +3608,17 @@ function defUpdateDefenseUnit(c, dt){
   }
 }
 function defAddXP(n){const h=S.def;h.xp+=n;while(h.xp>=h.nextXp){h.xp-=h.nextXp;h.level++;h.nextXp=Math.round(7+h.level*3.2);h.levelChoices=defMakeChoices();gotoScene('DEFENDER_LEVELUP');SFX.rankUp();buzz(25);break;}}
-// kickball is shop-only as a first pickup — it can never appear here as a
-// brand-new weapon, only as a level-up for a copy already bought this run
-// (or carried over from a previous run's shop purchase, which pushes it
-// into h.weapons at run start — see beginDefender)
-function defEligibleChoices(){const h=S.def, out=[];for(const id of Object.keys(H_WEAPONS)){const w=defWeapon(id);if(!w){ if(id!=='kickball'&&h.weapons.length<6)out.push({kind:'weapon',id}); }else if(w.level<w.max)out.push({kind:'weapon',id});}for(const id of Object.keys(H_PASSIVES)){const p=defPassive(id);if(!p&&h.passives.length<6)out.push({kind:'passive',id});else if(p&&p.level<p.max)out.push({kind:'passive',id});}return out;}
+// the pie is shop-only as a first pickup — it can never appear here as a
+// brand-new weapon, only as a level-up for a copy already bought THIS run
+// (nothing carries between runs anymore — see beginDefender/defFresh)
+// NOTE: a per-run weapon object only ever carries {id,level,cdT} (see
+// defBuy/defApplyChoice) — its own .max is never set, so this reads the cap
+// from H_WEAPONS[id].max instead. Reading w.max here would silently always
+// be undefined, meaning no weapon (not even the starting Shoulder Charge)
+// could ever be offered a second time to raise its level.
+function defEligibleChoices(){const h=S.def, out=[];for(const id of Object.keys(H_WEAPONS)){const w=defWeapon(id);if(!w){ if(id!=='pie'&&h.weapons.length<6)out.push({kind:'weapon',id}); }else if(w.level<H_WEAPONS[id].max)out.push({kind:'weapon',id});}for(const id of Object.keys(H_PASSIVES)){const p=defPassive(id);if(!p&&h.passives.length<6)out.push({kind:'passive',id});else if(p&&p.level<H_PASSIVES[id].max)out.push({kind:'passive',id});}return out;}
 function defMakeChoices(){const pool=defEligibleChoices().slice();const out=[];while(out.length<4&&pool.length){const i=rint(0,pool.length-1);out.push(pool.splice(i,1)[0]);}while(out.length<4)out.push(out.length%2?{kind:'gold'}:{kind:'heal'});return out;}
-function defApplyChoice(ch){const h=S.def;if(ch.kind==='heal'){h.hp=Math.min(h.maxhp, h.hp+Math.round(h.maxhp*.28));SFX.inflate();return;}if(ch.kind==='gold'){h.tokens+=18;SFX.defCoin();return;}if(ch.kind==='weapon'){let w=defWeapon(ch.id);if(w){w.level++;w.cdT=0;}else{const base=H_WEAPONS[ch.id];h.weapons.push({id:ch.id,level:1,cdT:0});if(ch.id==='kickball')S.defMeta.kickball=true;}SFX.correct();S.flash=.14;return;}let p=defPassive(ch.id);if(p)p.level++;else h.passives.push({id:ch.id,level:1});if(ch.id==='speed')h.speed*=1.12;if(ch.id==='magnet')h.magnet+=18;if(ch.id==='damage')h.damage*=1.12;if(ch.id==='cooldown')h.cooldown*=.93;if(ch.id==='hp'){h.maxhp+=18;h.hp+=18;defBurst(h.x,h.y,C.ORANGE,8);S.flash=Math.max(S.flash,.1);}SFX.correct();}
+function defApplyChoice(ch){const h=S.def;if(ch.kind==='heal'){h.hp=Math.min(h.maxhp, h.hp+Math.round(h.maxhp*.28));SFX.inflate();return;}if(ch.kind==='gold'){h.tokens+=18;SFX.defCoin();return;}if(ch.kind==='weapon'){let w=defWeapon(ch.id);if(w){w.level++;w.cdT=0;}else{const base=H_WEAPONS[ch.id];h.weapons.push({id:ch.id,level:1,cdT:0});if(ch.id==='pie')h.hasPie=true;}SFX.correct();S.flash=.14;return;}let p=defPassive(ch.id);if(p)p.level++;else h.passives.push({id:ch.id,level:1});if(ch.id==='speed')h.speed*=1.12;if(ch.id==='magnet')h.magnet+=18;if(ch.id==='damage')h.damage*=1.12;if(ch.id==='cooldown')h.cooldown*=.93;if(ch.id==='hp'){h.maxhp+=18;h.hp+=18;defBurst(h.x,h.y,C.ORANGE,8);S.flash=Math.max(S.flash,.1);}SFX.correct();}
 // rare, optional treasure — never required for progression. Reward table is
 // weighted toward the small/frequent end (tokens, heal) with a free upgrade
 // as the rare top prize, so it always feels like a genuine detour-worthy find
@@ -4174,7 +4194,7 @@ function defUpdateRun(dt){
   }
   if (h.relegateBanner) h.relegateBanner.t+=dt;
   for(const e of h.enemies){
-    e.hit=Math.max(0,e.hit-dt); e.slowT=Math.max(0,e.slowT-dt);
+    e.hit=Math.max(0,e.hit-dt); e.slowT=Math.max(0,e.slowT-dt); e.pieT=Math.max(0,(e.pieT||0)-dt);
     if (e.state==='exit'){
       // pouring out of the net: a slow, mostly-leftward drift with a little
       // per-enemy vertical spread, no attacks yet — they're still forming up
@@ -4376,7 +4396,12 @@ function defUpdateRun(dt){
     for(const e of h.enemies){
       if(e.hp>0&&!(p.pierceHit&&p.pierceHit.includes(e))&&Math.hypot(e.x-p.x,e.y-p.y)<e.r+4){
         defHitEnemy(e,p.damage);
-        if(p.blast){for(const q of h.enemies)if(q!==e&&Math.hypot(q.x-e.x,q.y-e.y)<p.blast)defHitEnemy(q,p.damage*.38);}
+        // THROW A PIE: on top of the damage, it sticks — the slow (shared
+        // with FLAG BEARER's whistle cone) and the stuck-decal slide-down
+        // are two separate timers so the decal can finish before the slow
+        // quietly wears off (see H_PIE_SLOW_DUR/H_PIE_STICK_DUR)
+        if(p.kind==='pie'){ e.slowT=Math.max(e.slowT,H_PIE_SLOW_DUR); e.pieT=H_PIE_STICK_DUR; SFX.defPieSplat(); defBurst(e.x,e.y-e.r,'#8a5a2e',7); }
+        if(p.blast){for(const q of h.enemies)if(q!==e&&Math.hypot(q.x-e.x,q.y-e.y)<p.blast){defHitEnemy(q,p.damage*.38);if(p.kind==='pie'){q.slowT=Math.max(q.slowT,H_PIE_SLOW_DUR);q.pieT=H_PIE_STICK_DUR;}}}
         if(p.pierce>0){ p.pierce--; (p.pierceHit||(p.pierceHit=[])).push(e); }
         else if(p.bounce>0){p.bounce--;p.vx=-p.vx*.9;p.vy=-p.vy*.9;}
         else p.life=0;
@@ -4411,8 +4436,10 @@ function defTryPlaceUnit(){
   if (!defValidPlantSpot(pm.x,pm.y,pm.id==='throwin')) return false;
   const spec=H_CREW[pm.id];
   h.tokens-=pm.cost;
-  S.defMeta.crew[pm.id]=(S.defMeta.crew[pm.id]||0)+1;
-  const lvl=1+Math.floor((S.defMeta.crew[pm.id])/3);
+  // level scaling now tracks THIS run's purchases only (h.crewBought) — no
+  // career-wide counter, so a fresh run's first Striker is always level 1
+  h.crewBought[pm.id]=(h.crewBought[pm.id]||0)+1;
+  const lvl=1+Math.floor((h.crewBought[pm.id])/3);
   const hp=spec.baseHp+(lvl-1)*10;
   h.crew.push({ id:pm.id, x:pm.x, y:pm.y, homeX:pm.x, homeY:pm.y, vx:0, vy:0, ang:0, cdT:.4, level:lvl,
     phase:rnd()*6.2832, pop:0, faceAng: pm.x<H_PITCH_CX?0:Math.PI, state:'idle', invuln:0,
@@ -4427,19 +4454,19 @@ function defTryPlaceUnit(){
 // specifically still resolve to the same generalised commit
 function defTryPlaceThrowIn(){ return defTryPlaceUnit(); }
 function defBuy(kind){
-  const h=S.def,meta=S.defMeta;
-  if (kind==='kickball'){
-    if (meta.kickball) return false;
+  const h=S.def;
+  if (kind==='pie'){
+    if (h.hasPie) return false;
     if (h.tokens<28) return false;
-    h.tokens-=28; meta.kickball=true; h.weapons.push({id:'kickball',level:1,cdT:0});
-    pushFeedback(t('defender_kickball'),C.GOLD2);
+    h.tokens-=28; h.hasPie=true; h.weapons.push({id:'pie',level:1,cdT:0});
+    pushFeedback(t('defender_pie'),C.GOLD2);
   } else if (kind==='defense'){
     // the one orbital role — bought straight into the ring, never planted
     const spec=H_CREW.defense;
     if (h.tokens<spec.cost) return false;
     if (h.crew.filter(c=>c.id==='defense').length>=2){ pushFeedback(t('defender_defense_cap'),C.GREY); return false; }
-    h.tokens-=spec.cost; meta.crew.defense=(meta.crew.defense||0)+1;
-    h.crew.push(defMakeDefenseUnit('defense', 1+Math.floor(meta.crew.defense/3), 0));
+    h.tokens-=spec.cost; h.crewBought.defense=(h.crewBought.defense||0)+1;
+    h.crew.push(defMakeDefenseUnit('defense', 1+Math.floor(h.crewBought.defense/3), 0));
     pushFeedback(t('defender_defense_added'),C.GOLD2); spawnConfetti(10); S.shake=1.5; SFX.defCoin(); buzz(35);
   } else if (H_CREW[kind]){
     // every other role is a drag-placed tower
@@ -4451,17 +4478,19 @@ function defBuy(kind){
     pushFeedback(t('defender_place_hint'),C.GOLD2);
     return true;   // token spend happens on actual placement — see defTryPlaceUnit
   } else if (H_PASSIVES[kind]){
-    const p=defPassive(kind); if(p&&p.level>=p.max) return false;
+    const p=defPassive(kind); if(p&&p.level>=H_PASSIVES[kind].max) return false;
     const cost=10+(p?p.level:0)*8; if(h.tokens<cost) return false;
     h.tokens-=cost; defApplyChoice({kind:'passive',id:kind});
     pushFeedback(H_PASSIVES[kind].name+' ▲',C.GOLD2); SFX.correct();
   } else return false;
   saveGame(); return true;
 }
-function defShopItems(){return ['kickball','defense','striker','flag','throwin','speed','damage','magnet','cooldown','hp','stamina'];}
+function defShopItems(){return ['pie','defense','striker','flag','throwin','speed','damage','magnet','cooldown','hp','stamina'];}
 function defShopRect(i){return [14,94+i*26,W-28,20];}
 function defOpenShop(){S.def.shopOpen=true;gotoScene('DEFENDER_SHOP');}
-function defEnd(){const h=S.def;if(!h)return;S.defMeta.tokens+=h.tokens;S.defMeta.bestTime=Math.max(S.defMeta.bestTime,h.t);S.defMeta.bestWave=Math.max(S.defMeta.bestWave,h.wave);bankAdd(h.tokens*20);saveGame();}
+// leftover run tokens convert straight to bank money — nothing carries into
+// the next run's starting tokens anymore (see beginDefender)
+function defEnd(){const h=S.def;if(!h)return;S.defMeta.bestTime=Math.max(S.defMeta.bestTime,h.t);S.defMeta.bestWave=Math.max(S.defMeta.bestWave,h.wave);bankAdd(h.tokens*20);saveGame();}
 
 const H_KEYS=Object.create(null);
 window.addEventListener('keydown',e=>{H_KEYS[e.key]=true;H_KEYS[e.code]=true;if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Space'].includes(e.code)&&S.scene.indexOf('DEFENDER_')===0)e.preventDefault();},{passive:false});
@@ -4471,10 +4500,11 @@ function defTap(px,py){
   const h=S.def;if(!h)return;
   if(S.scene==='DEFENDER_INTRO'){
     if(DEFENDER_INTRO_BACK&&px>=DEFENDER_INTRO_BACK[0]&&px<=DEFENDER_INTRO_BACK[0]+DEFENDER_INTRO_BACK[2]&&py>=DEFENDER_INTRO_BACK[1]&&py<=DEFENDER_INTRO_BACK[1]+DEFENDER_INTRO_BACK[3]){
-      // no run has actually started yet — undo beginDefender()'s token
-      // transfer rather than calling defEnd(), which would wrongly bank
-      // tokens*20 for a run that never happened
-      SFX.lock(0,true); S.defMeta.tokens+=h.tokens; S.def=null; gotoScene('TITLE'); return;
+      // no run has actually started yet — just drop it rather than calling
+      // defEnd(), which would wrongly bank tokens*20 for a run that never
+      // happened (a fresh run always starts at 0 tokens anyway, so there's
+      // nothing to preserve by refunding)
+      SFX.lock(0,true); S.def=null; gotoScene('TITLE'); return;
     }
     beginDefenderRun();return;
   }
@@ -4712,6 +4742,28 @@ function drawHoolEnemy(e){
     // so it has to be the loudest thing on the body
     b.save(); b.globalAlpha=.55+.45*Math.sin(S.t*30); ring(x,y,e.r+5,C.ORANGE,2); b.restore();
   }
+  // THROW A PIE, stuck: not part of the else-if chain above, since a slowed
+  // body can still be downed or winding up a bodycheck at the same time —
+  // slides from the crown of the head to the chest over H_PIE_STICK_DUR with
+  // a little wobble (it's sliding off a greasy scalp, not gliding on rails),
+  // then shrinks away on the last beat instead of just popping out of existence
+  if ((e.pieT||0)>0){
+    const p=1-e.pieT/H_PIE_STICK_DUR;
+    const slideY=-e.r*1.5+p*(e.r*2.6);
+    const wobble=Math.sin(S.t*9+(e.spawnSeq||0))*1.1*(1-p*.6);
+    const shrink=p>0.82?Math.max(0,1-(p-0.82)/0.18):1;
+    const pr=3.1*shrink;
+    if (pr>0.15){
+      b.save(); b.translate(x+wobble,y+slideY); b.rotate(wobble*0.3);
+      circ(0,0,pr,'#8a5a2e');
+      circ(0,0,pr*0.72,'#c99a5b');
+      b.save(); b.globalAlpha=.55; circ(-pr*0.3,-pr*0.3,pr*0.26,'#f4dca0'); b.restore();
+      b.restore();
+      // the slow itself already gets its own blue ring below (shared with
+      // FLAG BEARER's whistle cone via e.slowT) — this only adds the drip
+      if(!S.reduceMotion && S.def && S.def.particles.length<H_MAX_FX && rnd()<0.06) S.def.particles.push({x:x+wobble,y:y+slideY+pr,vx:0,vy:14,t:0,d:.35,col:'#8a5a2e'});
+    }
+  }
 }
 // Defense units are drawn as small kit-wearing people at their own AI-owned
 // x/y (defUpdateDefenseUnit moves them — this function only reads position,
@@ -4811,6 +4863,14 @@ function drawHoolRun(){const h=S.def;
     else if(p.kind==='crew'){ circ(p.x,p.y,3.4,p.col||C.WHITE); if(!S.reduceMotion){b.save();b.globalAlpha=.4;line(p.x-p.vx*.04,p.y-p.vy*.04,p.x,p.y,p.col||C.WHITE);b.restore();} }
     else if(p.kind==='through'){ circ(p.x,p.y,3,C.WHITE); if(!S.reduceMotion){b.save();b.globalAlpha=.5;line(p.x-p.vx*.06,p.y-p.vy*.06,p.x,p.y,C.BLUE);b.restore();} }
     else if(p.kind==='rabona'){ drawBall(p.x,p.y,3.6); if(!S.reduceMotion){b.save();b.globalAlpha=.3;line(p.x-p.vx*.05,p.y-p.vy*.05,p.x,p.y,C.GOLD2);b.restore();} }
+    else if(p.kind==='pie'){
+      // a small tumbling pie, not a ball — its own spin axis (via p.life, so
+      // it doesn't need a dedicated spin field) and a soft trailing wobble
+      b.save(); b.translate(p.x,p.y); b.rotate(p.life*7);
+      circ(0,0,3.4,'#8a5a2e'); circ(0,0,2.5,'#c99a5b');
+      b.restore();
+      if(!S.reduceMotion){b.save();b.globalAlpha=.3;line(p.x-p.vx*.045,p.y-p.vy*.045,p.x,p.y,'#8a5a2e');b.restore();}
+    }
     else { drawBall(p.x,p.y,4); if(p.curve&&!S.reduceMotion){b.save();b.globalAlpha=.25;line(p.x-p.vx*.05,p.y-p.vy*.05,p.x,p.y,C.WHITE);b.restore();} }
   }
   for(const p of h.enemyShots){circ(p.x,p.y,2.4,C.RED);}
@@ -4962,7 +5022,7 @@ function drawHoolTutorialHud(h){
 let DEFENDER_INTRO_BACK = null, DEFENDER_LEVELUP_BACK = null;
 function drawHoolIntro(){drawHoolArena();b.save();b.globalAlpha=.68;rect(0,50,W,H-50,C.INK);b.restore();txt(t('defender_title'),W/2,92,C.GOLD,19,'center');txtFit(t('defender_sub'),W/2,118,C.GOLD2,8,W-40,'center');txtFit(t('defender_objective'),W/2,152,C.WHITE,11,W-40,'center');txtFit(t('defender_fail_ball'),W/2,172,C.RED,7,W-40,'center');txtFit(t('defender_fail_flood'),W/2,184,C.RED,7,W-40,'center');txtFit(t('defender_kill_secondary'),W/2,200,C.GREYDK,6,W-36,'center');txt('MOVE · NO AIM · AUTO ATTACK',W/2,218,C.GREY,7,'center');txt(t('defender_best')+' '+Math.floor(S.defMeta.bestTime/60)+':'+String(Math.floor(S.defMeta.bestTime%60)).padStart(2,'0')+' · '+t('defender_wave')+' '+S.defMeta.bestWave,W/2,250,C.GREY,7,'center');rect(32,292,W-64,32,C.GOLD);rect(33,293,W-66,30,'#2b2005');txt(t('defender_start'),W/2,303,C.GOLD2,10,'center');txt(t('defender_touch'),W/2,345,C.GREYDK,7,'center');DEFENDER_INTRO_BACK=[W/2-46,392,92,20];rect(DEFENDER_INTRO_BACK[0],DEFENDER_INTRO_BACK[1],92,20,C.PANELED);rect(DEFENDER_INTRO_BACK[0]+1,DEFENDER_INTRO_BACK[1]+1,90,18,C.PANEL);txt('BACK',W/2,398,C.GREY,9,'center');}
 function drawHoolLevel(){drawHoolRun();b.save();b.globalAlpha=.82;rect(0,50,W,H-50,C.INK);b.restore();txt(t('defender_level'),W/2,72,C.GOLD,17,'center');txt('LEVEL '+S.def.level,W/2,94,C.WHITE,8,'center');for(let i=0;i<S.def.levelChoices.length;i++){const c=S.def.levelChoices[i],r=[12+i*69,120,64,118];rect(r[0],r[1],r[2],r[3],C.PANELED);rect(r[0]+1,r[1]+1,r[2]-2,r[3]-2,C.PANEL);let title,desc;if(c.kind==='weapon'){const w=H_WEAPONS[c.id];title=w.name;desc='LV '+(defWeapon(c.id)?.level||0)+' → '+(defWeapon(c.id)?.level+1||1);if(!defWeapon(c.id))desc='NEW WEAPON';}else if(c.kind==='passive'){const p=H_PASSIVES[c.id];title=p.name;desc=p.desc;}else if(c.kind==='gold'){title='18 TOKENS';desc='TAKE THE CASH';}else{title=t('defender_heal');desc='RESTORE HP';}txtFit(title,r[0]+r[2]/2,r[1]+12,C.GOLD2,7,r[2]-8,'center');wrapTextClamped(desc,r[2]-12,6,4).forEach((l,j)=>txt(l,r[0]+r[2]/2,r[1]+38+j*9,C.GREY,6,'center'));txt('▸',r[0]+r[2]/2,r[1]+92,C.WHITE,12,'center');}txt('4 CHOICES · PAUSED',W/2,254,C.GREYDK,6,'center');DEFENDER_LEVELUP_BACK=[W/2-46,282,92,20];rect(DEFENDER_LEVELUP_BACK[0],DEFENDER_LEVELUP_BACK[1],92,20,C.PANELED);rect(DEFENDER_LEVELUP_BACK[0]+1,DEFENDER_LEVELUP_BACK[1]+1,90,18,C.PANEL);txt('BACK',W/2,288,C.GREY,9,'center');}
-function drawHoolShop(){drawHoolRun();b.save();b.globalAlpha=.94;rect(0,50,W,H-50,C.INK);b.restore();txt(t('defender_shop'),W/2,62,C.GOLD,16,'center');txt(t('defender_tokens')+' '+S.def.tokens,W-14,63,C.GOLD2,7,'right');txt(t('defender_buy_defense'),W/2,80,C.GREYDK,6,'center');txt(t('defender_extra'),W/2,88,Math.sin(S.t*7)>0?C.GOLD2:C.GREYDK,5,'center');const items=defShopItems();items.forEach((id,i)=>{const r=defShopRect(i);let label,sub,cost;if(id==='kickball'){label=t('defender_kickball');sub=S.defMeta.kickball?'OWNED · LEVEL UP IN RUN':'AUTO RANGED BALL';cost=28;}else if(id==='throwin'){label=H_CREW.throwin.name;sub='PLANT · TOUCHLINE LOB';cost=H_CREW.throwin.cost;}else if(H_CREW[id]){label=H_CREW[id].name;sub=id==='defense'?'ORBITS YOU · BARGE':H_CREW[id].role==='ball'?'PLANT · RANGED SHOT':'PLANT · SLOW CONE';cost=H_CREW[id].cost;}else{const p=H_PASSIVES[id],own=defPassive(id),lv=own?own.level:0;label=p.name;sub=p.desc;cost=10+lv*8;}const affordable=S.def.tokens>=cost;rect(r[0],r[1],r[2],r[3],affordable?C.GOLD:C.PANELED);rect(r[0]+1,r[1]+1,r[2]-2,r[3]-2,affordable?'#241a06':C.PANEL);txtFit(label,r[0]+8,r[1]+5,affordable?C.GOLD2:C.GREYDK,7,r[2]-58);txtFit(sub,r[0]+8,r[1]+14,C.GREY,5,r[2]-58);txt(String(cost),r[0]+r[2]-8,r[1]+7,affordable?C.GOLD2:C.GREYDK,8,'right');});txt('TAP TOP TO RETURN',W/2,390,C.GREYDK,6,'center');}
+function drawHoolShop(){drawHoolRun();b.save();b.globalAlpha=.94;rect(0,50,W,H-50,C.INK);b.restore();txt(t('defender_shop'),W/2,62,C.GOLD,16,'center');txt(t('defender_tokens')+' '+S.def.tokens,W-14,63,C.GOLD2,7,'right');txt(t('defender_buy_defense'),W/2,80,C.GREYDK,6,'center');txt(t('defender_extra'),W/2,88,Math.sin(S.t*7)>0?C.GOLD2:C.GREYDK,5,'center');const items=defShopItems();items.forEach((id,i)=>{const r=defShopRect(i);let label,sub,cost;if(id==='pie'){label=t('defender_pie');sub=S.def.hasPie?'OWNED · LEVEL UP IN RUN':'STICKS · SLOWS THEM DOWN';cost=28;}else if(id==='throwin'){label=H_CREW.throwin.name;sub='PLANT · TOUCHLINE LOB';cost=H_CREW.throwin.cost;}else if(H_CREW[id]){label=H_CREW[id].name;sub=id==='defense'?'ORBITS YOU · BARGE':H_CREW[id].role==='ball'?'PLANT · RANGED SHOT':'PLANT · SLOW CONE';cost=H_CREW[id].cost;}else{const p=H_PASSIVES[id],own=defPassive(id),lv=own?own.level:0;label=p.name;sub=p.desc;cost=10+lv*8;}const affordable=S.def.tokens>=cost;rect(r[0],r[1],r[2],r[3],affordable?C.GOLD:C.PANELED);rect(r[0]+1,r[1]+1,r[2]-2,r[3]-2,affordable?'#241a06':C.PANEL);txtFit(label,r[0]+8,r[1]+5,affordable?C.GOLD2:C.GREYDK,7,r[2]-58);txtFit(sub,r[0]+8,r[1]+14,C.GREY,5,r[2]-58);txt(String(cost),r[0]+r[2]-8,r[1]+7,affordable?C.GOLD2:C.GREYDK,8,'right');});txt('TAP TOP TO RETURN',W/2,390,C.GREYDK,6,'center');}
 function drawHoolOver(){drawHoolRun();b.save();b.globalAlpha=.84;rect(0,50,W,H-50,C.INK);b.restore();txt(t('defender_gameover'),W/2,102,C.RED,19,'center');
   // name the actual fail channel — "they scored" and "overrun at the net"
   // are completely different lessons and the player needs to know which
