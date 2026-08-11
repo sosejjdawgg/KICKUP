@@ -680,7 +680,17 @@ const DEF_I18N = {
     defender_cancelled:'CANCELLED',
     defender_planted:'PLANTED!', defender_unit_cap:'PITCH IS FULL', defender_defense_cap:'BODYGUARD CAP',
     defender_smack:'CLEAR!', defender_goal_against:'THEY SCORED', defender_balls:'BALLS',
-    defender_through_net:'THROUGH NET', defender_flooded:'OVERRUN', defender_scored_on:'GOAL CONCEDED'},
+    defender_through_net:'THROUGH NET', defender_flooded:'OVERRUN', defender_scored_on:'GOAL CONCEDED',
+    // ── the objective, stated plainly. Both fail channels are named on the
+    // intro screen and echoed in the HUD, so "what actually loses me the run"
+    // is never something the player has to infer from a death ──
+    defender_objective:'DEFEND YOUR NET', defender_fail_ball:'BALL IN THE NET = RUN OVER',
+    defender_fail_flood:'TOO MANY THROUGH = OVERRUN', defender_kill_secondary:'CLEARING BODIES IS A MEANS, NOT THE GOAL',
+    // ── tutorial ──
+    defender_tut_incoming:'WAVE INCOMING', defender_tut_kick:'STOP IT REACHING THE NET — KICK IT OUT!',
+    defender_tut_move:'MOVE TO THE BALL', defender_tut_skip:'SKIP', defender_tut_label:'TUTORIAL',
+    defender_tut_tap:'TAP TO CONTINUE',
+    defender_tut_done:'THAT IS THE JOB!', defender_barged:'BARGED!'},
   fr:{mode_defender:'DEFENDER', defender_title:'MODE DEFENDER', defender_sub:'SURVIE EN TRIBUNE', defender_start:'TOUCHE POUR JOUER', defender_move:'BOUGE · AUTO-ATTAQUE', defender_level:'NIVEAU', defender_choose:'CHOISIS TON CREW', defender_shop:'BOUTIQUE', defender_buy:'ACHETER', defender_extra:'EN REPRENDRE ?', defender_crew:'+1 CREW', defender_tokens:'JETONS', defender_kickball:'BALLON KICK', defender_crewman:'MEMBRE', defender_pause:'PAUSE', defender_resume:'REPRENDRE', defender_wave:'VAGUE', defender_survive:'SURVÉCU', defender_wave_clear:'VAGUE TERMINÉE', defender_boss:'BOSS', defender_gameover:'TRIBUNE PERDUE', defender_again:'REJOUER', defender_menu:'MENU', defender_upgrade:'AMÉLIORER', defender_heal:'+PV', defender_speed:'CRAMPONS', defender_magnet:'ÉCHARPE', defender_damage:'MÉGAPHONE', defender_cooldown:'VITESSE', defender_hp:'BOUILLON', defender_crew_scarf:'CREW ÉCHARPE', defender_crew_drum:'BATTEUR', defender_crew_flag:'PORTE-DRAPEAU', defender_shop_hint:'CREW · ÉQUIPEMENT · BALLONS', defender_best:'MEILLEUR', defender_kills:'KILLS', defender_xp:'XP', defender_crew_count:'CREW', defender_boss_chest:'COFFRE !', defender_gold:'JETONS', defender_final:'COUP DE SIFFLET', defender_touch:'GLISSE POUR BOUGER', defender_shop_open:'BOUTIQUE'},
   es:{mode_defender:'DEFENDER', defender_title:'MODO DEFENDER', defender_sub:'SUPERVIVENCIA DE GRADA', defender_start:'TOCA PARA EMPEZAR', defender_move:'MUEVE · AUTOATAQUE', defender_level:'SUBIR NIVEL', defender_choose:'ELIGE TU CREW', defender_shop:'TIENDA', defender_buy:'COMPRAR', defender_extra:'¿COMPRAR OTRO?', defender_crew:'+1 CREW', defender_tokens:'FICHAS', defender_kickball:'BALÓN KICK', defender_crewman:'MIEMBRO', defender_pause:'PAUSA', defender_resume:'SEGUIR', defender_wave:'OLEADA', defender_survive:'SOBREVIVIDO', defender_wave_clear:'OLEADA SUPERADA', defender_boss:'JEFE', defender_gameover:'GRADA PERDIDA', defender_again:'OTRA VEZ', defender_menu:'MENÚ', defender_upgrade:'MEJORAR', defender_heal:'+PV', defender_speed:'BOTAS', defender_magnet:'BUFANDA', defender_damage:'MEGÁFONO', defender_cooldown:'BOTAS RÁPIDAS', defender_hp:'CALDO', defender_crew_scarf:'CREW BUFANDA', defender_crew_drum:'TAMBOR', defender_crew_flag:'ABANDERADO', defender_shop_hint:'CREW · EQUIPO · BALONES', defender_best:'MEJOR', defender_kills:'BAJAS', defender_xp:'XP', defender_crew_count:'CREW', defender_boss_chest:'¡COFRE!', defender_gold:'FICHAS', defender_final:'FINAL', defender_touch:'ARRASTRA PARA MOVER', defender_shop_open:'TIENDA'},
   de:{mode_defender:'DEFENDER', defender_title:'DEFENDER-MODUS', defender_sub:'TRIBÜNEN-SURVIVAL', defender_start:'TIPPEN ZUM START', defender_move:'BEWEGEN · AUTO-ANGRIFF', defender_level:'LEVEL UP', defender_choose:'CREW WÄHLEN', defender_shop:'SHOP', defender_buy:'KAUFEN', defender_extra:'NOCH EINER?', defender_crew:'+1 CREW', defender_tokens:'JETONS', defender_kickball:'KICK-BALL', defender_crewman:'CREW', defender_pause:'PAUSE', defender_resume:'WEITER', defender_wave:'WELLE', defender_survive:'ÜBERLEBT', defender_wave_clear:'WELLE GESCHAFFT', defender_boss:'BOSS', defender_gameover:'TRIBÜNE VERLOREN', defender_again:'NOCHMAL', defender_menu:'MENÜ', defender_upgrade:'UPGRADE', defender_heal:'+HP', defender_speed:'SCHUHE', defender_magnet:'SCHAL', defender_damage:'MEGAFON', defender_cooldown:'SCHNELLE SCHUHE', defender_hp:'BRÜHE', defender_crew_scarf:'SCHAL-CREW', defender_crew_drum:'TROMMLER', defender_crew_flag:'FAHNENWEDLER', defender_shop_hint:'CREW · GEAR · BÄLLE', defender_best:'BEST', defender_kills:'KILLS', defender_xp:'XP', defender_crew_count:'CREW', defender_boss_chest:'TRUHE!', defender_gold:'JETONS', defender_final:'ABPFIFF', defender_touch:'ZIEHEN ZUM BEWEGEN', defender_shop_open:'SHOP'},
@@ -2386,7 +2396,8 @@ function freshProfile(){
     shootoutUnlocked:false,
     bank:0,                            // the player's persistent money bank — see bankAdd()/bankSpend()
     stripsUnlocked:false,              // premium kit-colour pack — see PREMIUM_STRIPS/activePalette()
-    hasChosenTeam:false                // first-time team-gate — see S.teamGateActive
+    hasChosenTeam:false,               // first-time team-gate — see S.teamGateActive
+    defenderTutorialDone:false         // one-shot DEFENDER teach sequence — see defFreshTutorial()
   };
 }
 
@@ -2633,6 +2644,10 @@ function loadGame(){
       }
       if (defMetaSrc.perm) Object.assign(S.defMeta.perm,defMetaSrc.perm);
     }
+    // a save that already shows DEFENDER runs predates the teach sequence —
+    // those players know the verb, so don't make them sit through (or skip)
+    // a tutorial on their next launch
+    if (S.defMeta.bestWave > 0 || S.defMeta.totalKills > 0) S.profile.defenderTutorialDone = true;
     S.hair = HAIRS[S.character.hairIdx];
     S.skin = SKINS[S.character.skinIdx];
   } catch(e){ /* storage unavailable — start fresh */ }
@@ -2704,6 +2719,10 @@ cv.addEventListener('pointerdown', e=>{
       if (y<52){ S.def.placeMode=null; pushFeedback(t('defender_cancelled'),C.GREY); return; }
       const w=defScreenToWorld(x,y); S.def.placeMode.x=w.x; S.def.placeMode.y=w.y; return;
     }
+    // during the teach sequence only the 'move' phase wants a joystick; every
+    // other phase is a cutscene beat where a tap anywhere means "continue",
+    // so let those presses fall through to the tap-on-release path
+    if (S.def.tut && S.def.tut.phase!=='move') return;
     if (y>=52){ const j=S.def.joystick; j.active=true; j.originX=x; j.originY=y; j.curX=x; j.curY=y; buzz(8); return; }
     return;   // HUD area (y<52): fall through to the plain tap-on-release path below, no drag/scroll setup needed in this mode
   }
@@ -2733,7 +2752,11 @@ cv.addEventListener('pointerup', e=>{
       tapDownX=null; tapDownY=null; dragY=null; S.press=null; return;
     }
     S.def.joystick.active=false;
-    if (tapDownY!==null && tapDownY<52 && tapMoved<TAP_MOVE_THRESHOLD){ tapFeedback(tapDownX,tapDownY,'tap'); tapAt(tapDownX,tapDownY); }
+    // cutscene beats of the teach sequence accept a tap anywhere on screen;
+    // the live run (and the tutorial's own 'move' phase) only reads the HUD
+    // strip, since everything below it belongs to the joystick
+    const tutTapAnywhere = !!(S.def.tut && S.def.tut.phase!=='move');
+    if (tapDownY!==null && (tutTapAnywhere || tapDownY<52) && tapMoved<TAP_MOVE_THRESHOLD){ tapFeedback(tapDownX,tapDownY,'tap'); tapAt(tapDownX,tapDownY); }
     tapDownX=null; tapDownY=null; dragY=null; S.press=null; return;
   }
   // News & Fixtures strip: a horizontal swipe starting inside HUB_RECT
@@ -2875,49 +2898,55 @@ const H_NET_CHEST_SPOTS = [
    1-5 teach one threat at a time, 6-7 are mid-run set pieces, 8-9 remix
    the roster with named elites, 10 is a three-act final. */
 const H_WAVES=[
-  // wave 1 — Wolves — learn: fans and runners only
-  { min:11, interval:.78, team:'LOWER',
-    types:['fan','fan','fan','runner'],
+  // wave 1 — Wolves — the template, and the first real test: a striker who
+  // actually drives the ball at your net, and a heavy whose whole job is to
+  // bodycheck you off him. Small quota on purpose — this is a duel you
+  // repeat two or three times, not a crowd to grind through
+  { min:6, interval:1.05, team:'LOWER',
+    types:['striker','bruiser'],
+    openingPair:['striker','bruiser'],
     event:'none', eventAt:0, breathAfter:0 },
-  // wave 2 — Burnley — tanks: bruisers introduced, then a pack of two
-  { min:18, interval:.68, team:'LOWER',
-    types:['fan','fan','runner','bruiser'],
-    event:'pack', eventAt:30, breathAfter:4,
+  // wave 2 — Burnley — same duel plus pace: runners and the first chargers
+  { min:14, interval:.72, team:'LOWER',
+    types:['striker','bruiser','runner','charger'],
+    openingPair:['striker','bruiser'],
+    event:'pack', eventAt:26, breathAfter:4,
     packTypes:['bruiser','bruiser'], packCount:2 },
-  // wave 3 — West Ham — first boss
-  { min:28, interval:.58, team:'MIDTABLE',
-    types:['fan','runner','bruiser','fan'],
-    event:'boss', eventAt:28, breathAfter:8 },
+  // wave 3 — West Ham — ranged pressure joins, then the first boss
+  { min:24, interval:.60, team:'MIDTABLE',
+    types:['striker','bruiser','runner','thrower','charger'],
+    openingPair:['striker','bruiser'],
+    event:'boss', eventAt:26, breathAfter:7 },
   // wave 4 — Spurs — chargers matter, then a charge pack
-  { min:36, interval:.50, team:'MIDTABLE',
-    types:['fan','runner','charger','charger','bruiser'],
+  { min:34, interval:.50, team:'MIDTABLE',
+    types:['striker','runner','charger','charger','bruiser'],
     event:'pack', eventAt:22, breathAfter:5,
     packTypes:['charger','charger','charger'], packCount:3 },
   // wave 5 — Forest — throwers matter, then a thrower pack
-  { min:46, interval:.44, team:'GIANTS',
-    types:['runner','bruiser','thrower','thrower','charger'],
+  { min:44, interval:.44, team:'GIANTS',
+    types:['striker','bruiser','thrower','thrower','charger'],
     event:'pack', eventAt:25, breathAfter:5,
     packTypes:['thrower','thrower','thrower'], packCount:3 },
   // wave 6 — Leeds · Everton — derby dual-elite moment
-  { min:58, interval:.38, team:'GIANTS',
-    types:['fan','runner','bruiser','charger','thrower'],
+  { min:56, interval:.38, team:'GIANTS',
+    types:['striker','runner','bruiser','charger','thrower'],
     event:'dual_elite', eventAt:30, breathAfter:7 },
   // wave 7 — Newcastle · Chelsea — ultras in the normal pool, plus a boss
-  { min:68, interval:.32, team:'ELITE',
-    types:['bruiser','charger','thrower','ultra','runner'],
+  { min:66, interval:.32, team:'ELITE',
+    types:['bruiser','charger','thrower','ultra','striker'],
     event:'boss', eventAt:28, breathAfter:7 },
   // wave 8 — Liverpool — a timed surge, then calm
-  { min:78, interval:.28, team:'ELITE',
-    types:['ultra','charger','thrower','bruiser','charger'],
+  { min:76, interval:.28, team:'ELITE',
+    types:['ultra','charger','thrower','bruiser','striker'],
     event:'surge', eventAt:25, surgeFor:8, breathAfter:5,
     spawnMultDuringEvent:.55 },
   // wave 9 — City · United — dual named elites (fantasy derby)
-  { min:88, interval:.24, team:'NATIONAL',
-    types:['ultra','charger','thrower','bruiser','ultra'],
+  { min:86, interval:.24, team:'NATIONAL',
+    types:['ultra','charger','thrower','bruiser','striker'],
     event:'dual_elite', eventAt:20, breathAfter:4 },
   // wave 10 — Arsenal — three-act final: boss -> breath -> full-time surge
   { min:95, interval:.22, team:'ICONIC',
-    types:['ultra','charger','thrower','bruiser','ultra'],
+    types:['ultra','charger','thrower','bruiser','striker'],
     event:'final', eventAt:20, breathAfter:8,
     surgeAt:35, surgeFor:20, spawnMultDuringEvent:.50 }
 ];
@@ -2965,14 +2994,23 @@ function defClubKit(id){return H_CLUB_KITS[id]||{primary:CLUB_BY_ID[id]?.color||
 const H_ENEMIES={
   fan:{r:5,hp:20,spd:20,dmg:7,xp:1,col:'#71809b',gold:1},
   runner:{r:4.5,hp:16,spd:31,dmg:6,col:'#4ea8ff',xp:1,gold:1},
-  bruiser:{r:7,hp:62,spd:13,dmg:13,col:'#e8402c',xp:3,gold:2},
+  // the ball carrier with intent: hunts a loose ball from much further out
+  // than the rest of the pack and drives it at the net rather than passing
+  // it around. This is the body the whole "defend the net" fantasy is about
+  // — see defEnemyAim's striker branches
+  striker:{r:5.5,hp:34,spd:27,dmg:8,col:'#3ddc84',xp:2,gold:2,striker:true},
+  // heavies don't just walk at the goal — they bodycheck whoever tries to
+  // intervene (see defEnemyBargeCheck), knocking the player back and stunning
+  // them, and they go down for a full recovery beat when tackled back
+  bruiser:{r:7,hp:62,spd:13,dmg:13,col:'#e8402c',xp:3,gold:2,heavy:true},
   charger:{r:5.5,hp:42,spd:25,dmg:10,col:'#ff8a3d',xp:2,gold:2,charge:true},
   thrower:{r:5,hp:34,spd:16,dmg:9,col:'#c95cf0',xp:3,gold:3,thrower:true},
   ultra:{r:8,hp:105,spd:18,dmg:18,col:'#ffc93c',xp:6,gold:5,bossy:true},
   // pure flood pressure, entirely separate from the squad/ball loop: tiny,
   // 1-hit, fast, ignores the ball completely and sprints straight for the
-  // player's goal (see defRushAim) — a distinct silhouette (drawHoolRush)
-  // so a pour reads instantly as "different threat" at a glance
+  // player's goal (see defRushAim). They wear the wave's kit like everyone
+  // else — what separates them at a glance is being half-size, trailing a
+  // speed streak, and running a dead-straight line (see drawHoolEnemy)
   rush:{r:3.5,hp:1,spd:38,dmg:4,col:'#ff3d7a',xp:1,gold:0}
 };
 const H_WEAPONS={
@@ -3022,6 +3060,13 @@ function defFresh(){
     // stationable Throw-In placement; concedes tracked per-wave, reset in
     // defWaveReset() — wave 1 never calls it so this 0 is its start
     barge:null, placeMode:null, conceded:0,
+    // getting bodychecked by a heavy: a short shove that physically moves the
+    // player, then a 1s stun where input is dead (see defEnemyBargeCheck).
+    // The heavy goes down for its own recovery beat if you tackle it back.
+    stunT:0, knockT:0, knockVX:0, knockVY:0,
+    // the one-shot teach sequence, set by beginDefenderRun() when the profile
+    // has never completed it — null on every later run (see defUpdateTutorial)
+    tut:null,
     camX:H_PLAYER_SPAWN.x, camY:H_PLAYER_SPAWN.y, zoom:H_ZOOM,
     joystick:{active:false,originX:0,originY:0,curX:0,curY:0},
     // rare net-chest pickups — one per goal, 60s cooldown after collect, a
@@ -3091,6 +3136,11 @@ function defEnemySpawn(type,force=false,yOverride){
   const hp = type==='rush' ? d.hp : d.hp*scale;
   Object.assign(e,{type,clubId,x,y,r:d.r,hp,maxhp:hp,spd:d.spd*(1+Math.max(0,h.t/90)*.10),dmg:d.dmg*(1+h.wave*.035),col:d.col,xp:d.xp,gold:d.gold,hit:0,charge:0,shotT:rrange(1.2,2.7),boss:false,
     stunT:0,knockT:0,knockVX:0,knockVY:0,slowT:0,
+    // striker/heavy behaviour flags come straight off the H_ENEMIES entry, so
+    // a set piece that beefs up a body (defSpawnDualElite) keeps them.
+    // recoverT is the downed beat after a tackle; bargeWind/bargeCd drive the
+    // heavy's bodycheck (see defEnemyBargeCheck)
+    striker:!!d.striker, heavy:!!d.heavy, recoverT:0, bargeWind:0, bargeCd:rrange(0,1.2),
     state:'exit',exitT:0,exitDur:rrange(0.4,0.8),spreadAng:(rnd()-0.5)*1.4,
     // possession AI (see defUpdateRun's ball-aware aim selection): pState
     // is the ball-related behaviour layered on top of state/exit-field;
@@ -3281,6 +3331,12 @@ function defUpdateBarge(mover, dt){
         if (bg.stun){ tgt.stunT=Math.max(tgt.stunT,.35); if(bg.shockRadius&&h) h.shockwaves.push({x:mover.x,y:mover.y,t:0,life:.25,rMax:bg.shockRadius,col:C.WHITE}); }
         const kx=tgt.x-mover.x, ky=tgt.y-mover.y, kd=Math.hypot(kx,ky)||1;
         tgt.knockT=.2; tgt.knockVX=kx/kd*(bg.shoveDist/.2); tgt.knockVY=ky/kd*(bg.shoveDist/.2);
+        // tackling a carrier or a heavy puts it on the deck for a fixed beat
+        // — that downtime IS the reward for committing to the tackle, and
+        // it's what makes "intervene, get shoved, shove back" legible. The
+        // light bodies (fans/runners/rush) keep their old brief stun so the
+        // late-wave crowds don't go limp.
+        if (tgt.type==='striker'||tgt.type==='bruiser') tgt.recoverT=H_RECOVER_TIME;
       }
       defBurst(mover.x,mover.y,C.GOLD2,6); SFX.boom(); S.shake=Math.max(S.shake,1.8);
       bg.phase='back'; bg.t=0;
@@ -3291,6 +3347,81 @@ function defUpdateBarge(mover, dt){
   mover.x = bg.toX+(bg.fromX-bg.toX)*frac; mover.y = bg.toY+(bg.fromY-bg.toY)*frac;
   if (frac>=1){ mover.barge=null; return false; }
   return true;
+}
+/* ── the heavy's bodycheck ─────────────────────────────────────────────
+   A bruiser near the player doesn't just grind into them for contact
+   damage: it commits to a shove that physically bounces the player away
+   and leaves them stunned for a second. That's the counter-play the mode
+   was missing — you can't simply stand on the ball carrier, you have to
+   pick your moment, and once you own speed/cooldown upgrades you can beat
+   the wind-up. Tackling the heavy back puts it on the deck for
+   H_RECOVER_TIME (see defUpdateBarge), which is the window to clear.     */
+/* player input as a normalized vector: virtual joystick (offset from where
+   the finger went down, not from the player — a real stick, not "walk toward
+   wherever I tapped"), then keyboard, with a soft deadzone and a linear ramp
+   to full speed. Shared by the live run and the tutorial's move phase, which
+   is the one place outside defUpdateRun where the player drives.          */
+function defInputVector(){
+  const h=S.def; let ix=0,iy=0;
+  if (h && h.joystick.active){
+    const maxR=36, dead=6;
+    const jdx=h.joystick.curX-h.joystick.originX, jdy=h.joystick.curY-h.joystick.originY;
+    const mag=Math.hypot(jdx,jdy);
+    if (mag>dead){ const jt=Math.min(1,(mag-dead)/(maxR-dead)); ix=(jdx/mag)*jt; iy=(jdy/mag)*jt; }
+  }
+  if(H_KEYS['ArrowLeft']||H_KEYS['a'])ix-=1;
+  if(H_KEYS['ArrowRight']||H_KEYS['d'])ix+=1;
+  if(H_KEYS['ArrowUp']||H_KEYS['w'])iy-=1;
+  if(H_KEYS['ArrowDown']||H_KEYS['s'])iy+=1;
+  const il=Math.hypot(ix,iy); if(il>1){ix/=il;iy/=il;}
+  return {ix,iy};
+}
+const H_RECOVER_TIME = 2;          // downed beat after a tackle, striker/heavy only
+const H_BARGE_STUN = 1;            // how long the player's input is dead after a bodycheck
+const H_BARGE_SHOVE = 46;          // how far the shove throws them
+const H_BARGE_RANGE = 26;          // how close a heavy has to be to commit
+const H_BARGE_WINDUP = 0.45;       // the tell — long enough to read and dodge
+const H_BARGE_CD = 3.2;            // per-heavy cooldown between attempts
+// runs per-heavy each frame; returns true while the wind-up/lunge owns this
+// enemy's movement (the caller must skip its own steering that frame)
+function defEnemyBargeCheck(e,dt){
+  const h=S.def; if(!h||!e.heavy) return false;
+  e.bargeCd=Math.max(0,(e.bargeCd||0)-dt);
+  if (e.bargeWind>0){
+    // winding up: planted, flashing, telegraphing the hit
+    e.bargeWind-=dt;
+    if (e.bargeWind<=0){
+      const dx=h.x-e.x, dy=h.y-e.y, d=Math.hypot(dx,dy)||1;
+      // deliberately NOT gated on h.invuln: standing this close means the
+      // heavy's plain contact damage is already ticking, which would leave
+      // invuln permanently up and silently swallow every bodycheck. This is
+      // a telegraphed, dodgeable attack — the counter-play is the wind-up
+      // window, not an invulnerability frame the player can't see.
+      if (d<H_BARGE_RANGE+14){
+        // connected: shove the player clear and take their controls away
+        h.knockT=.22; h.knockVX=dx/d*(H_BARGE_SHOVE/.22); h.knockVY=dy/d*(H_BARGE_SHOVE/.22);
+        h.stunT=H_BARGE_STUN;
+        h.hp-=e.dmg*.6; h.invuln=.5; h.hitFlash=.3;
+        SFX.boom(); S.shake=Math.max(S.shake,4); buzz([30,40,60]);
+        defBurst(h.x,h.y,C.ORANGE,10);
+        h.shockwaves.push({x:e.x,y:e.y,t:0,life:.3,rMax:26,col:C.ORANGE});
+        pushFeedback(t('defender_barged'),C.ORANGE);
+        if(h.hp<=0){h.gameover=true;h.reason='CONTACT';gotoScene('DEFENDER_OVER');}
+      } else {
+        // whiffed — the dodge window paid off
+        defBurst(e.x,e.y,C.GREYDK,5);
+      }
+      e.bargeCd=H_BARGE_CD;
+    }
+    return true;
+  }
+  if (e.bargeCd<=0 && e.state==='field' && (e.recoverT||0)<=0 && e.stunT<=0){
+    if (Math.hypot(h.x-e.x,h.y-e.y)<H_BARGE_RANGE){
+      e.bargeWind=H_BARGE_WINDUP; SFX.defBallTouch();
+      return true;
+    }
+  }
+  return false;
 }
 function defFireWeapon(w){const h=S.def, target=defNearest(w.range||100);
   if(w.kind==='melee'){
@@ -3659,8 +3790,10 @@ function defEnemyAim(e,dt){
     if (e.onBallT<=0){
       e.onBallT=rrange(.4,.7);
       // late waves get greedier: more driving and speculative shooting,
-      // less patient holding
-      const aggression=Math.min(1,(h.wave-1)/7);
+      // less patient holding. A striker is greedy from wave 1 — it's the
+      // designated carrier, so it shoots earlier and lays the ball off far
+      // less often than an ordinary body would
+      const aggression=Math.min(1,(h.wave-1)/7)+(e.striker?.35:0);
       if (distToGoal<130 && rnd()<.25+aggression*.45){
         // speculative shot at the mouth
         const ball=e.carryingBall;
@@ -3669,7 +3802,7 @@ function defEnemyAim(e,dt){
         ball.carrier=null; e.carryingBall=null;
         ball.state='shot'; ball.vx=dx/d*135; ball.vy=dy/d*135; ball.target=null;
         e.pState='advance'; SFX.defKick(); defBurst(ball.x,ball.y,C.WHITE,4);
-      } else if (pressure>=2 || (pressure>=1 && rnd()<.5-aggression*.3)){
+      } else if (!e.striker && (pressure>=2 || (pressure>=1 && rnd()<.5-aggression*.3))){
         // boxed in — look for a teammate in a better spot and lay it off
         let best=null,bestScore=-1e9;
         for (const o of h.enemies){
@@ -3696,9 +3829,11 @@ function defEnemyAim(e,dt){
       // otherwise: keep driving (fall through)
     }
     if (e.carryingBall){
-      // shield up when swarmed, otherwise run at the goal
-      if (pressure>=2) return { x:e.x+(e.x-h.x)*.3, y:e.y+(e.y-h.y)*.3, spd:.45 };
-      return { x:H_PLAYER_GOAL.x, y:H_PLAYER_GOAL.y, spd:1.05 };
+      // shield up when swarmed, otherwise run at the goal. A striker refuses
+      // to be shepherded — it keeps driving even under pressure, which is why
+      // you have to actually tackle it rather than crowd it
+      if (pressure>=2 && !e.striker) return { x:e.x+(e.x-h.x)*.3, y:e.y+(e.y-h.y)*.3, spd:.45 };
+      return { x:H_PLAYER_GOAL.x, y:H_PLAYER_GOAL.y, spd:e.striker?1.15:1.05 };
     }
   }
   // ── find the most interesting ball for this enemy ──
@@ -3716,8 +3851,16 @@ function defEnemyAim(e,dt){
     for (const ball of h.balls) if (ball.state==='pass'&&ball.target===e){ return {x:ball.x,y:ball.y,spd:1.15}; }
     e.pState='advance';
   }
-  // press a loose ball that's genuinely near me
-  if (loose && looseD<110){ e.pState='press'; return {x:loose.x,y:loose.y,spd:1.12}; }
+  // press a loose ball that's genuinely near me — a striker reads the whole
+  // pitch for it, since being first to the ball is its entire job
+  if (loose && looseD<(e.striker?420:110)){ e.pState='press'; return {x:loose.x,y:loose.y,spd:e.striker?1.2:1.12}; }
+  // a heavy escorting a carrier goes hunting whoever is threatening it,
+  // rather than joining the ring — that's the "protect the carrier" mode,
+  // and it's what turns intervening into a decision instead of a free tackle
+  if (e.heavy && carriedBy && carriedBy!==e){
+    const threat=Math.hypot(h.x-carriedBy.x,h.y-carriedBy.y);
+    if (threat<95){ e.pState='protect'; return {x:h.x,y:h.y,spd:1.16}; }
+  }
   // teammate has it: form the travelling RING — a moving grunt shield around
   // the carrier, evenly spaced by each body's stable spawn-order slot (so it
   // holds its shape instead of jittering) and biased toward the player's
@@ -3742,13 +3885,192 @@ function defEnemyAim(e,dt){
   if (bestD>=H_ENEMY_PRESSURE_RANGE){ aimX=H_PLAYER_GOAL.x; aimY=H_PLAYER_GOAL.y; }
   return {x:aimX,y:aimY,spd:1};
 }
+/* ═══════════════════════════════════════════════════════════════════════
+   THE TEACH SEQUENCE — one enemy, one ball, one verb.
+
+   Wave 1 used to be the first thing a new player ever saw, live, with
+   several bodies already on the pitch. Nobody learns "get to the ball and
+   SMACK it out" from that. This runs once per profile, before wave 1
+   exists at all: the camera leaves the player, finds a single striker
+   walking the ball out of the enemy box, freezes, points at the ball,
+   comes back, and then hands control over with the sim still frozen so
+   the only thing that can happen is the thing being taught.
+
+   It owns its whole frame — defUpdateRun bails to it before touching the
+   clock, the wave spawner, or anything else — so no wave state advances
+   and the tutorial can't leak into the run that follows. Every phase is
+   skippable (see the SKIP button in the tutorial HUD).
+   ═══════════════════════════════════════════════════════════════════════ */
+const TUT_PHASES = ['incoming','pan_to_net','dribble','show_ball','pan_to_player','move','celebrate'];
+function defFreshTutorial(){
+  return { phase:'incoming', t:0, enemy:null, ball:null, camTX:0, camTY:0, arrowT:0, promptT:0 };
+}
+// where the camera wants to be for the current phase. Returns null while the
+// camera should just track the player normally.
+function defTutCamTarget(){
+  const h=S.def, tu=h.tut; if(!tu) return null;
+  switch (tu.phase){
+    case 'pan_to_net': case 'dribble': case 'show_ball':
+      // frame the striker once it exists, otherwise the enemy net it walks out of
+      return tu.enemy ? {x:tu.enemy.x,y:tu.enemy.y} : {x:H_ENEMY_NET_X,y:H_PITCH_CY};
+    case 'pan_to_player': return {x:h.x,y:h.y};
+    default: return null;
+  }
+}
+// true while the sim is frozen — no enemy AI, no ball physics, no timers.
+// The 'move' phase is frozen too: the player can walk and SMACK, but nothing
+// walks back at them, which is the whole point of teaching it here.
+function defTutFrozen(){
+  const tu=S.def&&S.def.tut; if(!tu) return false;
+  return tu.phase!=='dribble' && tu.phase!=='celebrate';
+}
+// the phases that take a tap to move past (as opposed to running on a timer)
+function defTutAwaitsTap(){
+  const tu=S.def&&S.def.tut; return !!tu && tu.phase==='show_ball';
+}
+function defTutAdvance(to){
+  const h=S.def, tu=h.tut; if(!tu) return;
+  tu.phase=to; tu.t=0; tu.arrowT=0;
+}
+// finishes the tutorial for good — used by both the successful clear and the
+// SKIP button, so there is exactly one place that hands the run back over
+function defTutFinish(cleared){
+  const h=S.def; if(!h||!h.tut) return;
+  const tu=h.tut;
+  // whatever the tutorial put on the pitch goes with it: a half-dribbled ball
+  // or a surviving striker would otherwise bleed into wave 1's own state.
+  // Both go back to their pools rather than being dropped on the floor.
+  if (tu.enemy){
+    tu.enemy.carryingBall=null;
+    h.enemies=h.enemies.filter(e=>e!==tu.enemy);
+    if (h.freeEnemies.length<80) h.freeEnemies.push(tu.enemy);
+  }
+  if (tu.ball && tu.ball.state!=='cleared'){
+    h.balls=h.balls.filter(bl=>bl!==tu.ball);
+    tu.ball.carrier=null; tu.ball.target=null;
+    if (h.freeBalls.length<8) h.freeBalls.push(tu.ball);
+  }
+  h.tut=null;
+  S.profile.defenderTutorialDone=true; saveGame();
+  // wave 1 starts from a clean sheet regardless of how the tutorial ended
+  h.waveT=0; h.waveSpawned=0; h.spawnT=0; h.conceded=0; h.ballSpawnT=cleared?1.2:0.6;
+  h.stunT=0; h.knockT=0;
+  if (cleared){
+    SFX.crowdRoar(1); spawnConfetti(26);
+    S.shake=Math.max(S.shake,3); S.flash=Math.max(S.flash||0,.2);
+    S.crowdHype=1;
+  }
+}
+// runs the whole teach sequence. Returns true while it owns this frame —
+// defUpdateRun does nothing else at all in that case.
+function defUpdateTutorial(dt){
+  const h=S.def, tu=h.tut; if(!tu) return false;
+  tu.t+=dt; tu.arrowT+=dt;
+  // S.t/S.sceneT are already advanced by update() before it dispatches here,
+  // so bobs and pulses keep running on their own; only the run-local timers
+  // and particles need hand-winding, since defUpdateRun never gets to them
+  h.hitFlash=Math.max(0,h.hitFlash-dt); h.shake=Math.max(0,h.shake-dt*4);
+  for(const p of h.particles){ p.x+=p.vx*dt; p.y+=p.vy*dt; p.t+=dt; }
+  h.particles=h.particles.filter(p=>p.t<p.d);
+
+  switch (tu.phase){
+    case 'incoming':
+      // "WAVE INCOMING" over the player, camera still on them
+      if (tu.t>1.5) defTutAdvance('pan_to_net');
+      break;
+    case 'pan_to_net':
+      // camera scrolls off to the enemy net; the striker walks out as it lands
+      if (!tu.enemy && tu.t>0.9){
+        defEnemySpawn('striker',true,H_PITCH_CY);
+        tu.enemy=h.enemies[h.enemies.length-1];
+        if (tu.enemy){
+          // scripted body: slow, and it never bodychecks or gets bored
+          tu.enemy.state='field'; tu.enemy.exitT=99; tu.enemy.spd=H_ENEMIES.striker.spd*0.42;
+          tu.enemy.x=H_ENEMY_NET_X-10; tu.enemy.y=H_PITCH_CY;
+        }
+        tu.ball=defSpawnBall(H_ENEMY_NET_X-14,H_PITCH_CY);
+        if (tu.ball && tu.enemy){
+          tu.ball.state='carried'; tu.ball.carrier=tu.enemy; tu.enemy.carryingBall=tu.ball;
+        }
+      }
+      if (tu.t>1.9) defTutAdvance('dribble');
+      break;
+    case 'dribble': {
+      // the one un-frozen beat: the striker walks the ball out of the box so
+      // the threat is something the player watched happen, not a still frame
+      const e=tu.enemy, bl=tu.ball;
+      if (e){
+        e.x-=e.spd*dt;
+        if (bl && bl.state==='carried'){ bl.x=e.x-(e.r+4); bl.y=e.y; bl.spin+=dt*5; }
+      }
+      if (tu.t>1.8) defTutAdvance('show_ball');
+      break;
+    }
+    case 'show_ball':
+      // frozen, camera on the ball, arrow growing out of it. Waits for a tap
+      // (defTutAwaitsTap) — handled in defTap, not here
+      break;
+    case 'pan_to_player':
+      if (tu.t>1.1) defTutAdvance('move');
+      break;
+    case 'move': {
+      // frozen sim, live player: walk to the ball and clear it
+      const {ix,iy}=defInputVector();
+      const sp=defSpeed();
+      if (ix||iy){ h.x+=ix*sp*dt; h.y+=iy*sp*dt; h.faceAng=Math.atan2(iy,ix); h.dx=ix*sp; h.dy=iy*sp; }
+      else { h.dx=0; h.dy=0; }
+      h.x=Math.max(H_WORLD.x0+10,Math.min(H_WORLD.x1-10,h.x));
+      h.y=Math.max(H_WORLD.y0+10,Math.min(H_WORLD.y1-10,h.y));
+      const bl=tu.ball;
+      if (bl && bl.state!=='cleared' && Math.hypot(bl.x-h.x,bl.y-h.y)<H_PLAYER.r+bl.r+4){
+        // the taught verb, performed — same defClearBall the real run uses,
+        // so the feedback the player just learned is the exact one they'll get
+        if (tu.enemy){ tu.enemy.carryingBall=null; }
+        bl.carrier=null; bl.state='loose';
+        defClearBall(bl,h.x,h.y);
+        h.tokens+=2;
+        defTutAdvance('celebrate');
+        SFX.crowdRoar(1);
+      }
+      break;
+    }
+    case 'celebrate': {
+      // let the SMACK's own arc play out, then hand over to wave 1
+      const bl=tu.ball;
+      if (bl){ bl.clearT+=dt; bl.x+=bl.vx*dt; bl.y+=bl.vy*dt; bl.vx*=.985; bl.vy*=.985;
+               bl.arcHeight=Math.sin(Math.min(1,bl.clearT/.9)*Math.PI)*26; bl.spin+=dt*14; }
+      if (tu.t>1.6){ defTutFinish(true); return true; }
+      break;
+    }
+  }
+
+  // camera: lerp to the phase's target, or drift back to the player
+  { const tgt=defTutCamTarget()||{x:h.x,y:h.y};
+    const camHalfW=(W/2)/h.zoom, camHalfH=((H-H_ARENA.y)/2)/h.zoom;
+    // slower than the live follow — this is a deliberate scroll the eye can track
+    const k=Math.min(1,2.6*dt);
+    h.camX+=(tgt.x-h.camX)*k; h.camY+=(tgt.y-h.camY)*k;
+    h.camX=Math.max(H_WORLD.x0+camHalfW,Math.min(H_WORLD.x1-camHalfW,h.camX));
+    h.camY=Math.max(H_WORLD.y0+camHalfH,Math.min(H_WORLD.y1-camHalfH,h.camY)); }
+  return true;
+}
 function defUpdateRun(dt){
   const h=S.def;if(!h)return;
+  // the teach sequence owns its frames entirely — before the clock, before
+  // the wave spawner, before anything that would advance the run
+  if (h.tut && defUpdateTutorial(dt)) return;
   h.t+=dt;h.waveT+=dt;h.invuln=Math.max(0,h.invuln-dt);h.hitFlash=Math.max(0,h.hitFlash-dt);h.shake=Math.max(0,h.shake-dt*4);
   const wd=H_WAVES[h.wave-1]||H_WAVES[9];
   defWaveEvent(wd);
   h.spawnT-=dt;
   const density=Math.min(2.8,1+h.t/95);
+  // the teaching waves open on a guaranteed striker + heavy duo rather than a
+  // random draw from the pool, so the lesson ("one of them drives the ball,
+  // the other stops you reaching him") lands on the very first bodies you see
+  if (wd.openingPair && h.waveSpawned===0){
+    const baseY=H_PITCH_CY+rrange(-18,18);
+    wd.openingPair.forEach((tp,i)=> defEnemySpawn(tp,true,baseY+(i-(wd.openingPair.length-1)/2)*20));
+  }
   // ── squad spawner — always gated on the wave's total quota, never on
   // concurrent-alive count, since the wave now only ends on a full wipe ──
   if (h.breathT>0){
@@ -3807,18 +4129,22 @@ function defUpdateRun(dt){
   // instead of the joystick then.
   const bargeOwnsMovement = defUpdateBarge(h, dt);
   const placing = !!(h.placeMode && h.placeMode.active);
-  let ix=0,iy=0, sp=defSpeed();
-  if (!bargeOwnsMovement && !placing){
-    // player input: virtual joystick (offset from where the finger went down,
-    // not from the player — a real stick, not "walk toward wherever I tapped"),
-    // then keyboard, with a soft deadzone and linear ramp to full speed
-    if (h.joystick.active){
-      const maxR=36, dead=6;
-      const jdx=h.joystick.curX-h.joystick.originX, jdy=h.joystick.curY-h.joystick.originY;
-      const mag=Math.hypot(jdx,jdy);
-      if (mag>dead){ const jt=Math.min(1,(mag-dead)/(maxR-dead)); ix=(jdx/mag)*jt; iy=(jdy/mag)*jt; }
-    }
-    if(H_KEYS['ArrowLeft']||H_KEYS['a'])ix-=1;if(H_KEYS['ArrowRight']||H_KEYS['d'])ix+=1;if(H_KEYS['ArrowUp']||H_KEYS['w'])iy-=1;if(H_KEYS['ArrowDown']||H_KEYS['s'])iy+=1;const il=Math.hypot(ix,iy);if(il>1){ix/=il;iy/=il;}
+  // bodychecked by a heavy: first the shove physically carries the player
+  // away, then a full second where the stick does nothing at all. That dead
+  // second is the cost of standing on the carrier without earning the right
+  // to (see defEnemyBargeCheck)
+  let downed=false;
+  if (h.knockT>0){
+    h.knockT=Math.max(0,h.knockT-dt); const kd=h.knockT/.22;
+    h.x+=h.knockVX*kd*dt; h.y+=h.knockVY*kd*dt;
+    downed=true;
+  } else if (h.stunT>0){
+    h.stunT=Math.max(0,h.stunT-dt);
+    downed=true;
+  }
+  let sp=defSpeed();
+  if (!bargeOwnsMovement && !placing && !downed){
+    const {ix,iy} = defInputVector();
     h.dx=ix*sp;h.dy=iy*sp;h.x=h.x+h.dx*dt;h.y=h.y+h.dy*dt;
     if(ix||iy) h.faceAng=Math.atan2(iy,ix);
   } else { h.dx=0; h.dy=0; }
@@ -3863,8 +4189,20 @@ function defUpdateRun(dt){
       e.knockT=Math.max(0,e.knockT-dt); const decay=e.knockT/.2;
       e.x+=e.knockVX*decay*dt; e.y+=e.knockVY*decay*dt;
       dx=h.x-e.x; dy=h.y-e.y; d=Math.hypot(dx,dy)||1;
+    } else if ((e.recoverT||0)>0){
+      // on the deck after a tackle: no movement, no attacks, no bodycheck —
+      // it gets back up after H_RECOVER_TIME and re-paths from wherever the
+      // ball is by then (see defUpdateBarge for who sets this)
+      e.recoverT=Math.max(0,e.recoverT-dt);
+      e.bargeWind=0;
+      if (e.recoverT<=0){ e.pState='advance'; e.bargeCd=.4; }
+      dx=h.x-e.x; dy=h.y-e.y; d=Math.hypot(dx,dy)||1;
     } else if (e.stunT>0){
       e.stunT=Math.max(0,e.stunT-dt);
+      dx=h.x-e.x; dy=h.y-e.y; d=Math.hypot(dx,dy)||1;
+    } else if (defEnemyBargeCheck(e,dt)){
+      // winding up / committing to a bodycheck — the barge owns this body's
+      // movement for its duration, exactly like the player's own barge does
       dx=h.x-e.x; dy=h.y-e.y; d=Math.hypot(dx,dy)||1;
     } else {
       // rush mobs never touch the ball-aware brain — they're pure flood
@@ -4141,6 +4479,16 @@ function defTap(px,py){
     beginDefenderRun();return;
   }
   if(S.scene==='DEFENDER_RUN'){
+    // ── tutorial taps take priority over the live-run HUD ──
+    if (h.tut){
+      if (DEFENDER_TUT_SKIP && px>=DEFENDER_TUT_SKIP[0] && px<=DEFENDER_TUT_SKIP[0]+DEFENDER_TUT_SKIP[2] &&
+          py>=DEFENDER_TUT_SKIP[1] && py<=DEFENDER_TUT_SKIP[1]+DEFENDER_TUT_SKIP[3]){
+        SFX.lock(0,true); defTutFinish(false); return;
+      }
+      if (py<52&&px<70){ defEnd(); gotoScene('TITLE'); return; }   // quitting out still works mid-tutorial
+      if (defTutAwaitsTap()){ SFX.lock(0,true); defTutAdvance('pan_to_player'); return; }
+      return;
+    }
     if(py<52&&px>W-74){defOpenShop();return;}
     if(py<52&&px<70){defEnd();gotoScene('TITLE');return;}
     return;
@@ -4159,7 +4507,12 @@ function defTap(px,py){
   // py>315 hit zone missed them entirely, well below both buttons
   if(S.scene==='DEFENDER_OVER'){if(py>=236&&py<=274){const again=px<W/2;defEnd();if(again){beginDefender();beginDefenderRun();}else gotoScene('TITLE');}return;}
 }
-function beginDefenderRun(){const h=S.def;if(!h)return;gotoScene('DEFENDER_RUN');SFX.whistleShort();}
+function beginDefenderRun(){
+  const h=S.def;if(!h)return;
+  // first DEFENDER run on this profile: teach the verb before wave 1 exists
+  if (!S.profile.defenderTutorialDone) h.tut=defFreshTutorial();
+  gotoScene('DEFENDER_RUN');SFX.whistleShort();
+}
 function drawHoolPlayer(){const h=S.def,kit=playerKit(),blink=h.invuln>0&&Math.floor(S.t*18)%2; if(blink)return;const bob=Math.sin(S.t*7)*.6,x=h.x,y=h.y+bob; b.save();b.globalAlpha=.25; b.fillStyle='#04140b';b.beginPath();b.ellipse(x,y+8,9,3,0,0,6.2832);b.fill();b.restore();
   rect(x-5,y-5,10,10,kit.shirt);circ(x,y-8,3.6,S.skin);rect(x-3.5,y-11,7,3,S.hair);rect(x-7,y-3,3,2,kit.socks);rect(x+4,y-3,3,2,kit.socks);rect(x-5,y+5,3,2,kit.shoe);rect(x+2,y+5,3,2,kit.shoe);txt(String(S.playerNumber),x,y-3,kit.num,5,'center');
 }
@@ -4299,19 +4652,28 @@ function drawHoolPitchWorld(h){
 // pour reads instantly as "different, dangerous, ignore-the-ball" at a
 // glance: a small bright chevron pointed the way it's sprinting, with a
 // faint motion-blur streak trailing it
-function drawHoolRush(e){
+/* Rush mobs used to be abstract pink chevrons — instantly readable as
+   "different threat", but the only bodies on the pitch not wearing a kit,
+   which broke the one visual language everything else shares. They're mini
+   kit-wearing fans now. What keeps them distinct is behaviour made visible:
+   they're half-size, they leave a speed streak nobody else does, and they
+   run a dead-straight line at the net while everyone else orbits the ball.  */
+function drawHoolRushStreak(e){
+  if (S.reduceMotion) return;
   const ang=Math.atan2(H_PLAYER_GOAL.y-e.y, H_PLAYER_GOAL.x-e.x);
   b.save(); b.translate(e.x,e.y); b.rotate(ang);
-  b.fillStyle = e.hit>0 ? C.WHITE : H_ENEMIES.rush.col;
-  b.beginPath(); b.moveTo(4.2,0); b.lineTo(-3,-2.8); b.lineTo(-1.2,0); b.lineTo(-3,2.8); b.closePath(); b.fill();
-  if(!S.reduceMotion){ b.save(); b.globalAlpha=.35; b.strokeStyle=H_ENEMIES.rush.col; b.lineWidth=1.3; b.beginPath(); b.moveTo(-3,0); b.lineTo(-9,0); b.stroke(); b.restore(); }
+  b.globalAlpha=.32; b.strokeStyle=H_ENEMIES.rush.col; b.lineWidth=1.5;
+  b.beginPath(); b.moveTo(-3,-1.4); b.lineTo(-10,-1.4); b.moveTo(-3,1.4); b.lineTo(-10,1.4); b.stroke();
   b.restore();
 }
 function drawHoolEnemy(e){
-  if (e.type==='rush'){ drawHoolRush(e); return; }
+  const isRush = e.type==='rush';
   const kit=defClubKit(e.clubId), bob=Math.sin(S.t*7+e.x*.03+e.y*.02)*.45, x=e.x, y=e.y+bob;
   const spawnPop = e.state==='exit' ? Math.min(1,e.exitT/0.15) : 1;
-  const s=Math.max(.72,Math.min(1.55,e.r/5.4))*spawnPop, hurt=e.hit>0;
+  // rush bodies are forced well below the smallest ordinary enemy so the size
+  // gap alone reads at a glance, rather than deriving from their tiny r
+  const s=(isRush ? .52 : Math.max(.72,Math.min(1.55,e.r/5.4)))*spawnPop, hurt=e.hit>0;
+  if (isRush) drawHoolRushStreak(e);
   const skin=['#e8b88c','#c98b5e','#9c6238','#6f4426','#4a2d1a'][Math.abs((e.clubId||'').length+Math.floor(x+y))%5];
   const hair=['#181210','#3a2414','#5a3a1c','#8a6a38'][Math.abs((e.clubId||'').charCodeAt(0)||0)%4];
   if (e.slowT>0){ b.save(); b.globalAlpha=.4; ring(x,y,e.r+2,C.BLUE,1.2); b.restore(); }
@@ -4331,7 +4693,25 @@ function drawHoolEnemy(e){
   if(e.type==='ultra'||e.boss){rect(-6.2,-13,12.4,2.1,kit.secondary);rect(-5.2,-15,10.4,2.1,kit.primary);}
   else if(e.type==='thrower'){rect(-6.3,-12,12.6,1.7,kit.secondary);}
   else if(e.type==='charger'){rect(-6,-11.8,3.2,2,kit.primary);rect(2.8,-11.8,3.2,2,kit.primary);}
+  // the two wave-1 archetypes get their own read: a captain's armband on the
+  // designated ball carrier, broad shoulder padding on the heavy
+  else if(e.striker){rect(-6.4,-2.6,2.4,1.6,C.GOLD);}
+  else if(e.heavy){rect(-7.2,-4.6,14.4,2.6,kit.secondary);}
   b.restore();
+  // ── state tells, drawn unrotated on top so they survive the body scale ──
+  if ((e.recoverT||0)>0){
+    // on the deck: a low dust puff and a shrinking timer ring, so "I put him
+    // down and I have a window" is legible without reading a number
+    b.save(); b.globalAlpha=.5; b.fillStyle=C.GREYDK;
+    b.beginPath(); b.ellipse(x,y+7,e.r+3,2.4,0,0,6.2832); b.fill(); b.restore();
+    b.save(); b.globalAlpha=.75; ring(x,y,e.r+4,C.GREY,1.2); b.restore();
+    b.save(); b.globalAlpha=.9; b.strokeStyle=C.GOLD2; b.lineWidth=1.6;
+    b.beginPath(); b.arc(x,y,e.r+4,-Math.PI/2,-Math.PI/2+6.2832*(e.recoverT/H_RECOVER_TIME)); b.stroke(); b.restore();
+  } else if ((e.bargeWind||0)>0){
+    // winding up a bodycheck: a hard flashing ring — this is the dodge cue,
+    // so it has to be the loudest thing on the body
+    b.save(); b.globalAlpha=.55+.45*Math.sin(S.t*30); ring(x,y,e.r+5,C.ORANGE,2); b.restore();
+  }
 }
 // Defense units are drawn as small kit-wearing people at their own AI-owned
 // x/y (defUpdateDefenseUnit moves them — this function only reads position,
@@ -4465,16 +4845,26 @@ function drawHoolRun(){const h=S.def;
     rect(pm.x-3.3,pm.y-3.3,6.6,7,spec.col); circ(pm.x,pm.y-5.5,2.4,SKINS[1]);
     b.restore();
   }
+  if (h.tut) drawHoolTutorialWorld(h);
   b.restore();
   drawHoolTerrace();
+  if (h.tut){ drawHoolTutorialHud(h); drawHoolJoystick(); return; }
   drawHoolLadder(h);
   // HUD
   const wdHud=H_WAVES[h.wave-1]||H_WAVES[9];
   const squadLeft=Math.max(0,wdHud.min-h.waveSpawned)+h.enemies.filter(e=>e.type!=='rush').length;
   rect(0,0,W,50,C.INK);rect(0,49,W,1,C.PANELED);txt(t('mode_defender'),4,3,C.GOLD,11);txtFit(H_WAVE_NAMES[h.wave-1],4,17,C.GREYDK,5,82);txt('W'+h.wave+' · '+squadLeft+' LEFT',W/2,3,C.WHITE,9,'center');txt(String(h.kills),W-4,3,C.GOLD2,12,'right');txt(t('defender_kills'),W-4,17,C.GREYDK,5,'right');txt(t('defender_defense')+' '+h.crew.length,W-4,26,C.GREYDK,5,'right');
+  // the live fail meter. The objective itself is stated on the wave banner
+  // below rather than crammed in here — the HUD strip is already full, and
+  // wave start is when the player is actually reading the screen
   txt(t('defender_through_net')+' '+h.conceded+'/'+defConcedeLimit(h.wave),150,17,C.RED,5,'center');
   if (h.balls.length) txt(t('defender_balls')+' '+h.balls.filter(bl=>bl.state!=='cleared').length,150,25,C.GOLD2,5,'center');
-  const hp=Math.max(0,h.hp/h.maxhp);rect(4,22,90,6,C.PANELED);rect(5,23,88*hp,4,hp<.3?C.RED:C.GREEN);txt(Math.ceil(h.hp)+'/'+h.maxhp,4,31,C.GREY,6);txt(t('defender_tokens')+' '+h.tokens,106,31,C.GOLD,7);txt('LV '+h.level,190,31,C.WHITE,7);txt('SHOP',W-4,31,C.GOLD2,7,'right');
+  // h.maxhp holds only the BONUS pool — the real ceiling is defMaxHP(), which
+  // is also what h.hp is seeded to. Reading the bar against h.maxhp made it
+  // start at 200% and draw a green bar straight through the wave counter.
+  // Display-only fix; the gameplay meaning of h.maxhp is left alone.
+  const hpMax=Math.max(1,defMaxHP()), hp=Math.max(0,Math.min(1,h.hp/hpMax));
+  rect(4,22,90,6,C.PANELED);rect(5,23,88*hp,4,hp<.3?C.RED:C.GREEN);txt(Math.ceil(h.hp)+'/'+Math.round(hpMax),4,31,C.GREY,6);txt(t('defender_tokens')+' '+h.tokens,106,31,C.GOLD,7);txt('LV '+h.level,190,31,C.WHITE,7);txt('SHOP',W-4,31,C.GOLD2,7,'right');
   if (h.placeMode && h.placeMode.active) txt(t('defender_place_hint'),W/2,45,C.GOLD2,5,'center');
   const xp=h.xp/h.nextXp;rect(106,41,150,4,C.PANELED);rect(107,42,148*xp,2,C.GOLD2);
   if(h.waveT<2.8){
@@ -4483,15 +4873,94 @@ function drawHoolRun(){const h=S.def;
     txtFit(H_WAVE_NAMES[h.wave-1], W/2, 102, C.WHITE, 10, W-28, 'center');
     const primaryClub = CLUB_BY_ID[(H_WAVE_CLUBS[h.wave-1]||[])[0]];
     if (primaryClub) txtFit(primaryClub.name, W/2, 116, C.GREYDK, 6, W-28, 'center');
+    // restate the job every wave: what you're protecting, and the two ways
+    // you lose it. Cheap to ignore once you know it, impossible to miss the
+    // first few times, and it lands while the pitch is still filling up
+    txtFit(t('defender_objective'), W/2, 136, C.GOLD2, 9, W-28, 'center');
+    txtFit(t('defender_fail_ball'), W/2, 152, C.RED, 6, W-28, 'center');
+    txtFit(t('defender_fail_flood'), W/2, 162, C.RED, 6, W-28, 'center');
     b.restore();
   }
   drawHoolRelegateBanner(h);
   drawHoolJoystick();
 }
+/* ── tutorial rendering ────────────────────────────────────────────────
+   World layer: the two big arrows. Both are the same shape at different
+   anchors — a thick tapered shaft with a head, growing in with an ease so
+   it reads as a gesture being made rather than a static overlay. Deliberately
+   the same gold as the shootout's power/accuracy cores, since it's the same
+   "this is the thing, right here" language.                              */
+function drawHoolBigArrow(x,y,ang,len,grow,col){
+  const g=Math.max(0,Math.min(1,grow)), e=1-Math.pow(1-g,3);
+  if (e<=0.01) return;
+  const L=len*e, wide=7*e, head=13*e;
+  b.save(); b.translate(x,y); b.rotate(ang);
+  b.globalAlpha=.9;
+  b.fillStyle=col;
+  b.beginPath();
+  b.moveTo(0,-wide*.5); b.lineTo(L-head,-wide*.5); b.lineTo(L-head,-head*.55);
+  b.lineTo(L,0); b.lineTo(L-head,head*.55); b.lineTo(L-head,wide*.5); b.lineTo(0,wide*.5);
+  b.closePath(); b.fill();
+  b.globalAlpha=.35; b.strokeStyle=C.WHITE; b.lineWidth=1; b.stroke();
+  b.restore();
+}
+function drawHoolTutorialWorld(h){
+  const tu=h.tut; if(!tu) return;
+  const bl=tu.ball;
+  const pulse=0.5+0.5*Math.sin(S.t*6);
+  if (tu.phase==='show_ball' && bl){
+    // spotlight the ball, then throw a big arrow off it in the direction the
+    // SMACK has to send it — away from the net it's heading for
+    b.save(); b.globalAlpha=.30+pulse*.25; circ(bl.x,bl.y,18,C.GOLD); b.restore();
+    b.save(); b.globalAlpha=.85; ring(bl.x,bl.y,13+pulse*3,C.GOLD2,2); b.restore();
+    // up and out toward the touchline, i.e. anywhere but the player's goal
+    drawHoolBigArrow(bl.x,bl.y-14,-Math.PI/2-0.5,58,Math.min(1,tu.arrowT/0.7),C.GOLD);
+  }
+  if (tu.phase==='move' && bl && bl.state!=='cleared'){
+    // point the player at the ball from where they actually are, so the
+    // arrow keeps meaning something as they move
+    const dx=bl.x-h.x, dy=bl.y-h.y, d=Math.hypot(dx,dy)||1;
+    if (d>16) drawHoolBigArrow(h.x+dx/d*12,h.y+dy/d*12,Math.atan2(dy,dx),Math.min(64,d-14),Math.min(1,tu.arrowT/0.5),C.GOLD);
+    b.save(); b.globalAlpha=.25+pulse*.22; circ(bl.x,bl.y,15,C.GOLD); b.restore();
+    b.save(); b.globalAlpha=.8; ring(bl.x,bl.y,11+pulse*2.5,C.GOLD2,1.8); b.restore();
+  }
+}
+let DEFENDER_TUT_SKIP = null;
+function drawHoolTutorialHud(h){
+  const tu=h.tut; if(!tu) return;
+  // a stripped HUD: none of the live-run counters mean anything yet, and the
+  // wave banner would fight the prompt for the same eyeline
+  rect(0,0,W,50,C.INK); rect(0,49,W,1,C.PANELED);
+  txt(t('mode_defender'),4,3,C.GOLD,11);
+  txt(t('defender_tut_label'),4,17,C.GOLD2,6);
+  txt('QUIT',4,31,C.GREYDK,6);
+  DEFENDER_TUT_SKIP=[W-70,26,62,20];
+  rect(DEFENDER_TUT_SKIP[0],DEFENDER_TUT_SKIP[1],62,20,C.PANELED);
+  rect(DEFENDER_TUT_SKIP[0]+1,DEFENDER_TUT_SKIP[1]+1,60,18,C.PANEL);
+  txt(t('defender_tut_skip'),W-39,32,C.GREY,8,'center');
+
+  // the prompt band — one message at a time, always in the same place so the
+  // player's eye learns where instructions live
+  let msg='', sub='', col=C.GOLD;
+  if (tu.phase==='incoming'){ msg=t('defender_tut_incoming'); col=C.RED; }
+  else if (tu.phase==='pan_to_net'||tu.phase==='dribble'){ msg=t('defender_tut_incoming'); col=C.RED; }
+  else if (tu.phase==='show_ball'){ msg=t('defender_tut_kick'); sub=t('defender_tut_tap'); }
+  else if (tu.phase==='move'){ msg=t('defender_tut_move'); sub=t('defender_touch'); }
+  else if (tu.phase==='celebrate'){ msg=t('defender_tut_done'); col=C.GOLD2; }
+  if (msg){
+    const by=H-72, fade=Math.min(1,tu.t*3.2);
+    b.save(); b.globalAlpha=.94*fade; rect(10,by,W-20,sub?38:26,C.INK); b.restore();
+    b.save(); b.globalAlpha=fade;
+    rect(10,by,W-20,1,col); rect(10,by+(sub?37:25),W-20,1,col);
+    txtFit(msg,W/2,by+7,col,9,W-32,'center');
+    if (sub) txtFit(sub,W/2,by+23,C.GREYDK,6,W-32,'center');
+    b.restore();
+  }
+}
 // BACK buttons for the two DEFENDER-mode screens that used to have no exit
 // path short of the DOM settings gear — see defTap() for the tap handling
 let DEFENDER_INTRO_BACK = null, DEFENDER_LEVELUP_BACK = null;
-function drawHoolIntro(){drawHoolArena();b.save();b.globalAlpha=.68;rect(0,50,W,H-50,C.INK);b.restore();txt(t('defender_title'),W/2,92,C.GOLD,19,'center');txtFit(t('defender_sub'),W/2,118,C.GOLD2,8,W-40,'center');txt('MOVE ANYWHERE',W/2,157,C.WHITE,9,'center');txt('NO AIM',W/2,173,C.GREY,8,'center');txt('AUTO ATTACK',W/2,189,C.GREY,8,'center');txt('WAVES · XP · LEVELS · DEFENSE',W/2,214,C.GREYDK,7,'center');txt(t('defender_best')+' '+Math.floor(S.defMeta.bestTime/60)+':'+String(Math.floor(S.defMeta.bestTime%60)).padStart(2,'0')+' · '+t('defender_wave')+' '+S.defMeta.bestWave,W/2,250,C.GREY,7,'center');rect(32,292,W-64,32,C.GOLD);rect(33,293,W-66,30,'#2b2005');txt(t('defender_start'),W/2,303,C.GOLD2,10,'center');txt(t('defender_touch'),W/2,345,C.GREYDK,7,'center');DEFENDER_INTRO_BACK=[W/2-46,392,92,20];rect(DEFENDER_INTRO_BACK[0],DEFENDER_INTRO_BACK[1],92,20,C.PANELED);rect(DEFENDER_INTRO_BACK[0]+1,DEFENDER_INTRO_BACK[1]+1,90,18,C.PANEL);txt('BACK',W/2,398,C.GREY,9,'center');}
+function drawHoolIntro(){drawHoolArena();b.save();b.globalAlpha=.68;rect(0,50,W,H-50,C.INK);b.restore();txt(t('defender_title'),W/2,92,C.GOLD,19,'center');txtFit(t('defender_sub'),W/2,118,C.GOLD2,8,W-40,'center');txtFit(t('defender_objective'),W/2,152,C.WHITE,11,W-40,'center');txtFit(t('defender_fail_ball'),W/2,172,C.RED,7,W-40,'center');txtFit(t('defender_fail_flood'),W/2,184,C.RED,7,W-40,'center');txtFit(t('defender_kill_secondary'),W/2,200,C.GREYDK,6,W-36,'center');txt('MOVE · NO AIM · AUTO ATTACK',W/2,218,C.GREY,7,'center');txt(t('defender_best')+' '+Math.floor(S.defMeta.bestTime/60)+':'+String(Math.floor(S.defMeta.bestTime%60)).padStart(2,'0')+' · '+t('defender_wave')+' '+S.defMeta.bestWave,W/2,250,C.GREY,7,'center');rect(32,292,W-64,32,C.GOLD);rect(33,293,W-66,30,'#2b2005');txt(t('defender_start'),W/2,303,C.GOLD2,10,'center');txt(t('defender_touch'),W/2,345,C.GREYDK,7,'center');DEFENDER_INTRO_BACK=[W/2-46,392,92,20];rect(DEFENDER_INTRO_BACK[0],DEFENDER_INTRO_BACK[1],92,20,C.PANELED);rect(DEFENDER_INTRO_BACK[0]+1,DEFENDER_INTRO_BACK[1]+1,90,18,C.PANEL);txt('BACK',W/2,398,C.GREY,9,'center');}
 function drawHoolLevel(){drawHoolRun();b.save();b.globalAlpha=.82;rect(0,50,W,H-50,C.INK);b.restore();txt(t('defender_level'),W/2,72,C.GOLD,17,'center');txt('LEVEL '+S.def.level,W/2,94,C.WHITE,8,'center');for(let i=0;i<S.def.levelChoices.length;i++){const c=S.def.levelChoices[i],r=[12+i*69,120,64,118];rect(r[0],r[1],r[2],r[3],C.PANELED);rect(r[0]+1,r[1]+1,r[2]-2,r[3]-2,C.PANEL);let title,desc;if(c.kind==='weapon'){const w=H_WEAPONS[c.id];title=w.name;desc='LV '+(defWeapon(c.id)?.level||0)+' → '+(defWeapon(c.id)?.level+1||1);if(!defWeapon(c.id))desc='NEW WEAPON';}else if(c.kind==='passive'){const p=H_PASSIVES[c.id];title=p.name;desc=p.desc;}else if(c.kind==='gold'){title='18 TOKENS';desc='TAKE THE CASH';}else{title=t('defender_heal');desc='RESTORE HP';}txtFit(title,r[0]+r[2]/2,r[1]+12,C.GOLD2,7,r[2]-8,'center');wrapTextClamped(desc,r[2]-12,6,4).forEach((l,j)=>txt(l,r[0]+r[2]/2,r[1]+38+j*9,C.GREY,6,'center'));txt('▸',r[0]+r[2]/2,r[1]+92,C.WHITE,12,'center');}txt('4 CHOICES · PAUSED',W/2,254,C.GREYDK,6,'center');DEFENDER_LEVELUP_BACK=[W/2-46,282,92,20];rect(DEFENDER_LEVELUP_BACK[0],DEFENDER_LEVELUP_BACK[1],92,20,C.PANELED);rect(DEFENDER_LEVELUP_BACK[0]+1,DEFENDER_LEVELUP_BACK[1]+1,90,18,C.PANEL);txt('BACK',W/2,288,C.GREY,9,'center');}
 function drawHoolShop(){drawHoolRun();b.save();b.globalAlpha=.94;rect(0,50,W,H-50,C.INK);b.restore();txt(t('defender_shop'),W/2,62,C.GOLD,16,'center');txt(t('defender_tokens')+' '+S.def.tokens,W-14,63,C.GOLD2,7,'right');txt(t('defender_buy_defense'),W/2,80,C.GREYDK,6,'center');txt(t('defender_extra'),W/2,88,Math.sin(S.t*7)>0?C.GOLD2:C.GREYDK,5,'center');const items=defShopItems();items.forEach((id,i)=>{const r=defShopRect(i);let label,sub,cost;if(id==='kickball'){label=t('defender_kickball');sub=S.defMeta.kickball?'OWNED · LEVEL UP IN RUN':'AUTO RANGED BALL';cost=28;}else if(id==='throwin'){label=H_CREW.throwin.name;sub='PLANT · TOUCHLINE LOB';cost=H_CREW.throwin.cost;}else if(H_CREW[id]){label=H_CREW[id].name;sub=id==='defense'?'ORBITS YOU · BARGE':H_CREW[id].role==='ball'?'PLANT · RANGED SHOT':'PLANT · SLOW CONE';cost=H_CREW[id].cost;}else{const p=H_PASSIVES[id],own=defPassive(id),lv=own?own.level:0;label=p.name;sub=p.desc;cost=10+lv*8;}const affordable=S.def.tokens>=cost;rect(r[0],r[1],r[2],r[3],affordable?C.GOLD:C.PANELED);rect(r[0]+1,r[1]+1,r[2]-2,r[3]-2,affordable?'#241a06':C.PANEL);txtFit(label,r[0]+8,r[1]+5,affordable?C.GOLD2:C.GREYDK,7,r[2]-58);txtFit(sub,r[0]+8,r[1]+14,C.GREY,5,r[2]-58);txt(String(cost),r[0]+r[2]-8,r[1]+7,affordable?C.GOLD2:C.GREYDK,8,'right');});txt('TAP TOP TO RETURN',W/2,390,C.GREYDK,6,'center');}
 function drawHoolOver(){drawHoolRun();b.save();b.globalAlpha=.84;rect(0,50,W,H-50,C.INK);b.restore();txt(t('defender_gameover'),W/2,102,C.RED,19,'center');
